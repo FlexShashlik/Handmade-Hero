@@ -1,15 +1,22 @@
+; This is my super-poopy .emacs file.
+; I barely know how to program LISP, and I know
+; even less about ELISP.  So take everything in
+; this file with a grain of salt!
+;
+; - Casey
+
 ; Stop Emacs from losing undo information by
 ; setting very high limits for undo buffers
 (setq undo-limit 20000000)
 (setq undo-strong-limit 40000000)
 
 ; Determine the underlying operating system
-(setq sevada-aquamacs (featurep 'aquamacs))
-(setq sevada-linux (featurep 'x))
-(setq sevada-win32 (not (or sevada-aquamacs sevada-linux)))
+(setq casey-aquamacs (featurep 'aquamacs))
+(setq casey-linux (featurep 'x))
+(setq casey-win32 (not (or casey-aquamacs casey-linux)))
 
-(setq sevada-todo-file "w:/handmade/code/todo.txt")
-(setq sevada-log-file "w:/handmade/code/log.txt")
+(setq casey-todo-file "w:/handmade/code/todo.txt")
+(setq casey-log-file "w:/handmade/code/log.txt")
 
 (global-hl-line-mode 1)
 (set-face-background 'hl-line "midnight blue")
@@ -18,14 +25,14 @@
 (scroll-bar-mode -1)
 (setq shift-select-mode nil)
 (setq enable-local-variables nil)
-(setq sevada-font "outline-DejaVu Sans Mono")
+(setq casey-font "outline-DejaVu Sans Mono")
 
-(when sevada-win32 
-  (setq sevada-makescript "build.bat")
-  (setq sevada-font "outline-Liberation Mono")
+(when casey-win32 
+  (setq casey-makescript "build.bat")
+  (setq casey-font "outline-Liberation Mono")
 )
 
-(when sevada-aquamacs 
+(when casey-aquamacs 
   (cua-mode 0) 
   (osx-key-mode 0)
   (tabbar-mode 0)
@@ -38,11 +45,11 @@
   (setq mac-command-key-is-meta t)
   (scroll-bar-mode nil)
   (setq mac-pass-command-to-system nil)
-  (setq sevada-makescript "./build.macosx")
+  (setq casey-makescript "./build.macosx")
 )
 
-(when sevada-linux
-  (setq sevada-makescript "./build.linux")
+(when casey-linux
+  (setq casey-makescript "./build.linux")
   (display-battery-mode 1)
 )
 
@@ -62,10 +69,10 @@
 (global-set-key (read-kbd-macro "\eb")  'ido-switch-buffer)
 (global-set-key (read-kbd-macro "\eB")  'ido-switch-buffer-other-window)
 
-(defun sevada-ediff-setup-windows (buffer-A buffer-B buffer-C control-buffer)
+(defun casey-ediff-setup-windows (buffer-A buffer-B buffer-C control-buffer)
   (ediff-setup-windows-plain buffer-A buffer-B buffer-C control-buffer)
 )
-(setq ediff-window-setup-function 'sevada-ediff-setup-windows)
+(setq ediff-window-setup-function 'casey-ediff-setup-windows)
 (setq ediff-split-window-function 'split-window-horizontally)
 
 ; Turn off the bell on Mac OS X
@@ -73,16 +80,16 @@
 (setq ring-bell-function 'nil-bell)
 
 ; Setup my compilation mode
-(defun sevada-big-fun-compilation-hook ()
+(defun casey-big-fun-compilation-hook ()
   (make-local-variable 'truncate-lines)
   (setq truncate-lines nil)
 )
 
-(add-hook 'compilation-mode-hook 'sevada-big-fun-compilation-hook)
+(add-hook 'compilation-mode-hook 'casey-big-fun-compilation-hook)
 
 (defun load-todo ()
   (interactive)
-  (find-file sevada-todo-file)
+  (find-file casey-todo-file)
 )
 (define-key global-map "\et" 'load-todo)
 
@@ -91,7 +98,7 @@
    (insert (format-time-string "---------------- %a, %d %b %y: %I:%M%p")))
 (defun load-log ()
   (interactive)
-  (find-file sevada-log-file)
+  (find-file casey-log-file)
   (if (boundp 'longlines-mode) ()
     (longlines-mode 1)
     (longlines-show-hard-newlines))
@@ -144,7 +151,7 @@
          ) auto-mode-alist))
 
 ; C++ indentation style
-(defconst sevada-big-fun-c-style
+(defconst casey-big-fun-c-style
   '((c-electric-pound-behavior   . nil)
     (c-tab-always-indent         . t)
     (c-comment-only-line-offset  . 0)
@@ -177,7 +184,6 @@
                                     (access-label          . -4)
                                     (substatement-open     .  0)
                                     (statement-case-intro  .  4)
-                                    (statement-block-intro .  c-lineup-for)
                                     (case-label            .  4)
                                     (block-open            .  0)
                                     (inline-open           .  0)
@@ -186,13 +192,13 @@
                                     (brace-list-open       .  0)
                                     (brace-list-intro      .  4)))
     (c-echo-syntactic-information-p . t))
-    "sevada's Big Fun C++ Style")
+    "Casey's Big Fun C++ Style")
 
 
 ; CC++ mode handling
-(defun sevada-big-fun-c-hook ()
+(defun casey-big-fun-c-hook ()
   ; Set my style for the current buffer
-  (c-add-style "BigFun" sevada-big-fun-c-style t)
+  (c-add-style "BigFun" casey-big-fun-c-style t)
   
   ; 4-space tabs
   (setq tab-width 4
@@ -216,13 +222,7 @@
   ; Abbrevation expansion
   (abbrev-mode 1)
 
-  (cond ((file-exists-p buffer-file-name) t)
-        ((string-match "[.]hin" buffer-file-name) (sevada-source-format))
-        ((string-match "[.]cin" buffer-file-name) (sevada-source-format))
-        ((string-match "[.]h" buffer-file-name) (sevada-header-format))
-        ((string-match "[.]cpp" buffer-file-name) (sevada-source-format)))
-
-  (defun sevada-find-corresponding-file ()
+  (defun casey-find-corresponding-file ()
     "Find the file that corresponds to this one."
     (interactive)
     (setq CorrespondingFileName nil)
@@ -240,20 +240,20 @@
        (setq CorrespondingFileName (concat BaseFileName ".h")))
     (if CorrespondingFileName (find-file CorrespondingFileName)
        (error "Unable to find a corresponding file")))
-  (defun sevada-find-corresponding-file-other-window ()
+  (defun casey-find-corresponding-file-other-window ()
     "Find the file that corresponds to this one."
     (interactive)
     (find-file-other-window buffer-file-name)
-    (sevada-find-corresponding-file)
+    (casey-find-corresponding-file)
     (other-window -1))
-  (define-key c++-mode-map [f12] 'sevada-find-corresponding-file)
-  (define-key c++-mode-map [M-f12] 'sevada-find-corresponding-file-other-window)
+  (define-key c++-mode-map [f12] 'casey-find-corresponding-file)
+  (define-key c++-mode-map [M-f12] 'casey-find-corresponding-file-other-window)
 
   ; Alternate bindings for F-keyless setups (ie MacOS X terminal)
-  (define-key c++-mode-map "\ec" 'sevada-find-corresponding-file)
-  (define-key c++-mode-map "\eC" 'sevada-find-corresponding-file-other-window)
+  (define-key c++-mode-map "\ec" 'casey-find-corresponding-file)
+  (define-key c++-mode-map "\eC" 'casey-find-corresponding-file-other-window)
 
-  (define-key c++-mode-map "\es" 'sevada-save-buffer)
+  (define-key c++-mode-map "\es" 'casey-save-buffer)
 
   (define-key c++-mode-map "\t" 'dabbrev-expand)
   (define-key c++-mode-map [S-tab] 'indent-for-tab-command)
@@ -273,23 +273,23 @@
   (define-key c++-mode-map "\ez" 'kill-region)
 
   ; devenv.com error parsing
-  (add-to-list 'compilation-error-regexp-alist 'sevada-devenv)
-  (add-to-list 'compilation-error-regexp-alist-alist '(sevada-devenv
+  (add-to-list 'compilation-error-regexp-alist 'casey-devenv)
+  (add-to-list 'compilation-error-regexp-alist-alist '(casey-devenv
    "*\\([0-9]+>\\)?\\(\\(?:[a-zA-Z]:\\)?[^:(\t\n]+\\)(\\([0-9]+\\)) : \\(?:see declaration\\|\\(?:warnin\\(g\\)\\|[a-z ]+\\) C[0-9]+:\\)"
     2 3 nil (4)))
 )
 
-(defun sevada-replace-string (FromString ToString)
+(defun casey-replace-string (FromString ToString)
   "Replace a string without moving point."
   (interactive "sReplace: \nsReplace: %s  With: ")
   (save-excursion
     (replace-string FromString ToString)
   ))
-(define-key global-map [f8] 'sevada-replace-string)
+(define-key global-map [f8] 'casey-replace-string)
 
-(add-hook 'c-mode-common-hook 'sevada-big-fun-c-hook)
+(add-hook 'c-mode-common-hook 'casey-big-fun-c-hook)
 
-(defun sevada-save-buffer ()
+(defun casey-save-buffer ()
   "Save the buffer after untabifying it."
   (interactive)
   (save-excursion
@@ -299,7 +299,7 @@
   (save-buffer))
 
 ; TXT mode handling
-(defun sevada-big-fun-text-hook ()
+(defun casey-big-fun-text-hook ()
   ; 4-space tabs
   (setq tab-width 4
         indent-tabs-mode nil)
@@ -308,9 +308,9 @@
   (define-key text-mode-map "\C-m" 'newline-and-indent)
 
   ; Prevent overriding of alt-s
-  (define-key text-mode-map "\es" 'sevada-save-buffer)
+  (define-key text-mode-map "\es" 'casey-save-buffer)
   )
-(add-hook 'text-mode-hook 'sevada-big-fun-text-hook)
+(add-hook 'text-mode-hook 'casey-big-fun-text-hook)
 
 ; Window Commands
 (defun w32-restore-frame ()
@@ -321,8 +321,8 @@
 (defun maximize-frame ()
     "Maximize the current frame"
      (interactive)
-     (when sevada-aquamacs (aquamacs-toggle-full-frame))
-     (when sevada-win32 (w32-send-sys-command 61488)))
+     (when casey-aquamacs (aquamacs-toggle-full-frame))
+     (when casey-win32 (w32-send-sys-command 61488)))
 
 (define-key global-map "\ep" 'maximize-frame)
 (define-key global-map "\ew" 'other-window)
@@ -400,7 +400,7 @@
 (define-key global-map "\e^" 'captilize-word)
 (define-key global-map "\e." 'fill-paragraph)
 
-(defun sevada-replace-in-region (old-word new-word)
+(defun casey-replace-in-region (old-word new-word)
   "Perform a replace-string in the current region."
   (interactive "sReplace: \nsReplace: %s  With: ")
   (save-excursion (save-restriction
@@ -409,10 +409,10 @@
 		    (replace-string old-word new-word)
 		    ))
   )
-(define-key global-map "\el" 'sevada-replace-in-region)
+(define-key global-map "\el" 'casey-replace-in-region)
 
 (define-key global-map "\eo" 'query-replace)
-(define-key global-map "\eO" 'sevada-replace-string)
+(define-key global-map "\eO" 'casey-replace-string)
 
 ; \377 is alt-backspace
 (define-key global-map "\377" 'backward-kill-word)
@@ -436,7 +436,7 @@
 (defun find-project-directory-recursive ()
   "Recursively search for a makefile."
   (interactive)
-  (if (file-exists-p sevada-makescript) t
+  (if (file-exists-p casey-makescript) t
       (cd "../")
       (find-project-directory-recursive)))
 
@@ -465,13 +465,13 @@
 (defun make-without-asking ()
   "Make the current build."
   (interactive)
-  (if (find-project-directory) (compile sevada-makescript))
+  (if (find-project-directory) (compile casey-makescript))
   (other-window 1))
 (define-key global-map "\em" 'make-without-asking)
 
 ; Commands
 (set-variable 'grep-command "grep -irHn ")
-(when sevada-win32
+(when casey-win32
     (set-variable 'grep-command "findstr -s -n -i -l "))
 
 ; Smooth scroll
