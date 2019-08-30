@@ -1,6 +1,70 @@
 #include <windows.h>
 
-LRESULT CALLBACK MainWindowCallback
+#define internal static
+#define local_persist static
+#define global_variable static
+
+global_variable bool IsRunning;
+
+global_variable BITMAPINFO BitmapInfo;
+global_variable void *BitmapMemory;
+global_variable HBITMAP BitmapHandle;
+global_variable HDC BitmapDeviceContext;
+
+internal void
+Win32ResizeDIBSection(int width, int height)
+{
+    if(BitmapHandle)
+    {
+        DeleteObject(BitmapHandle);
+    }
+    
+    if(!BitmapDeviceContext)
+    {
+        BitmapDeviceContext = CreateCompatibleDC(0);
+    }
+    
+    BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
+    BitmapInfo.bmiHeader.biWidth = width;
+    BitmapInfo.bmiHeader.biHeight = height;
+    BitmapInfo.bmiHeader.biPlanes = 1;
+    BitmapInfo.bmiHeader.biBitCount = 32;
+    BitmapInfo.bmiHeader.biCompression = BI_RGB;
+    
+    BitmapHandle = CreateDIBSection
+        (
+            BitmapDeviceContext,
+            &BitmapInfo,
+            DIB_RGB_COLORS,
+            &BitmapMemory,
+            0, 0
+        );
+}
+
+internal void
+Win32UpdateWindow
+(
+    HDC deviceContext,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    StretchDIBits
+        (
+            deviceContext,
+            x, y, width, height,
+            x, y, width, height,
+            BitmapMemory,
+            &BitmapInfo,
+            DIB_RGB_COLORS,
+            SRCCOPY
+        );
+}
+
+LRESULT CALLBACK
+Win32MainWindowCallback
 (
   HWND   window,
   UINT   message,
@@ -14,18 +78,24 @@ LRESULT CALLBACK MainWindowCallback
     {
         case WM_SIZE:
         {
-            OutputDebugStringA("WM_SIZE\n");
+            RECT clientRect;
+            GetClientRect(window, &clientRect);
+        
+            int width = clientRect.right - clientRect.left;
+            int height = clientRect.bottom - clientRect.top;
+            
+            Win32ResizeDIBSection(width, height);
+        } break;
+
+        case WM_CLOSE:
+        {
+            IsRunning = false;
         } break;
 
         case WM_DESTROY:
         {
-            OutputDebugStringA("WM_DESTROY\n");
-        } break;
-        
-        case WM_CLOSE:
-        {
-            OutputDebugStringA("WM_CLOSE\n");
-        } break;
+            IsRunning = false;
+        } break;        
 
         case WM_ACTIVATEAPP:
         {
@@ -36,32 +106,20 @@ LRESULT CALLBACK MainWindowCallback
         {
             PAINTSTRUCT paint;
             HDC deviceContext = BeginPaint(window, &paint);
-
+            
             int x = paint.rcPaint.left;
             int y = paint.rcPaint.top;
-            
+          
             int height = paint.rcPaint.bottom - paint.rcPaint.top;
             int width = paint.rcPaint.right - paint.rcPaint.left;
 
-            static DWORD operation = WHITENESS;
-            
-            PatBlt(deviceContext, x, y, width, height, operation);
-
-            if(operation == WHITENESS)
-            {
-                operation = BLACKNESS;
-            }
-            else
-            {
-                operation = WHITENESS;
-            }
-            
+            Win32UpdateWindow(deviceContext, x, y, width, height);
+                                
             EndPaint(window, &paint);
         } break;
         
         default:
         {
-            //OutputDebugStringA("default\n");
             result = DefWindowProc
                 (
                     window,
@@ -86,7 +144,7 @@ int CALLBACK WinMain
     WNDCLASS windowClass = {};
 
     windowClass.style = CS_OWNDC|CS_HREDRAW|CS_VREDRAW;
-    windowClass.lpfnWndProc = MainWindowCallback;
+    windowClass.lpfnWndProc = Win32MainWindowCallback;
     windowClass.hInstance = instance;
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
@@ -103,18 +161,15 @@ int CALLBACK WinMain
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                0,
-                0,
-                instance,
-                0
+                0, 0, instance, 0
              );
 
         if(windowHandle)
         {
-            MSG message;
-            
-            for(;;)
+            IsRunning = true;
+            while(IsRunning)
             {
+                MSG message;
                 BOOL messageResult = GetMessage(&message, 0, 0, 0);
                 if(messageResult > 0)
                 {
