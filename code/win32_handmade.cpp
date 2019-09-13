@@ -2,10 +2,13 @@
 #include <stdint.h>
 #include <xinput.h>
 #include <dsound.h>
+#include <math.h>
 
 #define internal static
 #define local_persist static
 #define global_variable static
+
+#define Pi32 3.14159265359f
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -18,6 +21,9 @@ typedef int32_t int32;
 typedef int64_t int64;
 
 typedef int32 bool32;
+
+typedef float real32;
+typedef double real64;
 
 struct win32_offscreen_buffer
 {
@@ -372,7 +378,79 @@ Win32MainWindowCallback
     return result;
 }
 
-int CALLBACK WinMain
+struct win32_sound_output
+{
+    // NOTE: Sound test
+    int samplesPerSecond;
+    int toneHz;
+    int16 toneVolume;
+    uint32 runningSampleIndex;
+    int wavePeriod;
+    int bytesPerSample;
+    int secondaryBufferSize;
+};
+
+internal void
+Win32FillSoundBuffer(win32_sound_output *soundOutput, DWORD byteToLock, DWORD bytesToWrite)
+{
+    void *region1;
+    DWORD region1Bytes;
+    void *region2;
+    DWORD region2Bytes;
+                
+    if
+     (
+         SUCCEEDED
+         (
+             SecondaryBuffer->Lock
+             (
+                 byteToLock,
+                 bytesToWrite,
+                 &region1, &region1Bytes,
+                 &region2, &region2Bytes,
+                 0
+             )
+         )
+     )
+    {
+        int16 *sampleOut = (int16 *)region1;
+        DWORD region1SamplesCount = region1Bytes / soundOutput->bytesPerSample;                        
+        for(DWORD sampleIndex = 0; sampleIndex < region1SamplesCount; sampleIndex++)
+        {
+            real32 t = 2.0f * Pi32 * (real32)soundOutput->runningSampleIndex / (real32)soundOutput->wavePeriod;
+            real32 sineValue = sinf(t);
+            int16 sampleValue = (int16)(sineValue * soundOutput->toneVolume);
+                            
+            *sampleOut++ = sampleValue;
+            *sampleOut++ = sampleValue;
+
+            soundOutput->runningSampleIndex++;
+        }
+
+        sampleOut = (int16 *)region2;
+        DWORD region2SamplesCount = region2Bytes / soundOutput->bytesPerSample;                        
+        for(DWORD sampleIndex = 0; sampleIndex < region2SamplesCount; sampleIndex++)
+        {
+            real32 t = 2.0f * Pi32 * (real32)soundOutput->runningSampleIndex / (real32)soundOutput->wavePeriod;
+            real32 sineValue = sinf(t);
+            int16 sampleValue = (int16)(sineValue * soundOutput->toneVolume);
+                            
+            *sampleOut++ = sampleValue;
+            *sampleOut++ = sampleValue;
+
+            soundOutput->runningSampleIndex++;
+        }
+
+        SecondaryBuffer->Unlock
+            (
+                region1, region1Bytes,
+                region2, region2Bytes
+             );
+    }
+}
+
+int
+CALLBACK WinMain
 (
     HINSTANCE instance,
     HINSTANCE prevInstance,
@@ -420,20 +498,26 @@ int CALLBACK WinMain
             // NOTE: Graphics test
             int xOffset = 0;
             int yOffset = 0;
-
-            // NOTE: Sound test
-            int samplesPerSecond = 48000;
-            int toneHz = 256;
-            int16 toneVolume = 3000;
-            uint32 runningSampleIndex = 0;
-            int squareWavePeriod = samplesPerSecond / toneHz;
-            int halfSquareWavePeriod = squareWavePeriod / 2;
-            int bytesPerSample = sizeof(int16) * 2;
-            int secondaryBufferSize = samplesPerSecond * bytesPerSample;
             
-            Win32InitDSound(window, samplesPerSecond, secondaryBufferSize);
+            win32_sound_output soundOutput = {};
+            // NOTE: Sound test
+            soundOutput.samplesPerSecond = 48000;
+            soundOutput.toneHz = 256;
+            soundOutput.toneVolume = 3000;
+            soundOutput.runningSampleIndex = 0;
+            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
+            soundOutput.bytesPerSample = sizeof(int16) * 2;
+            soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
+            
+            Win32FillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);
             SecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+            SoundIsPlaying = true;
                 
+            
+            Win32InitDSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
+            
+            bool32 SoundIsPlaying = false;
+            
             IsRunning = true;
             while(IsRunning)
             {                
@@ -513,67 +597,27 @@ int CALLBACK WinMain
                 DWORD writeCursor;
                 if(SUCCEEDED(SecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
                 {
-                    DWORD byteToLock = (runningSampleIndex * bytesPerSample) % secondaryBufferSize;                    
+                    DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;                    
                     DWORD bytesToWrite;
 
-                    if(byteToLock > playCursor)
+                    if(byteToLock == playCursor)
+                    {                        
+                        bytesToWrite = 0;
+                        
+                    }
+                    else if(byteToLock > playCursor)
                     {
-                        bytesToWrite = secondaryBufferSize - byteToLock;
+                        bytesToWrite = soundOutput.secondaryBufferSize - byteToLock;
                         bytesToWrite += playCursor;
                     }
                     else
                     {
                         bytesToWrite = playCursor - byteToLock;
                     }
-                    
-                    void *region1;
-                    DWORD region1Bytes;
-                    void *region2;
-                    DWORD region2Bytes;
-                
-                    if
-                     (
-                         SUCCEEDED
-                         (
-                             SecondaryBuffer->Lock
-                             (
-                                 byteToLock,
-                                 bytesToWrite,
-                                 &region1, &region1Bytes,
-                                 &region2, &region2Bytes,
-                                 0
-                             )
-                          )
-                     )
-                    {
-                        int16 *sampleOut = (int16 *)region1;
-                        DWORD region1SamplesCount = region1Bytes / bytesPerSample;                        
-                        for(DWORD sampleIndex = 0; sampleIndex < region1SamplesCount; sampleIndex++)
-                        {
-                            int16 sampleValue = ((runningSampleIndex++ / halfSquareWavePeriod) % 2) ? toneVolume : -toneVolume;
-                    
-                            *sampleOut++ = sampleValue;
-                            *sampleOut++ = sampleValue;
-                        }
 
-                        sampleOut = (int16 *)region2;
-                        DWORD region2SamplesCount = region2Bytes / bytesPerSample;                        
-                        for(DWORD sampleIndex = 0; sampleIndex < region2SamplesCount; sampleIndex++)
-                        {
-                            int16 sampleValue = ((runningSampleIndex++ / halfSquareWavePeriod) % 2) ? toneVolume : -toneVolume;
-                    
-                            *sampleOut++ = sampleValue;
-                            *sampleOut++ = sampleValue;
-                        }
-
-                        SecondaryBuffer->Unlock
-                            (
-                                region1, region1Bytes,
-                                region2, region2Bytes
-                            );
-                    }
-                }
-                
+                    Win32FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
+                }               
+               
                 win32_window_dimension dimension = Win32GetWindowDimension(window);                            
                 Win32DisplayBufferInWindow
                     (
