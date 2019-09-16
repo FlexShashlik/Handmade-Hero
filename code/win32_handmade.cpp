@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <xinput.h>
 #include <dsound.h>
 #include <math.h>
@@ -465,6 +466,10 @@ CALLBACK WinMain
     int cmdShow
 )
 {
+    LARGE_INTEGER perfCountFrequencyResult;
+    QueryPerformanceFrequency(&perfCountFrequencyResult);
+    int64 perfCountFrequency = perfCountFrequencyResult.QuadPart;
+    
     Win32LoadXInput();
     
     WNDCLASS windowClass = {};
@@ -520,10 +525,14 @@ CALLBACK WinMain
                         
             Win32FillSoundBuffer(&soundOutput, 0, soundOutput.latencySampleCount * soundOutput.bytesPerSample);
             SecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
-            
+
             IsRunning = true;
+            
+            LARGE_INTEGER lastCounter;
+            QueryPerformanceCounter(&lastCounter);
+            uint64 lastCycleCounter = __rdtsc();
             while(IsRunning)
-            {                
+            {                               
                 MSG message;
                 
                 while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -626,8 +635,24 @@ CALLBACK WinMain
                         dimension.Width,
                         dimension.Height
                     );
+
+                uint64 endCycleCounter = __rdtsc();
                 
-                xOffset++;
+                LARGE_INTEGER endCounter;
+                QueryPerformanceCounter(&endCounter);
+
+                uint64 cyclesElapsed = endCycleCounter - lastCycleCounter;
+                int64 counterElapsed = endCounter.QuadPart - lastCounter.QuadPart;
+                real64 msPerFrame = (1000.0f * (real64)counterElapsed) / (real64)perfCountFrequency;
+                real64 fps = (real64)perfCountFrequency / (real64)counterElapsed;
+                real64 mcpf = (real64)cyclesElapsed / (1000.0f * 1000.0f);
+                
+                char buffer[256];
+                sprintf(buffer, "%.02fms/f, %.02ff/s, %.02fmc/f\n", msPerFrame, fps, mcpf);
+                OutputDebugStringA(buffer);
+                
+                lastCounter = endCounter;
+                lastCycleCounter = endCycleCounter;
             }
         }
         else
