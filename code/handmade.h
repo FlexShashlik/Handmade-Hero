@@ -5,13 +5,21 @@
 // NOTE: Services that the game provides to the platform layer
 struct game_offscreen_buffer
 {
-    void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
+    void *memory;
+    int width;
+    int height;
+    int pitch;
 };
 
-internal void GameUpdateAndRender(game_offscreen_buffer *buffer, int blueOffset, int greenOffset);
+struct game_sound_output_buffer
+{
+    int samplesPerSecond;
+    int sampleCount;
+    int16 *samples;
+};
+
+internal void GameUpdateAndRender(game_offscreen_buffer *buffer, int blueOffset, int greenOffset,
+                                  game_sound_output_buffer *soundBuffer, int toneHz);
 
 #define HANDMADE_H
 #endif
