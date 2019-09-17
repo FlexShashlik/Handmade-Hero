@@ -26,6 +26,8 @@ typedef int32 bool32;
 typedef float real32;
 typedef double real64;
 
+#include "handmade.cpp"
+
 struct win32_offscreen_buffer
 {
     BITMAPINFO Info;
@@ -33,7 +35,6 @@ struct win32_offscreen_buffer
     int Width;
     int Height;
     int Pitch;
-    int BytesPerPixel;
 };
 
 struct win32_window_dimension
@@ -178,27 +179,6 @@ Win32GetWindowDimension(HWND window)
 }               
 
 internal void
-RenderWeirdGradient(win32_offscreen_buffer *buffer, int xOffset, int yOffset)
-{
-    uint8 *row = (uint8 *)buffer->Memory;
-
-    for(int y = 0; y < buffer->Height; y++)
-    {
-        uint32 *pixel = (uint32 *)row;
-        
-        for(int x = 0; x < buffer->Width; x++)
-        {
-            uint8 blue = x + xOffset;
-            uint8 green = y + yOffset;
-            
-            *pixel++ = ((green << 8) | blue);
-        }
-
-        row += buffer->Pitch;
-    }
-}
-
-internal void
 Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
 {
     if(buffer->Memory)
@@ -208,7 +188,6 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
 
     buffer->Width = width;
     buffer->Height = height;
-    buffer->BytesPerPixel = 4;
     
     buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
     buffer->Info.bmiHeader.biWidth = buffer->Width;
@@ -217,7 +196,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
     buffer->Info.bmiHeader.biBitCount = 32;
     buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-    int bmpMemorySize = buffer->Width * buffer->Height * buffer->BytesPerPixel;
+    int bmpMemorySize = buffer->Width * buffer->Height * 4;
     buffer->Memory = VirtualAlloc
         (
             0,
@@ -226,7 +205,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
             PAGE_READWRITE
         );
     
-    buffer->Pitch = buffer->Width * buffer->BytesPerPixel;
+    buffer->Pitch = buffer->Width * 4;
 }
 
 internal void
@@ -601,9 +580,15 @@ CALLBACK WinMain
                         // NOTE: The controller isn't available
                     }
                 }
-                
-                RenderWeirdGradient(&GlobalBackbuffer, xOffset, yOffset);
 
+                game_offscreen_buffer buffer = {};
+                buffer.Memory = GlobalBackbuffer.Memory;
+                buffer.Width = GlobalBackbuffer.Width;
+                buffer.Height = GlobalBackbuffer.Height;
+                buffer.Pitch = GlobalBackbuffer.Pitch;
+                
+                GameUpdateAndRender(&buffer, xOffset, yOffset);
+                
                 // NOTE: DirectSound output test
                 DWORD playCursor;
                 DWORD writeCursor;
@@ -646,10 +631,12 @@ CALLBACK WinMain
                 real64 msPerFrame = (1000.0f * (real64)counterElapsed) / (real64)perfCountFrequency;
                 real64 fps = (real64)perfCountFrequency / (real64)counterElapsed;
                 real64 mcpf = (real64)cyclesElapsed / (1000.0f * 1000.0f);
-                
+
+#if 0
                 char buffer[256];
                 sprintf(buffer, "%.02fms/f, %.02ff/s, %.02fmc/f\n", msPerFrame, fps, mcpf);
                 OutputDebugStringA(buffer);
+#endif
                 
                 lastCounter = endCounter;
                 lastCycleCounter = endCycleCounter;
@@ -657,12 +644,12 @@ CALLBACK WinMain
         }
         else
         {
-            // TODO(sevada): logging
+            // TODO: logging
         }
     }
     else
     {
-        // TODO(sevada): logging
+        // TODO: logging
     }
     
     return 0;
