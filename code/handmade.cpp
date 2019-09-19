@@ -41,10 +41,48 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
     }
 }
 
-internal void
-GameUpdateAndRender(game_offscreen_buffer *buffer, int blueOffset, int greenOffset,
-                    game_sound_output_buffer *soundBuffer, int toneHz)
+internal game_state *
+GameStartup(void)
 {
+    game_state gameState* = new game_state;
+    if(gameState)
+    {
+        gameState->blueOffset = 0;
+        gameState->greenOffset = 0;
+        gameState->toneHz = 256;
+    }
+
+    return gameState;
+}
+
+internal void
+GameShutdown(game_state *gameState)
+{
+    delete gameState;
+}
+
+internal void
+GameUpdateAndRender(game_state *gameState,
+                    game_input *input,
+                    game_offscreen_buffer *buffer,
+                    game_sound_output_buffer *soundBuffer)
+{
+    game_controller_input *input0 = &input->controllers[1];
+    
+    if(input0->isAnalog)
+    {
+        gameState->blueOffset += 4.0f * input0->endX;
+        gameState->toneHz = 256 + (int)(128.0f * (input0->endY));
+    }
+    else
+    {
+    }
+
+    if(input0->down.endedDown)
+    {
+        gameState->greenOffset += 1;
+    }
+    
     // TODO: Allow sample offsets
     GameOutputSound(soundBuffer, toneHz);
     RenderWeirdGradient(buffer, blueOffset, greenOffset);
