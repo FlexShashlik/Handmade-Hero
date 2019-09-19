@@ -1,3 +1,26 @@
+/*
+  NOTE:
+
+  HANDMADE_INTERNAL:
+      0 - for public release
+      1 - for developer only
+
+  HANDMADE_SLOW:
+      0 - no slow code
+      1 - slow code welcome
+ */
+
+#if HANDMADE_SLOW
+#define Assert(expression) if(!(expression)) { *(int *)0 = 0; }
+#else
+#define Assert(expression)
+#endif
+
+#define Kilobytes(value) ((value) * 1024)
+#define Megabytes(value) (Kilobytes(value) * 1024)
+#define Gigabytes(value) (Megabytes(value) * 1024)
+#define Terabytes(value) (Gigabytes(value) * 1024)
+
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
 // TODO: Services that the platform layer provides to the game
@@ -60,6 +83,27 @@ struct game_input
     game_controller_input controllers[4];
 };
 
-internal void GameUpdateAndRender(game_input *input,
-                                  game_offscreen_buffer *buffer,
-                                  game_sound_output_buffer *soundBuffer);
+struct game_state
+{
+    int blueOffset;
+    int greenOffset;
+    int toneHz;
+};
+
+struct game_memory
+{
+    bool32 isInitialized;
+    
+    uint64 permanentStorageSize;
+    void *permanentStorage; // NOTE: REQUIRED to be cleared to zero at startup
+
+    uint64 transientStorageSize;
+    void *transientStorage; // NOTE: REQUIRED to be cleared to zero at startup
+};
+
+internal void GameUpdateAndRender
+(
+    game_memory *memory,
+    game_offscreen_buffer *buffer,
+    game_sound_output_buffer *soundBuffer
+);
