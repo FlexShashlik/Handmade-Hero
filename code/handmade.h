@@ -23,7 +23,33 @@
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
-// TODO: Services that the platform layer provides to the game
+inline uint32
+SafeTruncateUInt64(uint64 value)
+{
+    Assert(value <= 0xFFFFFFFF);
+    uint32 result = (uint32)value;
+
+    return result;
+}
+
+// NOTE: Services that the platform layer provides to the game
+#if HANDMADE_INTERNAL
+/* IMPORTANT:
+
+   These are NOT for doing anything in the shipping game - they
+   are blocking and the write doesn't protect against lost data!
+ */
+
+struct debug_read_file_result
+{
+    uint32 contentsSize;
+    void *contents;
+};
+
+debug_read_file_result DEBUGPlatformReadEntireFile(char *fileName);
+void DEBUGPlatformFreeFileMemory(void *memory);
+bool32 DEBUGPlatformWriteEntireFile(char *fileName, uint32 memorySize, void *memory);
+#endif
 
 // NOTE: Services that the game provides to the platform layer
 struct game_offscreen_buffer

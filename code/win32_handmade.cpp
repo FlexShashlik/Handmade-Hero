@@ -58,6 +58,119 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN pUnkOuter);
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
+internal debug_read_file_result
+DEBUGPlatformReadEntireFile(char *fileName)
+{
+    debug_read_file_result result = {};
+    
+    HANDLE fileHandle = CreateFile
+        (
+            fileName,
+            GENERIC_READ,
+            FILE_SHARE_READ,
+            0,
+            OPEN_EXISTING,
+            0,
+            0
+        );
+
+    if(fileHandle != INVALID_HANDLE_VALUE)
+    {
+        LARGE_INTEGER fileSize;
+        if(GetFileSizeEx(fileHandle, &fileSize))
+        {
+            uint32 fileSize32 = SafeTruncateUInt64(fileSize.QuadPart);
+            result.contents = VirtualAlloc
+                (
+                    0,
+                    fileSize32,
+                    MEM_RESERVE|MEM_COMMIT,
+                    PAGE_READWRITE
+                );
+            
+            if(result.contents)
+            {
+                DWORD bytesRead;
+                if(ReadFile(fileHandle, result.contents, fileSize32, &bytesRead, 0) &&
+                   (fileSize32 == bytesRead))
+                {
+                    // NOTE: File read successfully
+                    result.contentsSize = fileSize32;
+                }
+                else
+                {
+                    DEBUGPlatformFreeFileMemory(result.contents);
+                    result.contents = 0;
+                }
+            }
+            else
+            {
+                // TODO: logging
+            }
+        }
+        else
+        {
+            // TODO: logging
+        }
+
+        CloseHandle(fileHandle);
+    }
+    else
+    {
+        // TODO: logging
+    }
+
+    return result;
+}
+    
+internal void
+DEBUGPlatformFreeFileMemory(void *memory)
+{
+    if(memory)
+    {
+        VirtualFree(memory, 0, MEM_RELEASE);
+    }
+}
+
+internal bool32
+DEBUGPlatformWriteEntireFile(char *fileName, uint32 memorySize, void *memory)
+{
+    bool32 result = false;
+    
+    HANDLE fileHandle = CreateFile
+        (
+            fileName,
+            GENERIC_WRITE,
+            0,
+            0,
+            CREATE_ALWAYS,
+            0,
+            0
+        );
+
+    if(fileHandle != INVALID_HANDLE_VALUE)
+    {       
+        DWORD bytesWritten;
+        if(WriteFile(fileHandle, memory, memorySize, &bytesWritten, 0))
+        {
+            // NOTE: File read successfully
+            result = (memorySize == bytesWritten);
+        }
+        else
+        {
+            // TODO: logging
+        }
+
+        CloseHandle(fileHandle);
+    }
+    else
+    {
+        // TODO: logging
+    }
+
+    return result;
+}
+
 internal void
 Win32LoadXInput(void)
 {
@@ -119,14 +232,17 @@ Win32InitDSound(HWND window, int32 samplesPerSecond, int32 bufferSize)
                     }
                     else
                     {
+                        // TODO: logging
                     }
                 }
                 else
                 {
+                    // TODO: logging
                 }
             }
             else
             {
+                // TODO: logging
             }
 
             DSBUFFERDESC bufferDescription = {};
@@ -141,14 +257,17 @@ Win32InitDSound(HWND window, int32 samplesPerSecond, int32 bufferSize)
             }
             else
             {
+                // TODO: logging
             }          
         }
         else
         {
+            // TODO: logging
         }
     }
     else
     {
+        // TODO: logging
     }
 }
 
