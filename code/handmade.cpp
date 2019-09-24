@@ -31,34 +31,14 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
         
         for(int x = 0; x < buffer->width; x++)
         {
-            uint8 blue = x + blueOffset;
-            uint8 green = y + greenOffset;
+            uint8 blue = (uint8)(x + blueOffset);
+            uint8 green = (uint8)(y + greenOffset);
             
             *pixel++ = ((green << 8) | blue);
         }
 
         row += buffer->pitch;
     }
-}
-
-internal game_state *
-GameStartup(void)
-{
-    game_state *gameState = new game_state;
-    if(gameState)
-    {
-        gameState->blueOffset = 0;
-        gameState->greenOffset = 0;
-        gameState->toneHz = 256;
-    }
-
-    return gameState;
-}
-
-internal void
-GameShutdown(game_state *gameState)
-{
-    delete gameState;
 }
 
 internal void
@@ -92,7 +72,7 @@ GameUpdateAndRender
     game_controller_input *input0 = &input->controllers[0];    
     if(input0->isAnalog)
     {
-        gameState->blueOffset += 4.0f * input0->endX;
+        gameState->blueOffset += (int)(4.0f * input0->endX);
         gameState->toneHz = 256 + (int)(128.0f * (input0->endY));
     }
     else

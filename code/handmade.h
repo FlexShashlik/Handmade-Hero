@@ -46,9 +46,9 @@ struct debug_read_file_result
     void *contents;
 };
 
-debug_read_file_result DEBUGPlatformReadEntireFile(char *fileName);
-void DEBUGPlatformFreeFileMemory(void *memory);
-bool32 DEBUGPlatformWriteEntireFile(char *fileName, uint32 memorySize, void *memory);
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char *fileName);
+internal void DEBUGPlatformFreeFileMemory(void *memory);
+internal bool32 DEBUGPlatformWriteEntireFile(char *fileName, uint32 memorySize, void *memory);
 #endif
 
 // NOTE: Services that the game provides to the platform layer
