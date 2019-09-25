@@ -33,6 +33,7 @@ typedef double real64;
 global_variable bool IsRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable LPDIRECTSOUNDBUFFER SecondaryBuffer;
+global_variable int64 GlobalPerfCountFrequency;
 
 // NOTE: XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -691,6 +692,21 @@ Win32ProcessPendingMessage(game_controller_input *keyboardController)
     }
 }
 
+inline LARGE_INTEGER
+Win32GetWallClock(void)
+{    
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+
+    return result;
+}
+
+inline real32
+Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
+{
+    return (real32)(end.QuadPart - start.QuadPart) / (real32)GlobalPerfCountFrequency;   
+}
+
 int
 CALLBACK WinMain
 (
@@ -702,7 +718,11 @@ CALLBACK WinMain
 {
     LARGE_INTEGER perfCountFrequencyResult;
     QueryPerformanceFrequency(&perfCountFrequencyResult);
-    int64 perfCountFrequency = perfCountFrequencyResult.QuadPart;
+    GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
+
+    // NOTE: Set the Windows scheduler granularity
+    // so that our Sleep() can be more granular
+    bool32 sleepIsGranular = (timeBeginPeriod(1) == TIMERR_NOERROR);
     
     Win32LoadXInput();
     
@@ -714,13 +734,16 @@ CALLBACK WinMain
             1280,
             720
         );
-
     
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
     windowClass.lpfnWndProc = Win32MainWindowCallback;
     windowClass.hInstance = instance;
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
+
+    int monitorRefreshHz = 60;
+    int gameUpdateHz = monitorRefreshHz / 2;
+    real32 targetSecondsPerFrame = 1.0f / (real32) gameUpdateHz;
 
     if(RegisterClass(&windowClass))
     {
@@ -791,9 +814,9 @@ CALLBACK WinMain
 
                 IsRunning = true;
                 
-                LARGE_INTEGER lastCounter;
-                QueryPerformanceCounter(&lastCounter);
-                uint64 lastCycleCounter = __rdtsc();
+                LARGE_INTEGER lastCounter = Win32GetWallClock();
+                
+                uint64 lastCycleCount = __rdtsc();
                 while(IsRunning)
                 {
                     // TODO: Zeroing macro
@@ -1027,7 +1050,38 @@ CALLBACK WinMain
                     {
                         Win32FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite, &soundBuffer);
                     }               
-               
+                                                                     
+                    LARGE_INTEGER workCounter = Win32GetWallClock();
+
+                    real32 workSecondsElapsed = Win32GetSecondsElapsed(lastCounter, workCounter);
+                    real32 secondsElapsedForFrame = workSecondsElapsed;
+                    if(secondsElapsedForFrame < targetSecondsPerFrame)
+                    {
+                        if(sleepIsGranular)
+                        {
+                            DWORD sleepMS = 1000 * (DWORD)(targetSecondsPerFrame - workSecondsElapsed);
+
+                            if(sleepMS > 0)
+                            {
+                                Sleep(sleepMS);
+                            }
+                        }
+
+                        real32 testElapsedTime = Win32GetSecondsElapsed(lastCounter, Win32GetWallClock());
+
+                        Assert(testElapsedTime < targetSecondsPerFrame);
+                        
+                        while(secondsElapsedForFrame < targetSecondsPerFrame)
+                        {
+                            secondsElapsedForFrame = Win32GetSecondsElapsed(lastCounter, Win32GetWallClock());
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Missed frame
+                        // TODO: Logging
+                    }
+
                     win32_window_dimension dimension = Win32GetWindowDimension(window);                            
                     Win32DisplayBufferInWindow
                         (
@@ -1036,30 +1090,25 @@ CALLBACK WinMain
                             dimension.Width,
                             dimension.Height
                          );
+                    
+                    LARGE_INTEGER endCounter = Win32GetWallClock();
+                    real64 msPerFrame = 1000.0f * Win32GetSecondsElapsed(lastCounter, endCounter);
+                    lastCounter = endCounter;
 
-                    uint64 endCycleCounter = __rdtsc();
-                
-                    LARGE_INTEGER endCounter;
-                    QueryPerformanceCounter(&endCounter);
-
-                    uint64 cyclesElapsed = endCycleCounter - lastCycleCounter;
-                    int64 counterElapsed = endCounter.QuadPart - lastCounter.QuadPart;
-                    real64 msPerFrame = (1000.0f * (real64)counterElapsed) / (real64)perfCountFrequency;
-                    real64 fps = (real64)perfCountFrequency / (real64)counterElapsed;
+                    uint64 endCycleCount = __rdtsc();
+                    uint64 cyclesElapsed = endCycleCount - lastCycleCount;
+                    lastCycleCount = endCycleCount;
+                    
+                    real64 fps = 0;
                     real64 mcpf = (real64)cyclesElapsed / (1000.0f * 1000.0f);
 
-#if 0
-                    char buffer[256];
-                    sprintf(buffer, "%.02fms/f, %.02ff/s, %.02fmc/f\n", msPerFrame, fps, mcpf);
-                    OutputDebugStringA(buffer);
-#endif
-                
-                    lastCounter = endCounter;
-                    lastCycleCounter = endCycleCounter;
-
+                    char FPSbuffer[256];
+                    sprintf_s(FPSbuffer, sizeof(FPSbuffer), "%.02fms/f, %.02ff/s, %.02fmc/f\n", msPerFrame, fps, mcpf);
+                    OutputDebugStringA(FPSbuffer);
+                    
                     game_input *temp = newInput;
                     newInput = oldInput;
-                    oldInput = temp;
+                    oldInput = temp;                   
                 }
             }
             else
