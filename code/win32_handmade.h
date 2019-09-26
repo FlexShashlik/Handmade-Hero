@@ -1,16 +1,17 @@
 struct win32_offscreen_buffer
 {
-    BITMAPINFO Info;
-    void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
+    BITMAPINFO info;
+    void *memory;
+    int width;
+    int height;
+    int pitch;
+    int bytesPerPixel;
 };
 
 struct win32_window_dimension
 {
-    int Width;
-    int Height;
+    int width;
+    int height;
 };
 
 struct win32_sound_output
@@ -18,7 +19,13 @@ struct win32_sound_output
     int samplesPerSecond;
     uint32 runningSampleIndex;
     int bytesPerSample;
-    int secondaryBufferSize;
+    DWORD secondaryBufferSize;
     real32 tSine;
     int latencySampleCount;
+};
+
+struct win32_debug_time_marker
+{
+    DWORD playCursor;
+    DWORD writeCursor;
 };
