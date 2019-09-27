@@ -22,10 +22,18 @@ struct win32_sound_output
     DWORD secondaryBufferSize;
     real32 tSine;
     int latencySampleCount;
+    DWORD safetyBytes;
 };
 
 struct win32_debug_time_marker
 {
-    DWORD playCursor;
-    DWORD writeCursor;
+    DWORD outputPlayCursor;
+    DWORD outputWriteCursor;
+    DWORD outputLocation;
+    DWORD outputByteCount;
+
+    DWORD expectedFlipPlayCursor;
+    
+    DWORD flipPlayCursor;
+    DWORD flipWriteCursor;
 };
