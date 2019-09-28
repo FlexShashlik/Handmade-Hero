@@ -10,6 +10,7 @@ REM 32-bit
 REM cl %CommonCompilerFlags% ..\code\win32_handmade.cpp /link -subsystem:windows,5.1  %CommonLinkerFlags%
 
 REM 64-bit
-cl %CommonCompilerFlags% ..\code\handmade.cpp -Fmhandmade.map /LD /link /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSamples
+del *.pdb > NUL 2> NUL
+cl %CommonCompilerFlags% ..\code\handmade.cpp -Fmhandmade.map -LD /link -incremental:no -opt:ref -PDB:handmade_%random%.pdb -EXPORT:GameUpdateAndRender -EXPORT:GameGetSoundSamples
 cl %CommonCompilerFlags% ..\code\win32_handmade.cpp -Fmwin32_handmade.map /link %CommonLinkerFlags%
 popd

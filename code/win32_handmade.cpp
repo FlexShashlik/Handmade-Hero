@@ -148,22 +148,33 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     return result;
 }
 
-struct win32_game_code
+inline FILETIME
+Win32GetLastWriteTime(char *fileName)
 {
-    HMODULE gameCodeDLL;
-    game_update_and_render *updateAndRender;
-    game_get_sound_samples *getSoundSamples;
+    FILETIME lastWriteTime = {};
+    WIN32_FIND_DATA findData;
+    HANDLE fileHandle = FindFirstFileA(fileName, &findData);
 
-    bool32 isValid;
-};
+    if(fileHandle != INVALID_HANDLE_VALUE)
+    {
+        lastWriteTime = findData.ftLastWriteTime;
+        FindClose(fileHandle);
+    }
+
+    return lastWriteTime;
+}
 
 internal win32_game_code
-Win32LoadGameCode(void)
+Win32LoadGameCode(char *sourceDLLName)
 {
     win32_game_code result = {};
 
-    CopyFile("handmade.dll", "handmade_temp.dll", FALSE);
-    result.gameCodeDLL = LoadLibraryA("handmade_temp.dll");
+    char *tempDLLName = "handmade_temp.dll";
+
+    result.lastDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
+
+    CopyFile(sourceDLLName, tempDLLName, FALSE);
+    result.gameCodeDLL = LoadLibraryA(tempDLLName);
     if(result.gameCodeDLL)
     {
         result.updateAndRender = (game_update_and_render *)GetProcAddress(result.gameCodeDLL, "GameUpdateAndRender");
@@ -812,8 +823,7 @@ Win32DebugSyncDisplay
         Assert(thisMarker->outputLocation < soundOutput->secondaryBufferSize);
         Assert(thisMarker->outputByteCount < soundOutput->secondaryBufferSize);
         Assert(thisMarker->flipPlayCursor < soundOutput->secondaryBufferSize);
-        Assert(thisMarker->flipWriteCursor < soundOutput->secondaryBufferSize);
-        
+        Assert(thisMarker->flipWriteCursor < soundOutput->secondaryBufferSize);        
         
         int top = padY;
         int bottom = padY + lineHeight;
@@ -1062,19 +1072,18 @@ CALLBACK WinMain
                 bool32 isSoundValid = false;
                 DWORD audioLatencyBytes = 0;
                 real32 audioLatencySeconds = 0;
-
-                win32_game_code gameCode = Win32LoadGameCode();
-                uint32 loadCounter = 0;
-                                
+                
+                char *sourceDLLName = "handmade.dll";
+                win32_game_code gameCode = Win32LoadGameCode(sourceDLLName);
+                                                
                 uint64 lastCycleCount = __rdtsc();
                 while(IsRunning)
                 {
-                    if(loadCounter++ > 120)
+                    FILETIME newDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
+                    if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&gameCode);
-                        gameCode = Win32LoadGameCode();
-
-                        loadCounter = 0;
+                        gameCode = Win32LoadGameCode(sourceDLLName);
                     }
                     
                     // TODO: Zeroing macro
