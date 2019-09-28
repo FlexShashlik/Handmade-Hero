@@ -1,25 +1,24 @@
 #include "handmade.h"
 
 internal void
-GameOutputSound(game_sound_output_buffer *soundBuffer, int toneHz)
+GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 {
-    local_persist real32 tSine;
     int16 toneVolume = 3000;
-    int wavePeriod = soundBuffer->samplesPerSecond / toneHz;
+    int wavePeriod = soundBuffer->samplesPerSecond / gameState->toneHz;
     int16 *sampleOut = soundBuffer->samples;
     
     for(int sampleIndex = 0; sampleIndex < soundBuffer->sampleCount; sampleIndex++)
     {            
-        real32 sineValue = sinf(tSine);
+        real32 sineValue = sinf(gameState->tSine);
         int16 sampleValue = (int16)(sineValue * toneVolume);
                             
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
             
-        tSine += 2.0f * Pi32 / (real32)wavePeriod;
-        if(tSine > 2.0f * Pi32)
+        gameState->tSine += 2.0f * Pi32 / (real32)wavePeriod;
+        if(gameState->tSine > 2.0f * Pi32)
         {
-            tSine -= 2.0f * Pi32;
+            gameState->tSine -= 2.0f * Pi32;
         }
     }
 }
@@ -45,13 +44,7 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
     }
 }
 
-internal void
-GameUpdateAndRender
-(
-    game_memory *memory,
-    game_input *input,
-    game_offscreen_buffer *buffer
-)
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
@@ -61,14 +54,15 @@ GameUpdateAndRender
     {
         char *fileName = __FILE__;
         
-        debug_read_file_result file = DEBUGPlatformReadEntireFile(fileName);
+        debug_read_file_result file = memory->DEBUGPlatformReadEntireFile(fileName);
         if(file.contents)
         {
-            DEBUGPlatformWriteEntireFile("test.out", file.contentsSize, file.contents);            
-            DEBUGPlatformFreeFileMemory(file.contents);            
+            memory->DEBUGPlatformWriteEntireFile("test.out", file.contentsSize, file.contents);            
+            memory->DEBUGPlatformFreeFileMemory(file.contents);            
         }
                 
         gameState->toneHz = 256;
+        gameState->tSine = 0.0f;
 
         memory->isInitialized = true;
     }
@@ -104,9 +98,16 @@ GameUpdateAndRender
     RenderWeirdGradient(buffer, gameState->blueOffset, gameState->greenOffset);
 }
 
-internal void
-GameGetSoundSamples(game_memory *memory, game_sound_output_buffer *soundBuffer)
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *gameState = (game_state *)memory->permanentStorage;
-    GameOutputSound(soundBuffer, gameState->toneHz);
+    GameOutputSound(gameState, soundBuffer);
 }
+
+#if HANDMADE_WIN32
+#include "windows.h"
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
+{
+    return true;
+}
+#endif
