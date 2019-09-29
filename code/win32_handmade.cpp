@@ -165,11 +165,9 @@ Win32GetLastWriteTime(char *fileName)
 }
 
 internal win32_game_code
-Win32LoadGameCode(char *sourceDLLName)
+Win32LoadGameCode(char *sourceDLLName, char *tempDLLName)
 {
     win32_game_code result = {};
-
-    char *tempDLLName = "handmade_temp.dll";
 
     result.lastDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
 
@@ -937,6 +935,27 @@ Win32DebugSyncDisplay
     }
 }
 
+internal void
+CatStrings
+(
+    size_t sourceASize, char *sourceA,
+    size_t sourceBSize, char *sourceB,
+    size_t destSize, char *dest
+)
+{
+    for(int index = 0; index < sourceASize; index++)
+    {
+        *dest++ = *sourceA++;
+    }
+
+    for(int index = 0; index < sourceBSize; index++)
+    {
+        *dest++ = *sourceB++;
+    }
+
+    *dest++ = 0;
+}
+
 int
 CALLBACK WinMain
 (
@@ -945,7 +964,39 @@ CALLBACK WinMain
     LPSTR cmdLine,
     int cmdShow
 )
-{    
+{
+    // NOTE: Never use MAX_PATH in code, 'cuz it can be dangerous!
+    char exeFileName[MAX_PATH];
+    DWORD sizeOfFileName = GetModuleFileNameA(0, exeFileName, sizeof(exeFileName));
+    char *onePastLastSlash = exeFileName;
+    for(char *scan = exeFileName; *scan; scan++)
+    {
+        if(*scan == '\\')
+        {
+            onePastLastSlash = scan + 1;
+        }
+    }
+
+    char gameCodeDLLFileName[] = "handmade.dll";
+    char gameCodeDLLFullPath[MAX_PATH];
+
+    CatStrings
+        (
+            onePastLastSlash - exeFileName, exeFileName,
+            sizeof(gameCodeDLLFileName) - 1, gameCodeDLLFileName,
+            sizeof(gameCodeDLLFullPath), gameCodeDLLFullPath
+        );
+
+    char gameCodeTempDLLFileName[] = "temp_handmade.dll";
+    char gameCodeTempDLLFullPath[MAX_PATH];
+
+    CatStrings
+        (
+            onePastLastSlash - exeFileName, exeFileName,
+            sizeof(gameCodeTempDLLFileName) - 1, gameCodeTempDLLFileName,
+            sizeof(gameCodeTempDLLFullPath), gameCodeTempDLLFullPath
+        );
+    
     LARGE_INTEGER perfCountFrequencyResult;
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
@@ -1073,17 +1124,16 @@ CALLBACK WinMain
                 DWORD audioLatencyBytes = 0;
                 real32 audioLatencySeconds = 0;
                 
-                char *sourceDLLName = "handmade.dll";
-                win32_game_code gameCode = Win32LoadGameCode(sourceDLLName);
+                win32_game_code gameCode = Win32LoadGameCode(gameCodeDLLFullPath, gameCodeTempDLLFullPath);
                                                 
                 uint64 lastCycleCount = __rdtsc();
                 while(IsRunning)
                 {
-                    FILETIME newDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
+                    FILETIME newDLLWriteTime = Win32GetLastWriteTime(gameCodeDLLFullPath);
                     if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&gameCode);
-                        gameCode = Win32LoadGameCode(sourceDLLName);
+                        gameCode = Win32LoadGameCode(gameCodeDLLFullPath, gameCodeTempDLLFullPath);
                     }
                     
                     // TODO: Zeroing macro
