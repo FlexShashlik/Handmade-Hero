@@ -8,10 +8,13 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
     int16 *sampleOut = soundBuffer->samples;
     
     for(int sampleIndex = 0; sampleIndex < soundBuffer->sampleCount; sampleIndex++)
-    {            
+    {
+#if 0
         real32 sineValue = sinf(gameState->tSine);
         int16 sampleValue = (int16)(sineValue * toneVolume);
-                            
+#else
+        int16 sampleValue = 0;
+#endif
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
             
@@ -44,6 +47,30 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
     }
 }
 
+internal void
+RenderPlayer(game_offscreen_buffer *buffer, int playerX, int playerY)
+{
+    uint8 *endOfBuffer = (uint8 *)buffer->memory + buffer->pitch * buffer->height;
+    
+    uint32 color = 0xFFFFFFFF;
+    int top = playerY;
+    int bottom = playerY + 10;
+
+    for(int x = playerX; x < playerX + 10; x++)
+    {
+        uint8 *pixel = (uint8 *)buffer->memory + x * buffer->bytesPerPixel + top * buffer->pitch;
+        for(int y = top; y < bottom; y++)
+        {
+            if(pixel >= buffer->memory && pixel + 4 <= endOfBuffer)
+            {
+                *(uint32 *)pixel = color;
+            }
+            
+            pixel += buffer->pitch;
+        }
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
@@ -64,6 +91,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameState->toneHz = 256;
         gameState->tSine = 0.0f;
 
+        gameState->playerX = 100;
+        gameState->playerY = 100;
+        
         memory->isInitialized = true;
     }
 
@@ -88,14 +118,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 gameState->blueOffset += 1;
             }
         }
+               
+        gameState->playerX += (int)(4.0f * controller->stickAverageX);
+        gameState->playerY -= (int)(4.0f * controller->stickAverageY);
 
+        // NOTE: Don't do this :DD
+        if(gameState->tJump > 0)
+        {
+            gameState->playerY += (int)(10.0f * sinf(0.5f * Pi32 * gameState->tJump));
+        }
+        
         if(controller->actionDown.endedDown)
         {
-            gameState->greenOffset += 1;
+            gameState->tJump = 4.0f;
         }
+
+        gameState->tJump -= 0.033f;
     }
     
     RenderWeirdGradient(buffer, gameState->blueOffset, gameState->greenOffset);
+    RenderPlayer(buffer, gameState->playerX, gameState->playerY);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

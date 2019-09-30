@@ -42,8 +42,8 @@ typedef double real64;
 
 #define Kilobytes(value) ((value) * 1024)
 #define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) (Megabytes(value) * 1024)
-#define Terabytes(value) (Gigabytes(value) * 1024)
+#define Gigabytes(value) ((uint64)Megabytes(value) * 1024)
+#define Terabytes(value) ((uint64)Gigabytes(value) * 1024)
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
@@ -87,6 +87,7 @@ struct game_offscreen_buffer
     int width;
     int height;
     int pitch;
+    int bytesPerPixel;
 };
 
 struct game_sound_output_buffer
@@ -156,6 +157,10 @@ struct game_state
     int toneHz;
     
     real32 tSine;
+
+    int playerX;
+    int playerY;
+    real32 tJump;
 };
 
 struct game_memory
