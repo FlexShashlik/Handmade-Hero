@@ -388,10 +388,6 @@ Win32MainWindowCallback
     
     switch(message)
     {
-        case WM_SIZE:
-        {
-        } break;
-        
         case WM_ACTIVATEAPP:
         {
             if(wParam)
@@ -678,6 +674,7 @@ Win32PlayBackInput(win32_state *win32State, game_input *newInput)
         
             Win32EndPlayBackInput(win32State);
             Win32BeginPlayBackInput(win32State, playingIndex);
+            ReadFile(win32State->playingHandle, newInput, sizeof(*newInput), &bytesRead, 0);
         }
     }
 }
@@ -1197,7 +1194,7 @@ CALLBACK WinMain
             
             game_memory gameMemory = {};
             gameMemory.permanentStorageSize = Megabytes(64);
-            gameMemory.transientStorageSize = Gigabytes(1);
+            gameMemory.transientStorageSize = Megabytes(100);
             
             gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
@@ -1275,6 +1272,7 @@ CALLBACK WinMain
                             if(XInputGetState(controllerIndex, &controllerState) == ERROR_SUCCESS)
                             {
                                 newController->isConnected = true;
+                                newController->isAnalog = oldController->isAnalog;
                             
                                 // NOTE: this controller is plugged in
                                 XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
@@ -1497,7 +1495,7 @@ CALLBACK WinMain
                             real32 secondsLeftUntilFlip = targetSecondsPerFrame - deltaAudioSeconds;
                             DWORD expectedBytesUntilFlip = (DWORD)((secondsLeftUntilFlip / targetSecondsPerFrame) * (real32)expectedBytesPerFrame);
                             
-                            DWORD expectedFrameBoundaryByte = playCursor + expectedBytesPerFrame;
+                            DWORD expectedFrameBoundaryByte = playCursor + expectedBytesUntilFlip;
                         
                             DWORD safeWriteCursor = writeCursor;
                             if(safeWriteCursor < playCursor)
