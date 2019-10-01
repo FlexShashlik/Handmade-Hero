@@ -48,6 +48,9 @@ struct win32_game_code
     bool32 isValid;
 };
 
+
+// NOTE: Never use MAX_PATH in code, 'cuz it can be dangerous!
+#define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
 struct win32_state
 {
     uint64 totalSize;
@@ -55,7 +58,10 @@ struct win32_state
     
     HANDLE recordingHandle;
     int inputRecordingIndex;
-
+    
     HANDLE playingHandle;
-    int inputPlayingIndex;   
+    int inputPlayingIndex;
+    
+    char exeFileName[WIN32_STATE_FILE_NAME_COUNT];
+    char *onePastLastEXEFileSlash;
 };
