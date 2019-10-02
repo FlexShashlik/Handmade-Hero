@@ -21,7 +21,6 @@ struct win32_sound_output
     int bytesPerSample;
     DWORD secondaryBufferSize;
     real32 tSine;
-    int latencySampleCount;
     DWORD safetyBytes;
 };
 

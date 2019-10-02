@@ -1157,12 +1157,7 @@ CALLBACK WinMain
     windowClass.hInstance = instance;
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
-
-#define monitorRefreshHz 60
-#define gameUpdateHz (monitorRefreshHz / 2)
     
-    real32 targetSecondsPerFrame = 1.0f / (real32) gameUpdateHz;
-
     if(RegisterClass(&windowClass))
     {
         HWND window = CreateWindowExA
@@ -1181,13 +1176,24 @@ CALLBACK WinMain
         if(window)
         {
             win32_sound_output soundOutput = {};
+            int monitorRefreshHz = 60;
+
+            HDC refreshDC = GetDC(window);            
+            int win32RefreshRate = GetDeviceCaps(refreshDC, VREFRESH);
+            ReleaseDC(window, refreshDC);
+            if(win32RefreshRate > 1)
+            {
+                monitorRefreshHz = win32RefreshRate;
+            }
+            
+            real32 gameUpdateHz = monitorRefreshHz / 2.0f;            
+            real32 targetSecondsPerFrame = 1.0f / (real32) gameUpdateHz;
             
             // NOTE: Sound test
             soundOutput.samplesPerSecond = 48000;
             soundOutput.bytesPerSample = sizeof(int16) * 2;
             soundOutput.secondaryBufferSize = soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
-            soundOutput.latencySampleCount = 3 * (soundOutput.samplesPerSecond / gameUpdateHz);
-            soundOutput.safetyBytes = soundOutput.samplesPerSecond * soundOutput.bytesPerSample / gameUpdateHz / 2;
+            soundOutput.safetyBytes = (int)((real32)soundOutput.samplesPerSecond * (real32)soundOutput.bytesPerSample / gameUpdateHz / 2.0f);
                         
             Win32InitDSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
             
@@ -1254,7 +1260,7 @@ CALLBACK WinMain
                 LARGE_INTEGER flipWallClock = Win32GetWallClock();
 
                 int debugTimeMarkersIndex = 0;
-                win32_debug_time_marker debugTimeMarkers[gameUpdateHz / 2] = {};
+                win32_debug_time_marker debugTimeMarkers[30] = {};
                 
                 bool32 isSoundValid = false;
                 DWORD audioLatencyBytes = 0;
@@ -1526,7 +1532,7 @@ CALLBACK WinMain
 
                             DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;                    
 
-                            DWORD expectedBytesPerFrame = (soundOutput.samplesPerSecond * soundOutput.bytesPerSample) / gameUpdateHz;
+                            DWORD expectedBytesPerFrame = (int)((real32)(soundOutput.samplesPerSecond * soundOutput.bytesPerSample) / gameUpdateHz);
                             real32 secondsLeftUntilFlip = targetSecondsPerFrame - deltaAudioSeconds;
                             DWORD expectedBytesUntilFlip = (DWORD)((secondsLeftUntilFlip / targetSecondsPerFrame) * (real32)expectedBytesPerFrame);
                             
