@@ -70,13 +70,18 @@ struct debug_read_file_result
     void *contents;
 };
 
-#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *memory)
+struct thread_context
+{
+    int placeholder;
+};
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(thread_context *thread, void *memory)
 typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *fileName)
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *thread, char *fileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(char *fileName, uint32 memorySize, void *memory)
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(thread_context *thread, char *fileName, uint32 memorySize, void *memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #endif
 
@@ -140,6 +145,11 @@ struct game_controller_input
 
 struct game_input
 {
+    game_button_state mouseButtons[5];
+    int32 mouseX;
+    int32 mouseY;
+    int32 mouseZ;
+    
     game_controller_input controllers[5];
 };
 
@@ -149,19 +159,6 @@ inline game_controller_input *GetController(game_input *input, int unsigned cont
 
     return &input->controllers[controllerIndex];
 }
-
-struct game_state
-{
-    int blueOffset;
-    int greenOffset;
-    int toneHz;
-    
-    real32 tSine;
-
-    int playerX;
-    int playerY;
-    real32 tJump;
-};
 
 struct game_memory
 {
@@ -178,8 +175,21 @@ struct game_memory
     debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 };
 
-#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *memory, game_input *input, game_offscreen_buffer *buffer)
+#define GAME_UPDATE_AND_RENDER(name) void name(thread_context *thread, game_memory *memory, game_input *input, game_offscreen_buffer *buffer)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
-#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *memory, game_sound_output_buffer *soundBuffer)
+#define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *thread, game_memory *memory, game_sound_output_buffer *soundBuffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+
+struct game_state
+{
+    int blueOffset;
+    int greenOffset;
+    int toneHz;
+    
+    real32 tSine;
+
+    int playerX;
+    int playerY;
+    real32 tJump;
+};
