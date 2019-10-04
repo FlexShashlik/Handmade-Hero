@@ -149,6 +149,8 @@ struct game_input
     int32 mouseX;
     int32 mouseY;
     int32 mouseZ;
+
+    real32 deltaTime;
     
     game_controller_input controllers[5];
 };
@@ -183,13 +185,6 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
 struct game_state
 {
-    int blueOffset;
-    int greenOffset;
-    int toneHz;
-    
-    real32 tSine;
-
-    int playerX;
-    int playerY;
-    real32 tJump;
+    real32 playerX;
+    real32 playerY;
 };

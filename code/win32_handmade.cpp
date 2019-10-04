@@ -1197,8 +1197,8 @@ CALLBACK WinMain
     Win32ResizeDIBSection
         (
             &GlobalBackbuffer,
-            1280,
-            720
+            960,
+            540
         );
     
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
@@ -1374,6 +1374,8 @@ CALLBACK WinMain
                 uint64 lastCycleCount = __rdtsc();
                 while(IsRunning)
                 {
+                    newInput->deltaTime = targetSecondsPerFrame;
+                    
                     FILETIME newDLLWriteTime = Win32GetLastWriteTime(gameCodeDLLFullPath);
                     if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
                     {

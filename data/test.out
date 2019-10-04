@@ -136,7 +136,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         gameState->tJump -= 0.033f;
     }
     
-    RenderWeirdGradient(buffer, gameState->blueOffset, gameState->greenOffset);
     RenderPlayer(buffer, gameState->playerX, gameState->playerY);
 
     RenderPlayer(buffer, input->mouseX, input->mouseY);

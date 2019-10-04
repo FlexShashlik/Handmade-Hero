@@ -4,7 +4,7 @@ internal void
 GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 {
     int16 toneVolume = 3000;
-    int wavePeriod = soundBuffer->samplesPerSecond / gameState->toneHz;
+    int wavePeriod = soundBuffer->samplesPerSecond / 400;
     int16 *sampleOut = soundBuffer->samples;
     
     for(int sampleIndex = 0; sampleIndex < soundBuffer->sampleCount; sampleIndex++)
@@ -17,12 +17,13 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 #endif
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
-            
+#if 0
         gameState->tSine += 2.0f * Pi32 / (real32)wavePeriod;
         if(gameState->tSine > 2.0f * Pi32)
         {
             gameState->tSine -= 2.0f * Pi32;
         }
+#endif
     }
 }
 
@@ -47,27 +48,71 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
     }
 }
 
-internal void
-RenderPlayer(game_offscreen_buffer *buffer, int playerX, int playerY)
+internal int32
+RoundReal32ToInt32(real32 value)
 {
+    return (int32)(value + 0.5f);
+}
+
+internal uint32
+RoundReal32ToUInt32(real32 value)
+{
+    return (uint32)(value + 0.5f);
+}
+
+internal void
+DrawRectangle
+(
+    game_offscreen_buffer *buffer,
+    real32 realMinX, real32 realMinY,
+    real32 realMaxX, real32 realMaxY,
+    real32 r, real32 g, real32 b
+)
+{
+    int32 minX = RoundReal32ToInt32(realMinX);
+    int32 minY = RoundReal32ToInt32(realMinY);
+    int32 maxX = RoundReal32ToInt32(realMaxX);
+    int32 maxY = RoundReal32ToInt32(realMaxY);
+
+    if(minX < 0)
+    {
+        minX = 0;
+    }
+
+    if(minY < 0)
+    {
+        minY = 0;
+    }
+
+    if(maxX > buffer->width)
+    {
+        maxX = buffer->width;
+    }
+
+    if(maxY > buffer->height)
+    {
+        maxY = buffer->height;
+    }
+    
     uint8 *endOfBuffer = (uint8 *)buffer->memory + buffer->pitch * buffer->height;
     
-    uint32 color = 0xFFFFFFFF;
-    int top = playerY;
-    int bottom = playerY + 10;
+    uint32 color =
+        (
+            RoundReal32ToUInt32(r * 255.0f) << 16 |
+            RoundReal32ToUInt32(g * 255.0f) << 8 |
+            RoundReal32ToUInt32(b * 255.0f) << 0
+        );
 
-    for(int x = playerX; x < playerX + 10; x++)
+    uint8 *row = (uint8 *)buffer->memory + minX * buffer->bytesPerPixel + minY * buffer->pitch;
+    for(int y = minY; y < maxY; y++)
     {
-        uint8 *pixel = (uint8 *)buffer->memory + x * buffer->bytesPerPixel + top * buffer->pitch;
-        for(int y = top; y < bottom; y++)
-        {
-            if(pixel >= buffer->memory && pixel + 4 <= endOfBuffer)
-            {
-                *(uint32 *)pixel = color;
-            }
-            
-            pixel += buffer->pitch;
+        uint32 *pixel = (uint32 *)row;
+        for(int x = minX; x < maxX + 10; x++)
+        {            
+            *pixel++ = color;            
         }
+        
+        row += buffer->pitch;
     }
 }
 
@@ -79,21 +124,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
     {
-        char *fileName = __FILE__;
-        
-        debug_read_file_result file = memory->DEBUGPlatformReadEntireFile(thread, fileName);
-        if(file.contents)
-        {
-            memory->DEBUGPlatformWriteEntireFile(thread, "test.out", file.contentsSize, file.contents);            
-            memory->DEBUGPlatformFreeFileMemory(thread, file.contents);            
-        }
-                
-        gameState->toneHz = 256;
-        gameState->tSine = 0.0f;
-
-        gameState->playerX = 100;
-        gameState->playerY = 100;
-        
         memory->isInitialized = true;
     }
 
@@ -102,52 +132,93 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         game_controller_input *controller = GetController(input, controllerIndex);    
         if(controller->isAnalog)
         {
-            gameState->blueOffset += (int)(4.0f * controller->stickAverageX);
-            gameState->toneHz = 256 + (int)(128.0f * (controller->stickAverageY));
+            // NOTE: Analog movement
         }
         else
         {
             // NOTE: Digital movement
+            real32 dPlayerX = 0.0f;
+            real32 dPlayerY = 0.0f;
+            
+            if(controller->moveUp.endedDown)
+            {
+                dPlayerY = -1.0f;
+            }
+
+            if(controller->moveDown.endedDown)
+            {
+                dPlayerY = 1.0f;
+            }
 
             if(controller->moveLeft.endedDown)
             {
-                gameState->blueOffset -= 1;
+                dPlayerX = -1.0f;
             }
+
             if(controller->moveRight.endedDown)
             {
-                gameState->blueOffset += 1;
+                dPlayerX = 1.0f;
             }
-        }
-               
-        gameState->playerX += (int)(4.0f * controller->stickAverageX);
-        gameState->playerY -= (int)(4.0f * controller->stickAverageY);
 
-        // NOTE: Don't do this :DD
-        if(gameState->tJump > 0)
-        {
-            gameState->playerY += (int)(10.0f * sinf(0.5f * Pi32 * gameState->tJump));
+            dPlayerX *= 64.0f;
+            dPlayerY *= 64.0f;
+            
+            // TODO: Diagonal will be faster :D
+            gameState->playerX += input->deltaTime * dPlayerX;
+            gameState->playerY += input->deltaTime * dPlayerY;
         }
-        
-        if(controller->actionDown.endedDown)
-        {
-            gameState->tJump = 4.0f;
-        }
-
-        gameState->tJump -= 0.033f;
     }
-    
-    RenderWeirdGradient(buffer, gameState->blueOffset, gameState->greenOffset);
-    RenderPlayer(buffer, gameState->playerX, gameState->playerY);
 
-    RenderPlayer(buffer, input->mouseX, input->mouseY);
-
-    for(int buttonIndex = 0; buttonIndex < ArrayCount(input->mouseButtons); buttonIndex++)
+    uint32 tileMap[9][17] =
     {
-        if(input->mouseButtons[buttonIndex].endedDown)
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
+        {0, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 0},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0, 1},
+        {1, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1}
+    };
+    
+    DrawRectangle(buffer, 0.0f, 0.0f, (real32)buffer->width, (real32)buffer->height, 1.0f, 0.0f, 0.1f);
+    
+    real32 upperLeftX = -30;
+    real32 upperLeftY = 0;
+    real32 tileWidth = 60;
+    real32 tileHeight = 60;
+    for(int row = 0; row < 9; row++)
+    {
+        for(int column = 0; column < 17; column++)
         {
-            RenderPlayer(buffer, 10 + 20 * buttonIndex, 10);
+            uint32 tileID = tileMap[row][column];
+            real32 gray = (tileID == 1) ? 1.0f : 0.5f;
+            
+            real32 minX = upperLeftX + (real32)column * tileWidth;
+            real32 minY = upperLeftY + (real32)row * tileHeight;
+            real32 maxX = minX + tileWidth;
+            real32 maxY = minY + tileHeight;
+            
+            DrawRectangle(buffer, minX, minY, maxX, maxY, gray, gray, gray);
         }
     }
+
+    real32 playerR = 1.0f;
+    real32 playerG = 1.0f;
+    real32 playerB = 0.0f;
+    real32 playerWidth = 0.75f * tileWidth;
+    real32 playerHeight = tileHeight;
+    real32 playerLeft = gameState->playerX - 0.5f * playerWidth;
+    real32 playerTop = gameState->playerY - playerHeight;
+    
+    DrawRectangle
+        (
+            buffer,
+            playerLeft, playerTop,
+            playerLeft + playerWidth, playerTop + playerHeight,
+            playerR, playerG, playerB
+        );
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
