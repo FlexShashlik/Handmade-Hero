@@ -520,20 +520,11 @@ Win32ClearSoundBuffer(win32_sound_output *soundOutput)
     void *region2;
     DWORD region2Bytes;
     
-    if
-     (
-         SUCCEEDED
-         (
-             SecondaryBuffer->Lock
-             (
-                 0,
-                 soundOutput->secondaryBufferSize,
-                 &region1, &region1Bytes,
-                 &region2, &region2Bytes,
-                 0
-             )
-         )
-     )
+    if(SUCCEEDED(SecondaryBuffer->Lock(0,
+                                       soundOutput->secondaryBufferSize,
+                                       &region1, &region1Bytes,
+                                       &region2, &region2Bytes,
+                                       0)))
     {
         uint8 *destSample = (uint8 *)region1;
         for(DWORD byteIndex = 0; byteIndex < region1Bytes; byteIndex++)
@@ -569,20 +560,11 @@ Win32FillSoundBuffer
     void *region2;
     DWORD region2Bytes;
                 
-    if
-     (
-         SUCCEEDED
-         (
-             SecondaryBuffer->Lock
-             (
-                 byteToLock,
-                 bytesToWrite,
-                 &region1, &region1Bytes,
-                 &region2, &region2Bytes,
-                 0
-             )
-         )
-     )
+    if(SUCCEEDED(SecondaryBuffer->Lock(byteToLock,
+                                       bytesToWrite,
+                                       &region1, &region1Bytes,
+                                       &region2, &region2Bytes,
+                                       0)))
     {
         int16 *destSample = (int16 *)region1;
         int16 *sourceSample = sourceBuffer->samples;
