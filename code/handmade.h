@@ -183,6 +183,27 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *thread, game_memory *memory, game_sound_output_buffer *soundBuffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
+struct tile_map
+{
+    int32 countX;
+    int32 countY;
+    
+    real32 upperLeftX;
+    real32 upperLeftY;
+    real32 tileWidth;
+    real32 tileHeight;
+
+    uint32 *tiles;
+};
+
+struct world
+{
+    int32 tileMapCountX;
+    int32 tileMapCountY;
+    
+    tile_map *tileMaps;
+};
+
 struct game_state
 {
     real32 playerX;

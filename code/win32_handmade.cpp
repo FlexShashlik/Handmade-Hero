@@ -46,12 +46,12 @@ CatStrings
     size_t destSize, char *dest
 )
 {
-    for(int index = 0; index < sourceASize; index++)
+    for(int32 index = 0; index < sourceASize; index++)
     {
         *dest++ = *sourceA++;
     }
 
-    for(int index = 0; index < sourceBSize; index++)
+    for(int32 index = 0; index < sourceBSize; index++)
     {
         *dest++ = *sourceB++;
     }
@@ -76,7 +76,7 @@ Win32GetEXEFileName(win32_state *state)
 internal int
 StringLength(char *string)
 {
-    int count = 0;
+    int32 count = 0;
     while(*string++)
     {
         count++;
@@ -88,7 +88,7 @@ StringLength(char *string)
 internal void Win32BuildEXEPathFileName
 (
     win32_state *state, char *fileName,
-    int destCount, char *dest
+    int32 destCount, char *dest
 )
 {
     CatStrings
@@ -381,7 +381,7 @@ Win32GetWindowDimension(HWND window)
 }               
 
 internal void
-Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
+Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int32 width, int32 height)
 {
     if(buffer->memory)
     {
@@ -400,7 +400,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
     buffer->info.bmiHeader.biBitCount = 32;
     buffer->info.bmiHeader.biCompression = BI_RGB;
 
-    int bmpMemorySize = buffer->width * buffer->height * buffer->bytesPerPixel;
+    int32 bmpMemorySize = buffer->width * buffer->height * buffer->bytesPerPixel;
     buffer->memory = VirtualAlloc
         (
             0,
@@ -413,19 +413,24 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int width, int height)
 }
 
 internal void
-Win32DisplayBufferInWindow
-(
-    win32_offscreen_buffer *buffer,
-    HDC deviceContext,
-    int windowWidth,
-    int windowHeight
-)
+Win32DisplayBufferInWindow(win32_offscreen_buffer *buffer,
+                           HDC deviceContext,
+                           int32 windowWidth,
+                           int32 windowHeight)
 {
+    int32 offsetX = 10;
+    int32 offsetY = 10;
+    
+    PatBlt(deviceContext, 0, 0, windowWidth, offsetY, BLACKNESS);
+    PatBlt(deviceContext, 0, offsetY + buffer->height, windowWidth, windowHeight, BLACKNESS);
+    PatBlt(deviceContext, 0, 0, offsetX, windowHeight, BLACKNESS);
+    PatBlt(deviceContext, offsetX + buffer->width, 0, windowWidth, windowHeight, BLACKNESS);
+    
     // NOTE: Always blit 1-to-1 pixel for debug
     StretchDIBits
         (
             deviceContext,
-            0, 0, buffer->width, buffer->height,
+            offsetX, offsetY, buffer->width, buffer->height,
             0, 0, buffer->width, buffer->height,
             buffer->memory,
             &buffer->info,
@@ -435,13 +440,10 @@ Win32DisplayBufferInWindow
 }
 
 internal LRESULT CALLBACK
-Win32MainWindowCallback
-(
-  HWND   window,
-  UINT   message,
-  WPARAM wParam,
-  LPARAM lParam
-)
+Win32MainWindowCallback(HWND   window,
+                        UINT   message,
+                        WPARAM wParam,
+                        LPARAM lParam)
 {
     LRESULT result = 0;
     
@@ -655,7 +657,7 @@ Win32ProcessXInputStickValue(SHORT value, SHORT deadZoneThreshold)
 }
 
 internal void
-Win32GetInputFileLocation(win32_state *state, bool32 isInput, int slotIndex, int destCount, char *dest)
+Win32GetInputFileLocation(win32_state *state, bool32 isInput, int32 slotIndex, int32 destCount, char *dest)
 {
     char temp[64];
     wsprintf(temp, "loop_edit_%d_%s.hmi", slotIndex, isInput ? "input" : "state");
@@ -663,7 +665,7 @@ Win32GetInputFileLocation(win32_state *state, bool32 isInput, int slotIndex, int
 }
 
 internal win32_replay_buffer *
-Win32GetReplayBuffer(win32_state *state, int unsigned index)
+Win32GetReplayBuffer(win32_state *state, uint32 index)
 {
     Assert(index < ArrayCount(state->replayBuffers));
     win32_replay_buffer *result = &state->replayBuffers[index];
@@ -672,7 +674,7 @@ Win32GetReplayBuffer(win32_state *state, int unsigned index)
 }
 
 internal void
-Win32BeginRecordingInput(win32_state *state, int inputRecordingIndex)
+Win32BeginRecordingInput(win32_state *state, int32 inputRecordingIndex)
 {
     win32_replay_buffer *replayBuffer = Win32GetReplayBuffer(state, inputRecordingIndex);
     if(replayBuffer->memoryBlock)
@@ -725,7 +727,7 @@ Win32RecordInput(win32_state *state, game_input *newInput)
 }
 
 internal void
-Win32BeginPlayBackInput(win32_state *state, int inputPlayingIndex)
+Win32BeginPlayBackInput(win32_state *state, int32 inputPlayingIndex)
 {
     win32_replay_buffer *replayBuffer = Win32GetReplayBuffer(state, inputPlayingIndex);
             
@@ -780,7 +782,7 @@ Win32PlayBackInput(win32_state *state, game_input *newInput)
         if(bytesRead == 0)
         {
             // NOTE: The end of the stream
-            int playingIndex = state->inputPlayingIndex;
+            int32 playingIndex = state->inputPlayingIndex;
         
             Win32EndPlayBackInput(state);
             Win32BeginPlayBackInput(state, playingIndex);
@@ -808,8 +810,8 @@ Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardCo
             case WM_KEYUP:
             {
                 uint32 virtualKeyCode = (uint32)message.wParam;
-                bool wasDown = ((message.lParam & (1 << 30)) != 0);
-                bool isDown = ((message.lParam & (1 << 31)) == 0);
+                bool32 wasDown = ((message.lParam & (1 << 30)) != 0);
+                bool32 isDown = ((message.lParam & (1 << 31)) == 0);
 
                 if(wasDown != isDown)
                 {
@@ -976,7 +978,7 @@ Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
 
 #if 0
 internal void
-Win32DebugDrawVertical(win32_offscreen_buffer *buffer, int x, int top, int bottom, uint32 color)
+Win32DebugDrawVertical(win32_offscreen_buffer *buffer, int32 x, int32 top, int32 bottom, uint32 color)
 {
     if(top < 0)
     {
@@ -991,7 +993,7 @@ Win32DebugDrawVertical(win32_offscreen_buffer *buffer, int x, int top, int botto
     if(x >= 0 && x <= buffer->width)
     {
         uint8 *pixel = (uint8 *)buffer->memory + x * buffer->bytesPerPixel + top * buffer->pitch;
-        for(int y = top; y < bottom; y++)
+        for(int32 y = top; y < bottom; y++)
         {
             *(uint32 *)pixel = color;
             pixel += buffer->pitch;
@@ -1005,13 +1007,13 @@ Win32DrawSoundBufferMarker
     win32_offscreen_buffer *buffer,
     win32_sound_output *soundOutput,
     real32 coefficient,
-    int padX,
-    int top, int bottom,
+    int32 padX,
+    int32 top, int32 bottom,
     DWORD value,
     uint32 color
 )
 {
-    int x = padX + (int)(coefficient * (real32)value);    
+    int32 x = padX + (int)(coefficient * (real32)value);    
     Win32DebugDrawVertical(buffer, x, top, bottom, color);
 }
 
@@ -1019,20 +1021,20 @@ internal void
 Win32DebugSyncDisplay
 (
     win32_offscreen_buffer *buffer,
-    int markerCount,
+    int32 markerCount,
     win32_debug_time_marker *markers,
-    int currentMarkerIndex,
+    int32 currentMarkerIndex,
     win32_sound_output *soundOutput,
     real32 targetSecondsPerFrame
 )
 {
-    int padX = 16;
-    int padY = 16;
+    int32 padX = 16;
+    int32 padY = 16;
 
-    int lineHeight = 64;
+    int32 lineHeight = 64;
     
     real32 coefficient = (real32)(buffer->width - 2 * padX) / (real32)soundOutput->secondaryBufferSize;
-    for(int markerIndex = 0; markerIndex < markerCount; markerIndex++)
+    for(int32 markerIndex = 0; markerIndex < markerCount; markerIndex++)
     {
         win32_debug_time_marker *thisMarker = &markers[markerIndex];
 
@@ -1043,8 +1045,8 @@ Win32DebugSyncDisplay
         Assert(thisMarker->flipPlayCursor < soundOutput->secondaryBufferSize);
         Assert(thisMarker->flipWriteCursor < soundOutput->secondaryBufferSize);        
         
-        int top = padY;
-        int bottom = padY + lineHeight;
+        int32 top = padY;
+        int32 bottom = padY + lineHeight;
             
         DWORD playColor = 0xFFFFFFFF;
         DWORD writeColor = 0xFFFF0000;
@@ -1056,7 +1058,7 @@ Win32DebugSyncDisplay
             top += lineHeight + padY;
             bottom += lineHeight + padY;
 
-            int firstTop = top;
+            int32 firstTop = top;
 
             Win32DrawSoundBufferMarker
             (
@@ -1225,10 +1227,10 @@ CALLBACK WinMain
         if(window)
         {
             win32_sound_output soundOutput = {};
-            int monitorRefreshHz = 60;
+            int32 monitorRefreshHz = 60;
 
             HDC refreshDC = GetDC(window);            
-            int win32RefreshRate = GetDeviceCaps(refreshDC, VREFRESH);
+            int32 win32RefreshRate = GetDeviceCaps(refreshDC, VREFRESH);
             ReleaseDC(window, refreshDC);
             if(win32RefreshRate > 1)
             {
@@ -1299,7 +1301,7 @@ CALLBACK WinMain
             gameMemory.permanentStorage = win32State.gameMemoryBlock;            
             gameMemory.transientStorage = (uint8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
             
-            for(int replayIndex = 0; replayIndex < ArrayCount(win32State.replayBuffers); replayIndex++)
+            for(int32 replayIndex = 0; replayIndex < ArrayCount(win32State.replayBuffers); replayIndex++)
             {
                 win32_replay_buffer *replayBuffer = &win32State.replayBuffers[replayIndex];
                 
@@ -1362,7 +1364,7 @@ CALLBACK WinMain
                 LARGE_INTEGER lastCounter = Win32GetWallClock();
                 LARGE_INTEGER flipWallClock = Win32GetWallClock();
 
-                int debugTimeMarkersIndex = 0;
+                int32 debugTimeMarkersIndex = 0;
                 win32_debug_time_marker debugTimeMarkers[30] = {};
                 
                 bool32 isSoundValid = false;
@@ -1390,7 +1392,7 @@ CALLBACK WinMain
                     *newKeyboardController = {};
                     newKeyboardController->isConnected = true;
 
-                    for(int buttonIndex = 0; buttonIndex < ArrayCount(oldKeyboardController->buttons); buttonIndex++)
+                    for(int32 buttonIndex = 0; buttonIndex < ArrayCount(oldKeyboardController->buttons); buttonIndex++)
                     {
                         newKeyboardController->buttons[buttonIndex].endedDown = oldKeyboardController->buttons[buttonIndex].endedDown;
                     }
