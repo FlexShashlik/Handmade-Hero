@@ -451,14 +451,14 @@ Win32MainWindowCallback(HWND   window,
     {
         case WM_ACTIVATEAPP:
         {
-            if(wParam)
+            /*if(wParam)
             {
                 SetLayeredWindowAttributes(window, RGB(0, 0, 0), 255, LWA_ALPHA);
             }
             else
             {
                 SetLayeredWindowAttributes(window, RGB(0, 0, 0), 128, LWA_ALPHA);
-            }
+            }*/
         } break;
 
         case WM_CLOSE:
@@ -1195,7 +1195,7 @@ CALLBACK WinMain
     {
         HWND window = CreateWindowExA
             (
-                WS_EX_TOPMOST|WS_EX_LAYERED,
+                /*WS_EX_TOPMOST|WS_EX_LAYERED*/0,
                 windowClass.lpszClassName,
                 "Handmade Hero",
                 WS_OVERLAPPEDWINDOW|WS_VISIBLE,
@@ -1470,16 +1470,19 @@ CALLBACK WinMain
                                     newController->stickAverageY = 1;
                                     newController->isAnalog = false;
                                 }
+
                                 if(pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
                                 {
                                     newController->stickAverageY = -1;
                                     newController->isAnalog = false;
                                 }
+                                
                                 if(pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
                                 {
                                     newController->stickAverageX = -1;
                                     newController->isAnalog = false;
                                 }
+                                
                                 if(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
                                 {
                                     newController->stickAverageX = 1;
