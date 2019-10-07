@@ -185,25 +185,19 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
 struct canonical_position
 {
+#if 1
     int32 tileMapX;
     int32 tileMapY;
 
     int32 tileX;
     int32 tileY;
-
+#else
+    uint32 _tileX;
+    uint32 _tileY;
+#endif
     // NOTE: Tile-relative x and y
     real32 tileRelX;
     real32 tileRelY;
-};
-
-struct raw_position
-{
-    int32 tileMapX;
-    int32 tileMapY;
-
-    // NOTE: Tile-map x and y
-    real32 x;
-    real32 y;
 };
 
 struct tile_map
@@ -213,13 +207,15 @@ struct tile_map
 
 struct world
 {
+    real32 tileSideInMeters;
+    int32 tileSideInPixels;
+    real32 metersToPixels;
+    
     int32 countX;
     int32 countY;
     
     real32 upperLeftX;
     real32 upperLeftY;
-    real32 tileWidth;
-    real32 tileHeight;
     
     int32 tileMapCountX;
     int32 tileMapCountY;
@@ -229,9 +225,5 @@ struct world
 
 struct game_state
 {
-    int32 playerTileMapX;
-    int32 playerTileMapY;
-    
-    real32 playerX;
-    real32 playerY;
+    canonical_position playerPos;
 };

@@ -1,4 +1,5 @@
 #include "handmade.h"
+#include "handmade_intrinsics.h"
 
 internal void
 GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
@@ -48,31 +49,6 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
     }
 }
 
-inline int32
-RoundReal32ToInt32(real32 value)
-{
-    return (int32)(value + 0.5f);
-}
-
-inline uint32
-RoundReal32ToUInt32(real32 value)
-{
-    return (uint32)(value + 0.5f);
-}
-
-#include "math.h"
-inline int32
-FloorReal32ToInt32(real32 value)
-{
-    return (int32)floorf(value);
-}
-
-inline int32
-TruncateReal32ToInt32(real32 value)
-{
-    return (int32)value;
-}
-
 inline tile_map *
 GetTileMap(world *worldMap, int32 tileMapX, int32 tileMapY)
 {
@@ -116,61 +92,58 @@ IsTileMapPointEmpty(world *worldMap, tile_map *tileMap, int32 testTileX, int32 t
     return isEmpty;
 }
 
-inline canonical_position
-GetCanonicalPosition(world *worldMap, raw_position pos)
+inline void
+RecanonicalizeCoord
+(
+    world *worldMap, int32 tileCount,
+    int32 *tileMap, int32 *tile, real32 *tileRel
+)
 {
-    canonical_position result;
-    result.tileMapX = pos.tileMapX;
-    result.tileMapY = pos.tileMapY;
-
-    real32 x = pos.x - worldMap->upperLeftX;
-    real32 y = pos.y - worldMap->upperLeftY;
+    int32 offset = FloorReal32ToInt32(*tileRel / worldMap->tileSideInMeters);
+    *tile += offset;
     
-    result.tileX = FloorReal32ToInt32(x / worldMap->tileWidth);
-    result.tileY = FloorReal32ToInt32(y / worldMap->tileHeight);
-
-    result.tileRelX = x - result.tileX * worldMap->tileWidth;
-    result.tileRelY = y - result.tileY * worldMap->tileHeight;
-
-    Assert(result.tileRelX >= 0);
-    Assert(result.tileRelY >= 0);
-    Assert(result.tileRelX < worldMap->tileWidth);
-    Assert(result.tileRelY < worldMap->tileHeight);
+    *tileRel -= offset * worldMap->tileSideInMeters;
     
-    if(result.tileX < 0)
+    Assert(*tileRel >= 0);
+    Assert(*tileRel < worldMap->tileSideInMeters);
+    
+    if(*tile < 0)
     {
-        result.tileX = worldMap->countX + result.tileX;
-        result.tileMapX--;
+        *tile = tileCount + *tile;
+        (*tileMap)--;
     }
 
-    if(result.tileY < 0)
+    if(*tile >= tileCount)
     {
-        result.tileY = worldMap->countY + result.tileY;
-        result.tileMapY--;
+        *tile = *tile - tileCount;
+        (*tileMap)++;
     }
+}
 
-    if(result.tileX >= worldMap->countX)
-    {
-        result.tileX = result.tileX - worldMap->countX;
-        result.tileMapX++;
-    }
+inline canonical_position
+RecanonicalizePosition(world *worldMap, canonical_position pos)
+{
+    canonical_position result = pos;
 
-    if(result.tileY >= worldMap->countY)
-    {
-        result.tileY = result.tileY - worldMap->countY;
-        result.tileMapY++;
-    }
+    RecanonicalizeCoord
+        (
+            worldMap, worldMap->countX,
+            &result.tileMapX, &result.tileX, &result.tileRelX
+        );
+    RecanonicalizeCoord
+        (
+            worldMap, worldMap->countY,
+            &result.tileMapY, &result.tileY, &result.tileRelY
+        );
 
     return result;
 }
 
 internal bool32
-IsWorldPointEmpty(world *worldMap, raw_position testPos)
+IsWorldPointEmpty(world *worldMap, canonical_position canPos)
 {
     bool32 isEmpty = false;
 
-    canonical_position canPos = GetCanonicalPosition(worldMap, testPos);
-    
     tile_map *tileMap = GetTileMap
         (
             worldMap,
@@ -313,29 +286,44 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     worldMap.tileMapCountY = 2;
     worldMap.countX = TILE_MAP_COUNT_X;
     worldMap.countY = TILE_MAP_COUNT_Y;
-    worldMap.upperLeftX = -30;
-    worldMap.upperLeftY = 0;
-    worldMap.tileWidth = 60;
-    worldMap.tileHeight = 60;
+
+    // TODO: Begin using tileSideInMeters
+    worldMap.tileSideInMeters = 1.4f;
+    worldMap.tileSideInPixels = 60;
+    worldMap.metersToPixels = (real32)worldMap.tileSideInPixels / (real32)worldMap.tileSideInMeters;
     
-    real32 playerWidth = 0.75f * worldMap.tileWidth;
-    real32 playerHeight = worldMap.tileHeight;
+    worldMap.upperLeftX = -(real32)worldMap.tileSideInPixels/2;
+    worldMap.upperLeftY = 0;
+    
+    real32 playerHeight = worldMap.tileSideInMeters;
+    real32 playerWidth = 0.75f * playerHeight;
     
     worldMap.tileMaps = (tile_map *)tileMaps;
     
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
     {
-        gameState->playerX = 150;
-        gameState->playerY = 150;
+        gameState->playerPos.tileMapX = 0;
+        gameState->playerPos.tileMapY = 0;
+        gameState->playerPos.tileX = 3;
+        gameState->playerPos.tileY = 3;
+        gameState->playerPos.tileRelX = 5.0f;
+        gameState->playerPos.tileRelY = 5.0f;
         
         memory->isInitialized = true;
     }
     
-    tile_map *tileMap = GetTileMap(&worldMap, gameState->playerTileMapX, gameState->playerTileMapY);
+    tile_map *tileMap = GetTileMap
+        (
+            &worldMap,
+            gameState->playerPos.tileMapX,
+            gameState->playerPos.tileMapY
+        );
     Assert(tileMap);
     
-    for(int controllerIndex = 0; controllerIndex < ArrayCount(input->controllers); controllerIndex++)
+    for(int controllerIndex = 0;
+        controllerIndex < ArrayCount(input->controllers);
+        controllerIndex++)
     {
         game_controller_input *controller = GetController(input, controllerIndex);    
         if(controller->isAnalog)
@@ -372,30 +360,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 dPlayerX = 1.0f;
             }
             
-            dPlayerX *= 64.0f;
-            dPlayerY *= 64.0f;
+            dPlayerX *= 4.0f;
+            dPlayerY *= 4.0f;
             
             // TODO: Diagonal will be faster :D
-            real32 newPlayerX = gameState->playerX + input->deltaTime * dPlayerX;
-            real32 newPlayerY = gameState->playerY + input->deltaTime * dPlayerY;
+            canonical_position newPlayerPos = gameState->playerPos;
+            newPlayerPos.tileRelX += input->deltaTime * dPlayerX;
+            newPlayerPos.tileRelY += input->deltaTime * dPlayerY;
 
-            raw_position playerPos = {gameState->playerTileMapX, gameState->playerTileMapY, newPlayerX, newPlayerY};
-            raw_position playerLeft = playerPos;
-            playerLeft.x -= 0.5f * playerWidth;
-            raw_position playerRight = playerPos;
-            playerRight.x += 0.5f * playerWidth;
+            newPlayerPos = RecanonicalizePosition(&worldMap, newPlayerPos);
             
-            if(IsWorldPointEmpty(&worldMap, playerPos) &&
+            canonical_position playerLeft = newPlayerPos;
+            playerLeft.tileRelX -= 0.5f * playerWidth;
+            playerLeft = RecanonicalizePosition(&worldMap, playerLeft);
+            
+            canonical_position playerRight = newPlayerPos;
+            playerRight.tileRelX += 0.5f * playerWidth;
+            playerRight = RecanonicalizePosition(&worldMap, playerRight);
+            
+            if(IsWorldPointEmpty(&worldMap, newPlayerPos) &&
                IsWorldPointEmpty(&worldMap, playerLeft) &&
                IsWorldPointEmpty(&worldMap, playerRight))
             {
-                canonical_position canPos = GetCanonicalPosition(&worldMap, playerPos);
-
-                gameState->playerTileMapX = canPos.tileMapX;
-                gameState->playerTileMapY = canPos.tileMapY;
-                
-                gameState->playerX = worldMap.upperLeftX + worldMap.tileWidth * canPos.tileX + canPos.tileRelX;
-                gameState->playerY = worldMap.upperLeftY + worldMap.tileHeight * canPos.tileY + canPos.tileRelY;
+                gameState->playerPos = newPlayerPos;
             }
         }
     }
@@ -408,11 +395,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             uint32 tileID = GetTileMapValueUnchecked(&worldMap, tileMap, column, row);
             real32 gray = (tileID == 1) ? 1.0f : 0.5f;
+
+            if(row == gameState->playerPos.tileY &&
+               column == gameState->playerPos.tileX)
+            {
+                gray = 0.0f;
+            }
             
-            real32 minX = worldMap.upperLeftX + (real32)column * worldMap.tileWidth;
-            real32 minY = worldMap.upperLeftY + (real32)row * worldMap.tileHeight;
-            real32 maxX = minX + worldMap.tileWidth;
-            real32 maxY = minY + worldMap.tileHeight;
+            real32 minX = worldMap.upperLeftX + (real32)column * worldMap.tileSideInPixels;
+            real32 minY = worldMap.upperLeftY + (real32)row * worldMap.tileSideInPixels;
+            real32 maxX = minX + worldMap.tileSideInPixels;
+            real32 maxY = minY + worldMap.tileSideInPixels;
             
             DrawRectangle(buffer, minX, minY, maxX, maxY, gray, gray, gray);
         }
@@ -421,14 +414,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 playerR = 1.0f;
     real32 playerG = 1.0f;
     real32 playerB = 0.0f;
-    real32 playerLeft = gameState->playerX - 0.5f * playerWidth;
-    real32 playerTop = gameState->playerY - playerHeight;
+    real32 playerLeft = worldMap.upperLeftX +
+        worldMap.tileSideInPixels * gameState->playerPos.tileX +
+        worldMap.metersToPixels * gameState->playerPos.tileRelX - 0.5f * worldMap.metersToPixels * playerWidth;
+    real32 playerTop = worldMap.upperLeftY +
+        worldMap.tileSideInPixels * gameState->playerPos.tileY +
+        worldMap.metersToPixels * gameState->playerPos.tileRelY - worldMap.metersToPixels * playerHeight;
     
     DrawRectangle
         (
             buffer,
             playerLeft, playerTop,
-            playerLeft + playerWidth, playerTop + playerHeight,
+            playerLeft + worldMap.metersToPixels * playerWidth,
+            playerTop + worldMap.metersToPixels * playerHeight,
             playerR, playerG, playerB
         );
 }
