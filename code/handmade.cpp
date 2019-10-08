@@ -1,5 +1,5 @@
 #include "handmade.h"
-#include "handmade_intrinsics.h"
+#include "handmade_tile.cpp"
 
 internal void
 GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
@@ -47,136 +47,6 @@ RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffs
 
         row += buffer->pitch;
     }
-}
-
-inline tile_chunk *
-GetTileChunk(world *worldMap, int32 tileChunkX, int32 tileChunkY)
-{
-    tile_chunk *tileChunk = 0;
-    
-    if(tileChunkX >= 0 && tileChunkX < worldMap->tileChunkCountX &&
-       tileChunkY >= 0 && tileChunkY < worldMap->tileChunkCountY)
-    {
-        tileChunk = &worldMap->tileChunks[tileChunkY * worldMap->tileChunkCountX + tileChunkX];
-    }
-
-    return tileChunk;
-}
-
-inline uint32
-GetTileValueUnchecked
-(
-    world *worldMap,
-    tile_chunk *tileChunk,
-    uint32 tileX, uint32 tileY
-)
-{
-    Assert(tileChunk);
-    Assert(tileX < worldMap->chunkDim);
-    Assert(tileY < worldMap->chunkDim);
-    
-    return tileChunk->tiles[tileY * worldMap->chunkDim + tileX];
-}
-
-inline uint32
-GetTileValue
-(
-    world *worldMap,
-    tile_chunk *tileChunk,
-    uint32 testTileX, uint32 testTileY
-)
-{
-    uint32 tileChunkValue = 0;
-
-    if(tileChunk)
-    {
-        tileChunkValue = GetTileValueUnchecked
-            (
-                worldMap,
-                tileChunk, testTileX, testTileY
-            );
-    }
-
-    return tileChunkValue;
-}
-
-inline void
-RecanonicalizeCoord
-(
-    world *worldMap, uint32 *tile, real32 *tileRel
-)
-{
-    // NOTE: World is assumed to be toroidal topology
-    int32 offset = RoundReal32ToInt32
-        (
-            *tileRel / worldMap->tileSideInMeters
-        );
-    *tile += offset;
-    
-    *tileRel -= offset * worldMap->tileSideInMeters;
-    
-    Assert(*tileRel >= -0.5f * worldMap->tileSideInMeters);
-    Assert(*tileRel <= 0.5f * worldMap->tileSideInMeters);
-}
-
-inline world_position
-RecanonicalizePosition(world *worldMap, world_position pos)
-{
-    world_position result = pos;
-
-    RecanonicalizeCoord
-        (
-            worldMap, &result.absTileX, &result.tileRelX
-        );
-    RecanonicalizeCoord
-        (
-            worldMap, &result.absTileY, &result.tileRelY
-        );
-
-    return result;
-}
-
-inline tile_chunk_position
-GetChunkPosition(world *worldMap, uint32 absTileX, uint32 absTileY)
-{
-    tile_chunk_position result;
-
-    result.tileChunkX = absTileX >> worldMap->chunkShift;
-    result.tileChunkY = absTileY >> worldMap->chunkShift;
-    result.relTileX = absTileX & worldMap->chunkMask;
-    result.relTileY = absTileY & worldMap->chunkMask;
-
-    return result;
-}
-
-internal uint32
-GetTileValue(world *worldMap, uint32 absTileX, uint32 absTileY)
-{
-    tile_chunk_position chunkPos = GetChunkPosition
-        (worldMap, absTileX, absTileY);
-    
-    tile_chunk *tileMap = GetTileChunk
-        (
-            worldMap,
-            chunkPos.tileChunkX, chunkPos.tileChunkY
-        );
-
-    uint32 tileChunkValue = GetTileValue
-        (
-            worldMap, tileMap,
-            chunkPos.relTileX, chunkPos.relTileY
-        );
-
-    return tileChunkValue;
-}
-
-internal bool32
-IsWorldPointEmpty(world *worldMap, world_position canPos)
-{
-    uint32 tileChunkValue = GetTileValue(worldMap, canPos.absTileX, canPos.absTileY);
-    bool32 isEmpty = (tileChunkValue == 0);
-
-    return isEmpty;
 }
 
 internal void
@@ -235,69 +105,149 @@ DrawRectangle
     }
 }
 
+internal void
+InitializeArena
+(
+    memory_arena *arena,
+    memory_index size,
+    uint8 *base
+)
+{
+    arena->size = size;
+    arena->base = base;
+    arena->used = 0;
+}
+
+#define PushStruct(arena, type) (type *)PushSize_(arena, sizeof(type))
+#define PushArray(arena, count, type) (type *)PushSize_(arena, (count) * sizeof(type))
+void *
+PushSize_(memory_arena *arena, memory_index size)
+{
+    Assert(arena->used + size <= arena->size)
+    
+    void *result = arena->base + arena->used;
+    arena->used += size;
+
+    return result;
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
-
-#define TILE_MAP_COUNT_X 256
-#define TILE_MAP_COUNT_Y 256  
-    uint32 tempTiles[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
-    {
-        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1},
-        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
-        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
-        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1}
-    };
     
-    world worldMap = {};
-
-    // NOTE: This is set to use 256*256 tile chunks
-    worldMap.chunkShift = 8;
-    worldMap.chunkMask = (1 << worldMap.chunkShift) - 1;
-    worldMap.chunkDim = 256;
-    
-    worldMap.tileChunkCountX = 1;
-    worldMap.tileChunkCountY = 1;
-
-    tile_chunk tileChunk;
-    tileChunk.tiles = (uint32 *)tempTiles;
-    worldMap.tileChunks = &tileChunk;
-
-    worldMap.tileSideInMeters = 1.4f;
-    worldMap.tileSideInPixels = 60;
-    worldMap.metersToPixels = (real32)worldMap.tileSideInPixels / (real32)worldMap.tileSideInMeters;
-
-    real32 lowerLeftX = -(real32)worldMap.tileSideInPixels/2;
-    real32 lowerLeftY = (real32)buffer->height;
-    
-    real32 playerHeight = worldMap.tileSideInMeters;
+    real32 playerHeight = 1.4f;
     real32 playerWidth = 0.75f * playerHeight;
     
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
     {
-        gameState->playerPos.absTileX = 3;
+        gameState->playerPos.absTileX = 1;
         gameState->playerPos.absTileY = 3;
         gameState->playerPos.tileRelX = 5.0f;
         gameState->playerPos.tileRelY = 5.0f;
         
+        InitializeArena
+            (
+                &gameState->worldArena,
+                memory->permanentStorageSize - sizeof(game_state),
+                (uint8 *)memory->permanentStorage + sizeof(game_state)
+            );
+
+        gameState->worldMap = PushStruct
+            (
+                &gameState->worldArena,
+                world
+            );
+        world *worldMap = gameState->worldMap;
+        worldMap->tileMap = PushStruct
+            (
+                &gameState->worldArena,
+                tile_map
+            );
+
+        tile_map *tileMap = worldMap->tileMap;
+
+        // NOTE: This is set to use 256*256 tile chunks
+        tileMap->chunkShift = 4;
+        tileMap->chunkMask = (1 << tileMap->chunkShift) - 1;
+        tileMap->chunkDim = 1 << tileMap->chunkShift;
+        
+        tileMap->tileChunkCountX = 128;
+        tileMap->tileChunkCountY = 128;
+
+        tileMap->tileChunks = PushArray
+            (
+                &gameState->worldArena,
+                tileMap->tileChunkCountX * tileMap->tileChunkCountY,
+                tile_chunk
+            );
+    
+        for(uint32 y = 0;
+            y < tileMap->tileChunkCountY;
+            y++)
+        {
+            for(uint32 x = 0;
+                x < tileMap->tileChunkCountX;
+                x++)
+            {
+                tileMap->tileChunks[y * tileMap->tileChunkCountX + x]
+                    .tiles = PushArray
+                    (
+                        &gameState->worldArena,
+                        tileMap->chunkDim * tileMap->chunkDim,
+                        uint32
+                    );
+            }
+        }
+
+        tileMap->tileSideInMeters = 1.4f;
+        tileMap->tileSideInPixels = 60;
+        tileMap->metersToPixels = (real32)tileMap->tileSideInPixels / (real32)tileMap->tileSideInMeters;
+
+        real32 lowerLeftX = -(real32)tileMap->tileSideInPixels/2;
+        real32 lowerLeftY = (real32)buffer->height;
+        
+        uint32 tilesPerWidth = 17;
+        uint32 tilesPerHeight = 9;
+        for(uint32 screenY = 0;
+            screenY < 32;
+            screenY++)
+        {
+            for(uint32 screenX = 0;
+            screenX < 32;
+            screenX++)
+            {
+                for(uint32 tileY = 0;
+                    tileY < tilesPerHeight;
+                    tileY++)
+                {
+                    for(uint32 tileX = 0;
+                        tileX < tilesPerWidth;
+                        tileX++)
+                    {
+                        uint32 absTileX = screenX * tilesPerWidth
+                            + tileX;
+                        
+                        uint32 absTileY = screenY * tilesPerHeight
+                            + tileY;
+                        
+                        SetTileValue
+                            (
+                                &gameState->worldArena, tileMap,
+                                absTileX, absTileY,
+                                (tileX == tileY && tileY % 2) ? 1 : 0
+                            );
+                    }
+                }
+            }
+        }
+        
         memory->isInitialized = true;
     }
+
+    world *worldMap = gameState->worldMap;
+    tile_map *tileMap = worldMap->tileMap;
     
     for(int controllerIndex = 0;
         controllerIndex < ArrayCount(input->controllers);
@@ -344,23 +294,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             dPlayerY *= playerSpeed;
             
             // TODO: Diagonal will be faster :D
-            world_position newPlayerPos = gameState->playerPos;
+            tile_map_position newPlayerPos = gameState->playerPos;
             newPlayerPos.tileRelX += input->deltaTime * dPlayerX;
             newPlayerPos.tileRelY += input->deltaTime * dPlayerY;
 
-            newPlayerPos = RecanonicalizePosition(&worldMap, newPlayerPos);
+            newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
             
-            world_position playerLeft = newPlayerPos;
+            tile_map_position playerLeft = newPlayerPos;
             playerLeft.tileRelX -= 0.5f * playerWidth;
-            playerLeft = RecanonicalizePosition(&worldMap, playerLeft);
+            playerLeft = RecanonicalizePosition(tileMap, playerLeft);
             
-            world_position playerRight = newPlayerPos;
+            tile_map_position playerRight = newPlayerPos;
             playerRight.tileRelX += 0.5f * playerWidth;
-            playerRight = RecanonicalizePosition(&worldMap, playerRight);
+            playerRight = RecanonicalizePosition(tileMap, playerRight);
             
-            if(IsWorldPointEmpty(&worldMap, newPlayerPos) &&
-               IsWorldPointEmpty(&worldMap, playerLeft) &&
-               IsWorldPointEmpty(&worldMap, playerRight))
+            if(IsTileMapPointEmpty(tileMap, newPlayerPos) &&
+               IsTileMapPointEmpty(tileMap, playerLeft) &&
+               IsTileMapPointEmpty(tileMap, playerRight))
             {
                 gameState->playerPos = newPlayerPos;
             }
@@ -388,7 +338,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             uint32 column = gameState->playerPos.absTileX + relColumn;
             uint32 row = gameState->playerPos.absTileY + relRow;
             
-            uint32 tileID = GetTileValue(&worldMap, column, row);
+            uint32 tileID = GetTileValue(tileMap, column, row);
             real32 gray = (tileID == 1) ? 1.0f : 0.5f;
 
             if(row == gameState->playerPos.absTileY &&
@@ -397,14 +347,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 gray = 0.0f;
             }
 
-            real32 centerX = screenCenterX - worldMap.metersToPixels * gameState->playerPos.tileRelX +
-                ((real32)relColumn) * worldMap.tileSideInPixels;
-            real32 centerY = screenCenterY + worldMap.metersToPixels * gameState->playerPos.tileRelY -
-                ((real32)relRow) * worldMap.tileSideInPixels;
-            real32 minX = centerX - 0.5f * worldMap.tileSideInPixels;
-            real32 minY = centerY - 0.5f * worldMap.tileSideInPixels;
-            real32 maxX = centerX + 0.5f * worldMap.tileSideInPixels;
-            real32 maxY = centerY + 0.5f * worldMap.tileSideInPixels;
+            real32 centerX = screenCenterX - tileMap->metersToPixels * gameState->playerPos.tileRelX +
+                ((real32)relColumn) * tileMap->tileSideInPixels;
+            real32 centerY = screenCenterY + tileMap->metersToPixels * gameState->playerPos.tileRelY -
+                ((real32)relRow) * tileMap->tileSideInPixels;
+            real32 minX = centerX - 0.5f * tileMap->tileSideInPixels;
+            real32 minY = centerY - 0.5f * tileMap->tileSideInPixels;
+            real32 maxX = centerX + 0.5f * tileMap->tileSideInPixels;
+            real32 maxY = centerY + 0.5f * tileMap->tileSideInPixels;
             
             DrawRectangle
                 (
@@ -419,15 +369,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 playerG = 1.0f;
     real32 playerB = 0.0f;
     
-    real32 playerLeft = screenCenterX - 0.5f * worldMap.metersToPixels * playerWidth;
-    real32 playerTop = screenCenterY - worldMap.metersToPixels * playerHeight;
+    real32 playerLeft = screenCenterX - 0.5f * tileMap->metersToPixels * playerWidth;
+    real32 playerTop = screenCenterY - tileMap->metersToPixels * playerHeight;
     
     DrawRectangle
         (
             buffer,
             playerLeft, playerTop,
-            playerLeft + worldMap.metersToPixels * playerWidth,
-            playerTop + worldMap.metersToPixels * playerHeight,
+            playerLeft + tileMap->metersToPixels * playerWidth,
+            playerTop + tileMap->metersToPixels * playerHeight,
             playerR, playerG, playerB
         );
 }
