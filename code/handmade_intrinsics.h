@@ -8,13 +8,13 @@
 inline int32
 RoundReal32ToInt32(real32 value)
 {
-    return (int32)(value + 0.5f);
+    return (int32)roundf(value);
 }
 
 inline uint32
 RoundReal32ToUInt32(real32 value)
 {
-    return (uint32)(value + 0.5f);
+    return (uint32)roundf(value);
 }
 
 inline int32
