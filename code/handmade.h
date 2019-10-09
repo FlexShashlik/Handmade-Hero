@@ -232,4 +232,5 @@ struct game_state
     world *worldMap;
     
     tile_map_position playerPos;
+    uint32 *pixelPointer;
 };

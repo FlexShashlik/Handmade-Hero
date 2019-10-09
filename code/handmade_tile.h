@@ -17,8 +17,9 @@ struct tile_chunk_position
     uint32 tileChunkY;
     uint32 tileChunkZ;
 
-    uint32 relTileX;
-    uint32 relTileY;
+    // NOTE: This are the offsets from the tile center
+    uint32 offsetX;
+    uint32 offsetY;
 };
 
 struct tile_chunk

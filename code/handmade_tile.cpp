@@ -145,8 +145,8 @@ GetChunkPosition
     result.tileChunkX = absTileX >> tileMap->chunkShift;
     result.tileChunkY = absTileY >> tileMap->chunkShift;
     result.tileChunkZ = absTileZ;
-    result.relTileX = absTileX & tileMap->chunkMask;
-    result.relTileY = absTileY & tileMap->chunkMask;
+    result.offsetX = absTileX & tileMap->chunkMask;
+    result.offsetY = absTileY & tileMap->chunkMask;
 
     return result;
 }
@@ -172,7 +172,7 @@ GetTileValue
     uint32 tileChunkValue = GetTileValue
         (
             tileMap, tileChunk,
-            chunkPos.relTileX, chunkPos.relTileY
+            chunkPos.offsetX, chunkPos.offsetY
         );
 
     return tileChunkValue;
@@ -246,7 +246,7 @@ SetTileValue
     SetTileValue
         (
             tileMap, tileChunk,
-            chunkPos.relTileX, chunkPos.relTileY,
+            chunkPos.offsetX, chunkPos.offsetY,
             tileValue
         );
 }
