@@ -178,15 +178,29 @@ GetTileValue
     return tileChunkValue;
 }
 
-internal bool32
-IsTileMapPointEmpty(tile_map *tileMap, tile_map_position canPos)
+internal uint32
+GetTileValue
+(
+    tile_map *tileMap,
+    tile_map_position pos
+)
 {
     uint32 tileChunkValue = GetTileValue
         (
             tileMap,
-            canPos.absTileX, canPos.absTileY, canPos.absTileZ
+            pos.absTileX, pos.absTileY, pos.absTileZ
         );
-    bool32 isEmpty = (tileChunkValue == 1);
+
+    return tileChunkValue;
+}
+
+internal bool32
+IsTileMapPointEmpty(tile_map *tileMap, tile_map_position pos)
+{
+    uint32 tileChunkValue = GetTileValue(tileMap, pos);
+    bool32 isEmpty = ((tileChunkValue == 1) ||
+                      (tileChunkValue == 3) ||
+                      (tileChunkValue == 4));
 
     return isEmpty;
 }
@@ -235,4 +249,13 @@ SetTileValue
             chunkPos.relTileX, chunkPos.relTileY,
             tileValue
         );
+}
+
+inline bool32
+AreOnSameTile(tile_map_position *a, tile_map_position *b)
+{
+    bool32 result = (a->absTileX == b->absTileX &&
+                     a->absTileY == b->absTileY &&
+                     a->absTileZ == b->absTileZ);
+    return result;
 }

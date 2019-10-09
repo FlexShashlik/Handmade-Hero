@@ -107,7 +107,7 @@ DrawRectangle
 
 global_variable uint32 randomNumberTable[] =
 {
-    0x5505c25,  0x4501811,  0x5532323,  0x5aec547,	0x005d8f8,  0x0e7eb4c,  0x23e498d,  0x30d2cc2,
+    0x4f0143b,  0x3402005,  0x5532323,  0x5aec547,	0x005d8f8,  0x0e7eb4c,  0x23e498d,  0x30d2cc2,
     0x385338b,	0x3478bb5,	0x3cd85c0,	0x248de69,	0x07bd229,	0x2342ba8,	0x45ab830,	0x1e0cefa,
     0x4fd84fe,	0x2d793cf,	0x18f04c2,	0x12a7592,	0x0cda40a,	0x2e70a32,	0x3056fe5,	0x09ed23e,
     0x338b7cf,	0x51172cf,	0x2364075,	0x4d8ec11,	0x09a2ff6,	0x574efd3,	0x50b1acd,	0x4e9f777,
@@ -713,7 +713,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
             if(randomChoice == 2)
             {
-                if(absTileZ)
+                if(absTileZ == 0)
                 {
                     isDoorUp = true;
                 }
@@ -799,10 +799,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 isDoorDown = true;
                 isDoorUp = false;
             }
-            else
+            else if(isDoorDown)
             {
                 isDoorDown = false;
                 isDoorUp = true;
+            }
+            else
+            {
+                isDoorUp = false;
+                isDoorDown = false;
             }
             
             isDoorTop = false;
@@ -810,7 +815,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             if(randomChoice == 2)
             {
-                absTileZ = (absTileZ) ? 0 : 1;
+                if(absTileZ == 0)
+                {
+                    absTileZ = 1;
+                }
+                else
+                {
+                    absTileZ = 0;
+                }
             }
             else if(randomChoice == 1)
             {
@@ -897,6 +909,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                IsTileMapPointEmpty(tileMap, playerLeft) &&
                IsTileMapPointEmpty(tileMap, playerRight))
             {
+                if(!AreOnSameTile(&gameState->playerPos, &newPlayerPos))
+                {
+                    uint32 newTileValue = GetTileValue(tileMap, newPlayerPos);
+                    
+                    if(newTileValue == 3)
+                    {
+                        newPlayerPos.absTileZ++;
+                    }
+                    else if(newTileValue == 4)
+                    {
+                        newPlayerPos.absTileZ--;
+                    }
+                }
+                
                 gameState->playerPos = newPlayerPos;
             }
         }
@@ -928,6 +954,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     tileMap,
                     column, row, gameState->playerPos.absTileZ
                 );
+            
             if(tileID > 0)
             {
                 real32 gray = (tileID == 2) ? 1.0f : 0.5f;
