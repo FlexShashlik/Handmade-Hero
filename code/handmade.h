@@ -226,11 +226,22 @@ struct world
     tile_map *tileMap;
 };
 
+struct loaded_bitmap
+{
+    int32 width;
+    int32 height;
+    uint32 *pixels;
+};
+
 struct game_state
 {
     memory_arena worldArena;
     world *worldMap;
     
     tile_map_position playerPos;
-    uint32 *pixelPointer;
+    loaded_bitmap bmp;
+
+    loaded_bitmap heroHead;
+    loaded_bitmap heroCape;
+    loaded_bitmap heroTorso;
 };
