@@ -2,6 +2,29 @@
 extern "C" {
 #endif
 
+#ifndef COMPILER_MSVC
+#define COMPILER_MSVC 0
+#endif
+
+#ifndef COMPILER_LLVM
+#define COMPILER_LLVM 0
+#endif
+
+#if !COMPILER_MSVC && !COMPILER_LLVM
+#if _MSC_VER
+#undef COMPILER_MSVC
+#define COMPILER_MSVC 1
+#else
+    // TODO: More compilers
+#undef COMPILER_LLVM
+#define COMPILER_LLVM 1
+#endif
+#endif
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#endif
+    
 #include <stdint.h>
 
 typedef uint8_t uint8;
@@ -15,6 +38,8 @@ typedef int32_t int32;
 typedef int64_t int64;
 
 typedef int32 bool32;
+
+typedef size_t memory_index;
 
 typedef float real32;
 typedef double real64;

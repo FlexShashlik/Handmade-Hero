@@ -151,8 +151,26 @@ DrawBitmap
         uint32 *source = sourceRow;
 
         for(int x = minX; x < maxX; x++)
-        {        
-            *dest++ = *source++;
+        {
+            real32 a = (real32)((*source >> 24) & 0xFF) / 255.0f;
+            real32 sr = (real32)((*source >> 16) & 0xFF);
+            real32 sg = (real32)((*source >> 8) & 0xFF);
+            real32 sb = (real32)((*source >> 0) & 0xFF);
+
+            real32 dr = (real32)((*dest >> 16) & 0xFF);
+            real32 dg = (real32)((*dest >> 8) & 0xFF);
+            real32 db = (real32)((*dest >> 0) & 0xFF);
+
+            real32 r = (1.0f - a) * dr + a * sr;
+            real32 g = (1.0f - a) * dg + a * sg;
+            real32 b = (1.0f - a) * db + a * sb;
+
+            *dest = ((uint32)(r + 0.5f) << 16|
+                     (uint32)(g + 0.5f) << 8 |
+                     (uint32)(b + 0.5f) << 0);
+            
+            dest++;
+            source++;
         }
 
         destRow += buffer->pitch;
@@ -196,7 +214,7 @@ DEBUGLoadBMP
 {
     loaded_bitmap result = {};
 
-    // NOTE: Byte order in memory is AA BB GG RR
+    // NOTE: Byte order in memory is determined by the header itself
     
     debug_read_file_result readResult;
     readResult = readEntireFile(thread, fileName);
@@ -205,22 +223,41 @@ DEBUGLoadBMP
     {
         bitmap_header *header = (bitmap_header *)readResult.contents;
 
+        Assert(header->compression == 3);
+        
         result.width = header->width;
         result.height = header->height;
 
         uint32 *pixels = (uint32 *)((uint8 *)readResult.contents + header->bitmapOffset);
         result.pixels = pixels;
+        
+        uint32 redMask = header->redMask;
+        uint32 greenMask = header->greenMask;
+        uint32 blueMask = header->blueMask;
+        uint32 alphaMask = ~(redMask | greenMask | blueMask);
+        
+        bit_scan_result redShift = FindLeastSignificantSetBit(redMask);
+        bit_scan_result greenShift = FindLeastSignificantSetBit(greenMask);
+        bit_scan_result blueShift = FindLeastSignificantSetBit(blueMask);
+        bit_scan_result alphaShift = FindLeastSignificantSetBit(alphaMask);
 
-        /*
+        Assert(redShift.isFound);
+        Assert(greenShift.isFound);
+        Assert(blueShift.isFound);
+        Assert(alphaShift.isFound);
+        
         uint32 *sourceDest = pixels;
         for(int32 y = 0; y < header->height; y++)
         {
             for(int32 x = 0; x < header->width; x++)
             {
-                *sourceDest = (*sourceDest >> 8) | (*sourceDest << 24);
-                sourceDest++;
+                uint32 c = *sourceDest;
+                *sourceDest = ((((c >> alphaShift.index) & 0xFF) << 24) |
+                               (((c >> redShift.index) & 0xFF) << 16) |
+                               (((c >> greenShift.index) & 0xFF) << 8) |
+                               (((c >> blueShift.index) & 0xFF) << 0));
             }
-        }*/
+        }
     }
 
     return result;
@@ -250,14 +287,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 memory->DEBUGPlatformReadEntireFile,
                 "test/test_hero_front_head.bmp"
             );
-
+        
         gameState->heroCape = DEBUGLoadBMP
             (
                 thread,
                 memory->DEBUGPlatformReadEntireFile,
                 "test/test_hero_front_cape.bmp"
             );
-
+            
         gameState->heroTorso = DEBUGLoadBMP
             (
                 thread,

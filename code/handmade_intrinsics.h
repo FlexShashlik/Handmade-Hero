@@ -46,3 +46,31 @@ Atan2(real32 y, real32 x)
 {
     return atan2f(y, x);
 }
+
+struct bit_scan_result
+{
+    bool32 isFound;
+    uint32 index;
+};
+
+inline bit_scan_result
+FindLeastSignificantSetBit(uint32 value)
+{
+    bit_scan_result result = {};
+
+#if COMPILER_MSVC
+    result.isFound = _BitScanForward((unsigned long *)&result.index, value);
+#else
+    for(uint32 test = 0; test < 32; test++)
+    {
+        if(value & (1 << test))
+        {
+            result.isFound = true;
+            result.index = test;
+            break;
+        }
+    }
+#endif
+
+    return result;
+}
