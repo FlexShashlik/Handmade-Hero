@@ -1,15 +1,3 @@
-/*
-  NOTE:
-
-  HANDMADE_INTERNAL:
-      0 - for public release
-      1 - for developer only
-
-  HANDMADE_SLOW:
-      0 - no slow code
-      1 - slow code welcome
- */
-
 #include "handmade_platform.h"
 
 struct memory_arena

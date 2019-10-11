@@ -13,6 +13,8 @@ global_variable bool32 IsPause;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable LPDIRECTSOUNDBUFFER SecondaryBuffer;
 global_variable int64 GlobalPerfCountFrequency;
+global_variable bool32 DEBUGShowCursor;
+global_variable WINDOWPLACEMENT WindowPos = {sizeof(WindowPos)};
 
 // NOTE: XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -422,37 +424,60 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int32 width, int32 height)
 }
 
 internal void
-Win32DisplayBufferInWindow(win32_offscreen_buffer *buffer,
-                           HDC deviceContext,
-                           int32 windowWidth,
-                           int32 windowHeight)
+Win32DisplayBufferInWindow
+(
+    win32_offscreen_buffer *buffer,
+    HDC deviceContext,
+    int32 windowWidth,
+    int32 windowHeight
+)
 {
-    int32 offsetX = 10;
-    int32 offsetY = 10;
+    if(windowWidth >= 1366 &&
+       windowHeight >= 768)
+    {
+        StretchDIBits
+            (
+                deviceContext,
+                0, 0, 1366, 768,
+                0, 0, buffer->width, buffer->height,
+                buffer->memory,
+                &buffer->info,
+                DIB_RGB_COLORS,
+                SRCCOPY
+            );
+    }
+    else
+    {
+        int32 offsetX = 10;
+        int32 offsetY = 10;
     
-    PatBlt(deviceContext, 0, 0, windowWidth, offsetY, BLACKNESS);
-    PatBlt(deviceContext, 0, offsetY + buffer->height, windowWidth, windowHeight, BLACKNESS);
-    PatBlt(deviceContext, 0, 0, offsetX, windowHeight, BLACKNESS);
-    PatBlt(deviceContext, offsetX + buffer->width, 0, windowWidth, windowHeight, BLACKNESS);
+        PatBlt(deviceContext, 0, 0, windowWidth, offsetY, BLACKNESS);
+        PatBlt(deviceContext, 0, offsetY + buffer->height, windowWidth, windowHeight, BLACKNESS);
+        PatBlt(deviceContext, 0, 0, offsetX, windowHeight, BLACKNESS);
+        PatBlt(deviceContext, offsetX + buffer->width, 0, windowWidth, windowHeight, BLACKNESS);
     
-    // NOTE: Always blit 1-to-1 pixel for debug
-    StretchDIBits
-        (
-            deviceContext,
-            offsetX, offsetY, buffer->width, buffer->height,
-            0, 0, buffer->width, buffer->height,
-            buffer->memory,
-            &buffer->info,
-            DIB_RGB_COLORS,
-            SRCCOPY
-        );
+        // NOTE: Always blit 1-to-1 pixel for debug
+        StretchDIBits
+            (
+                deviceContext,
+                offsetX, offsetY, buffer->width, buffer->height,
+                0, 0, buffer->width, buffer->height,
+                buffer->memory,
+                &buffer->info,
+                DIB_RGB_COLORS,
+                SRCCOPY
+            );
+    }
 }
 
 internal LRESULT CALLBACK
-Win32MainWindowCallback(HWND   window,
-                        UINT   message,
-                        WPARAM wParam,
-                        LPARAM lParam)
+Win32MainWindowCallback
+(
+    HWND window,
+    UINT message,
+    WPARAM wParam,
+    LPARAM lParam
+)
 {
     LRESULT result = 0;
     
@@ -475,6 +500,24 @@ Win32MainWindowCallback(HWND   window,
             IsRunning = false;
         } break;
 
+        case WM_SETCURSOR:
+        {
+            if(DEBUGShowCursor)
+            {
+                result = DefWindowProcA
+                (
+                    window,
+                    message,
+                    wParam,
+                    lParam
+                );
+            }
+            else
+            {
+                SetCursor(0);
+            }
+        } break;
+
         case WM_DESTROY:
         {
             IsRunning = false;
@@ -485,7 +528,7 @@ Win32MainWindowCallback(HWND   window,
         case WM_KEYDOWN:
         case WM_KEYUP:
         {
-            Assert(!"Keyboard input came here!");
+            Assert(!"Keyboard input came in through a non-dispatch message!");
         } break;
 
         case WM_PAINT:
@@ -783,6 +826,50 @@ Win32PlayBackInput(win32_state *state, game_input *newInput)
 }
 
 internal void
+ToggleFullscreen(HWND window)
+{
+    // NOTE: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+    DWORD style = GetWindowLong(window, GWL_STYLE);
+    if(style & WS_OVERLAPPEDWINDOW)
+    {
+        MONITORINFO mi = {sizeof(mi)};
+        if(GetWindowPlacement(window, &WindowPos) &&
+           GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY),&mi))
+        {
+            SetWindowLong
+                (
+                    window, GWL_STYLE,
+                    style & ~WS_OVERLAPPEDWINDOW
+                );
+            
+            SetWindowPos
+                (
+                    window, HWND_TOP,
+                    mi.rcMonitor.left, mi.rcMonitor.top,
+                    mi.rcMonitor.right - mi.rcMonitor.left,
+                    mi.rcMonitor.bottom - mi.rcMonitor.top,
+                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED
+                );
+        }
+    }
+    else
+    {
+        SetWindowLong
+            (
+                window, GWL_STYLE,
+                style | WS_OVERLAPPEDWINDOW
+            );
+        SetWindowPlacement(window, &WindowPos);
+        SetWindowPos
+            (
+                window, NULL, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                SWP_NOOWNERZORDER | SWP_FRAMECHANGED
+            );
+    }
+}
+
+internal void
 Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardController)
 {
     MSG message;                    
@@ -933,14 +1020,24 @@ Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardCo
                         }
                     }
 #endif
-                }
 
-                bool32 altKeyWasDown = (message.lParam & (1 << 29));
-                if((virtualKeyCode == VK_F4) && altKeyWasDown)
-                {
-                    IsRunning = false;
-                }
-            
+                    if(isDown)
+                    {
+                        bool32 altKeyWasDown = (message.lParam & (1 << 29));
+                        if((virtualKeyCode == VK_F4) && altKeyWasDown)
+                        {
+                            IsRunning = false;
+                        }
+
+                        if((virtualKeyCode == VK_RETURN) && altKeyWasDown)
+                        {
+                            if(message.hwnd)
+                            {
+                                ToggleFullscreen(message.hwnd);
+                            }
+                        }
+                    }
+                }              
             } break;
 
             default:
@@ -1192,6 +1289,10 @@ CALLBACK WinMain
     
     Win32LoadXInput();
     
+#if HANDMADE_INTERNAL
+    DEBUGShowCursor = true;
+#endif
+    
     WNDCLASS windowClass = {};
 
     Win32ResizeDIBSection
@@ -1204,6 +1305,7 @@ CALLBACK WinMain
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
     windowClass.lpfnWndProc = Win32MainWindowCallback;
     windowClass.hInstance = instance;
+    windowClass.hCursor = LoadCursor(0, IDC_ARROW);
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
     
