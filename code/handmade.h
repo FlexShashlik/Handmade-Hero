@@ -12,39 +12,6 @@
 
 #include "handmade_platform.h"
 
-#define internal static
-#define local_persist static
-#define global_variable static
-
-#if HANDMADE_SLOW
-#define Assert(expression) if(!(expression)) { *(int *)0 = 0; }
-#else
-#define Assert(expression)
-#endif
-
-#define Kilobytes(value) ((value) * 1024)
-#define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) ((uint64)Megabytes(value) * 1024)
-#define Terabytes(value) ((uint64)Gigabytes(value) * 1024)
-
-#define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
-
-inline uint32
-SafeTruncateUInt64(uint64 value)
-{
-    Assert(value <= 0xFFFFFFFF);
-    uint32 result = (uint32)value;
-
-    return result;
-}
-
-inline game_controller_input *GetController(game_input *input, int unsigned controllerIndex)
-{
-    Assert(controllerIndex < ArrayCount(input->controllers));
-
-    return &input->controllers[controllerIndex];
-}
-
 struct memory_arena
 {
     memory_index size;
