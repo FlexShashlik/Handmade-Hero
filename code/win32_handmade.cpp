@@ -223,20 +223,29 @@ Win32GetLastWriteTime(char *fileName)
 }
 
 internal win32_game_code
-Win32LoadGameCode(char *sourceDLLName, char *tempDLLName)
+Win32LoadGameCode
+(
+    char *sourceDLLName,
+    char *tempDLLName,
+    char *lockFileName
+)
 {
     win32_game_code result = {};
 
-    result.lastDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
-
-    CopyFile(sourceDLLName, tempDLLName, FALSE);
-    result.gameCodeDLL = LoadLibraryA(tempDLLName);
-    if(result.gameCodeDLL)
+    WIN32_FILE_ATTRIBUTE_DATA ignored;
+    if(!GetFileAttributesExA(lockFileName, GetFileExInfoStandard, &ignored))
     {
-        result.updateAndRender = (game_update_and_render *)GetProcAddress(result.gameCodeDLL, "GameUpdateAndRender");
-        result.getSoundSamples = (game_get_sound_samples *)GetProcAddress(result.gameCodeDLL, "GameGetSoundSamples");
+        result.lastDLLWriteTime = Win32GetLastWriteTime(sourceDLLName);
 
-        result.isValid = result.updateAndRender && result.getSoundSamples;
+        CopyFile(sourceDLLName, tempDLLName, FALSE);
+        result.gameCodeDLL = LoadLibraryA(tempDLLName);
+        if(result.gameCodeDLL)
+        {
+            result.updateAndRender = (game_update_and_render *)GetProcAddress(result.gameCodeDLL, "GameUpdateAndRender");
+            result.getSoundSamples = (game_get_sound_samples *)GetProcAddress(result.gameCodeDLL, "GameGetSoundSamples");
+
+            result.isValid = result.updateAndRender && result.getSoundSamples;
+        }
     }
 
     if(!result.isValid)
@@ -1169,6 +1178,13 @@ CALLBACK WinMain
             &win32State, "handmade_temp.dll",
             sizeof(gameCodeTempDLLFullPath), gameCodeTempDLLFullPath
         );
+
+    char gameCodeLockFullPath[WIN32_STATE_FILE_NAME_COUNT];
+    Win32BuildEXEPathFileName
+        (
+            &win32State, "lock.tmp",
+            sizeof(gameCodeLockFullPath), gameCodeLockFullPath
+        );
     
     // NOTE: Set the Windows scheduler granularity
     // so that our Sleep() can be more granular
@@ -1353,7 +1369,12 @@ CALLBACK WinMain
                 DWORD audioLatencyBytes = 0;
                 real32 audioLatencySeconds = 0;
                 
-                win32_game_code gameCode = Win32LoadGameCode(gameCodeDLLFullPath, gameCodeTempDLLFullPath);
+                win32_game_code gameCode = Win32LoadGameCode
+                    (
+                        gameCodeDLLFullPath,
+                        gameCodeTempDLLFullPath,
+                        gameCodeLockFullPath
+                    );
                                                 
                 uint64 lastCycleCount = __rdtsc();
                 while(IsRunning)
@@ -1364,7 +1385,12 @@ CALLBACK WinMain
                     if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&gameCode);
-                        gameCode = Win32LoadGameCode(gameCodeDLLFullPath, gameCodeTempDLLFullPath);
+                        gameCode = Win32LoadGameCode
+                            (
+                                gameCodeDLLFullPath,
+                                gameCodeTempDLLFullPath,
+                                gameCodeLockFullPath
+                            );
                     }
                     
                     // TODO: Zeroing macro
