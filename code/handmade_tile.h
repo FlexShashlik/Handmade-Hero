@@ -1,3 +1,10 @@
+struct tile_map_difference
+{
+    real32 dx;
+    real32 dy;
+    real32 dz;
+};
+
 struct tile_map_position
 {
     // NOTE: These are fixed point tile locations. The high bits are
@@ -7,8 +14,9 @@ struct tile_map_position
     uint32 absTileY;
     uint32 absTileZ;
 
-    real32 tileRelX;
-    real32 tileRelY;
+    // NOTE: This are the offsets from the tile center
+    real32 offsetX;
+    real32 offsetY;
 };
 
 struct tile_chunk_position
@@ -17,9 +25,8 @@ struct tile_chunk_position
     uint32 tileChunkY;
     uint32 tileChunkZ;
 
-    // NOTE: This are the offsets from the tile center
-    uint32 offsetX;
-    uint32 offsetY;
+    uint32 relTileX;
+    uint32 relTileY;
 };
 
 struct tile_chunk

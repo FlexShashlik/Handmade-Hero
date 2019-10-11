@@ -24,11 +24,11 @@ RecanonicalizePosition(tile_map *tileMap, tile_map_position pos)
 
     RecanonicalizeCoord
         (
-            tileMap, &result.absTileX, &result.tileRelX
+            tileMap, &result.absTileX, &result.offsetX
         );
     RecanonicalizeCoord
         (
-            tileMap, &result.absTileY, &result.tileRelY
+            tileMap, &result.absTileY, &result.offsetY
         );
 
     return result;
@@ -145,8 +145,8 @@ GetChunkPosition
     result.tileChunkX = absTileX >> tileMap->chunkShift;
     result.tileChunkY = absTileY >> tileMap->chunkShift;
     result.tileChunkZ = absTileZ;
-    result.offsetX = absTileX & tileMap->chunkMask;
-    result.offsetY = absTileY & tileMap->chunkMask;
+    result.relTileX = absTileX & tileMap->chunkMask;
+    result.relTileY = absTileY & tileMap->chunkMask;
 
     return result;
 }
@@ -172,7 +172,7 @@ GetTileValue
     uint32 tileChunkValue = GetTileValue
         (
             tileMap, tileChunk,
-            chunkPos.offsetX, chunkPos.offsetY
+            chunkPos.relTileX, chunkPos.relTileY
         );
 
     return tileChunkValue;
@@ -246,7 +246,7 @@ SetTileValue
     SetTileValue
         (
             tileMap, tileChunk,
-            chunkPos.offsetX, chunkPos.offsetY,
+            chunkPos.relTileX, chunkPos.relTileY,
             tileValue
         );
 }
@@ -257,5 +257,25 @@ AreOnSameTile(tile_map_position *a, tile_map_position *b)
     bool32 result = (a->absTileX == b->absTileX &&
                      a->absTileY == b->absTileY &&
                      a->absTileZ == b->absTileZ);
+    return result;
+}
+
+inline tile_map_difference
+SubtractInReal32
+(
+    tile_map *tileMap,
+    tile_map_position *a, tile_map_position *b
+)
+{
+    tile_map_difference result;
+
+    real32 dTileX = (real32)a->absTileX - (real32)b->absTileX;
+    real32 dTileY = (real32)a->absTileY - (real32)b->absTileY;
+    real32 dTileZ = (real32)a->absTileZ - (real32)b->absTileZ;
+    
+    result.dx = tileMap->tileSideInMeters * dTileX + a->offsetX - b->offsetX;
+    result.dy = tileMap->tileSideInMeters * dTileY + a->offsetY - b->offsetY;
+    result.dz = tileMap->tileSideInMeters * dTileZ;
+ 
     return result;
 }
