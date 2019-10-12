@@ -40,22 +40,22 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
 
-typedef int32 bool32;
+typedef i32 b32;
 
 typedef size_t memory_index;
 
-typedef float real32;
-typedef double real64;
+typedef float r32;
+typedef double r64;
 
 #define internal static
 #define local_persist static
@@ -71,16 +71,16 @@ typedef double real64;
 
 #define Kilobytes(value) ((value) * 1024)
 #define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) ((uint64)Megabytes(value) * 1024)
-#define Terabytes(value) ((uint64)Gigabytes(value) * 1024)
+#define Gigabytes(value) ((u64)Megabytes(value) * 1024)
+#define Terabytes(value) ((u64)Gigabytes(value) * 1024)
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
-inline uint32
-SafeTruncateUInt64(uint64 value)
+inline u32
+SafeTruncateU64(u64 value)
 {
     Assert(value <= 0xFFFFFFFF);
-    uint32 result = (uint32)value;
+    u32 result = (u32)value;
 
     return result;
 }
@@ -100,7 +100,7 @@ typedef struct thread_context
 
 typedef struct debug_read_file_result
 {
-    uint32 contentsSize;
+    u32 contentsSize;
     void *contents;
 } debug_read_file_result;
 
@@ -110,39 +110,39 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *thread, char *fileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(thread_context *thread, char *fileName, uint32 memorySize, void *memory)
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(thread_context *thread, char *fileName, u32 memorySize, void *memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #endif
 
 typedef struct game_offscreen_buffer
 {
     void *memory;
-    int width;
-    int height;
-    int pitch;
-    int bytesPerPixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
+    i32 bytesPerPixel;
 } game_offscreen_buffer;
 
 typedef struct game_sound_output_buffer
 {
-    int samplesPerSecond;
-    int sampleCount;
-    int16 *samples;
+    i32 samplesPerSecond;
+    i32 sampleCount;
+    i16 *samples;
 } game_sound_output_buffer;
 
 typedef struct game_button_state
 {
-    int halfTransitionCount;
-    bool32 endedDown;
+    i32 halfTransitionCount;
+    b32 endedDown;
 } game_button_state;
 
 typedef struct game_controller_input
 {
-    bool32 isConnected;
-    bool32 isAnalog;
+    b32 isConnected;
+    b32 isAnalog;
         
-    real32 stickAverageX;
-    real32 stickAverageY;
+    r32 stickAverageX;
+    r32 stickAverageY;
     
     union
     {
@@ -174,23 +174,23 @@ typedef struct game_controller_input
 typedef struct game_input
 {
     game_button_state mouseButtons[5];
-    int32 mouseX;
-    int32 mouseY;
-    int32 mouseZ;
+    i32 mouseX;
+    i32 mouseY;
+    i32 mouseZ;
 
-    real32 deltaTime;
+    r32 deltaTime;
     
     game_controller_input controllers[5];
 } game_input;
 
 typedef struct game_memory
 {
-    bool32 isInitialized;
+    b32 isInitialized;
     
-    uint64 permanentStorageSize;
+    u64 permanentStorageSize;
     void *permanentStorage; // NOTE: REQUIRED to be cleared to zero at startup
 
-    uint64 transientStorageSize;
+    u64 transientStorageSize;
     void *transientStorage; // NOTE: REQUIRED to be cleared to zero at startup
 
     debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;

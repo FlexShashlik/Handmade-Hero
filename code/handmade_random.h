@@ -1,5 +1,5 @@
 // NOTE: DON'T REPEAT THIS STUPID SHIT AHAHAHHAHAHAHAHHAHA
-global_variable uint32 randomNumberTable[] =
+global_variable u32 randomNumberTable[] =
 {
     0x4f0143b,  0x4501811,  0x5532323,  0x5aec547,	0x005d8f8,  0x0e7eb4c,  0x23e498d,  0x30d2cc2,
     0x385338b,	0x3478bb5,	0x3cd85c0,	0x248de69,	0x07bd229,	0x2342ba8,	0x45ab830,	0x1e0cefa,

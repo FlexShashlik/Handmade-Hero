@@ -1,11 +1,11 @@
 inline void
 RecanonicalizeCoord
 (
-    tile_map *tileMap, uint32 *tile, real32 *tileRel
+    tile_map *tileMap, u32 *tile, r32 *tileRel
 )
 {
     // NOTE: World is assumed to be toroidal topology
-    int32 offset = RoundReal32ToInt32
+    i32 offset = RoundR32ToI32
         (
             *tileRel / tileMap->tileSideInMeters
         );
@@ -38,7 +38,7 @@ inline tile_chunk *
 GetTileChunk
 (
     tile_map *tileMap,
-    uint32 tileChunkX, uint32 tileChunkY, uint32 tileChunkZ
+    u32 tileChunkX, u32 tileChunkY, u32 tileChunkZ
 )
 {
     tile_chunk *tileChunk = 0;
@@ -58,12 +58,12 @@ GetTileChunk
     return tileChunk;
 }
 
-inline uint32
+inline u32
 GetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    uint32 tileX, uint32 tileY
+    u32 tileX, u32 tileY
 )
 {
     Assert(tileChunk);
@@ -78,8 +78,8 @@ SetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    uint32 tileX, uint32 tileY,
-    uint32 tileValue
+    u32 tileX, u32 tileY,
+    u32 tileValue
 )
 {
     Assert(tileChunk);
@@ -89,15 +89,15 @@ SetTileValueUnchecked
     tileChunk->tiles[tileY * tileMap->chunkDim + tileX] = tileValue;
 }
 
-inline uint32
+inline u32
 GetTileValue
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    uint32 testTileX, uint32 testTileY
+    u32 testTileX, u32 testTileY
 )
 {
-    uint32 tileChunkValue = 0;
+    u32 tileChunkValue = 0;
 
     if(tileChunk && tileChunk->tiles)
     {
@@ -117,8 +117,8 @@ SetTileValue
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    uint32 testTileX, uint32 testTileY,
-    uint32 tileValue
+    u32 testTileX, u32 testTileY,
+    u32 tileValue
 )
 {
     if(tileChunk && tileChunk->tiles)
@@ -137,7 +137,7 @@ inline tile_chunk_position
 GetChunkPosition
 (
     tile_map *tileMap,
-    uint32 absTileX, uint32 absTileY, uint32 absTileZ
+    u32 absTileX, u32 absTileY, u32 absTileZ
 )
 {
     tile_chunk_position result;
@@ -151,11 +151,11 @@ GetChunkPosition
     return result;
 }
 
-internal uint32
+internal u32
 GetTileValue
 (
     tile_map *tileMap,
-    uint32 absTileX, uint32 absTileY, uint32 absTileZ
+    u32 absTileX, u32 absTileY, u32 absTileZ
 )
 {
     tile_chunk_position chunkPos = GetChunkPosition
@@ -169,7 +169,7 @@ GetTileValue
             chunkPos.tileChunkZ
         );
 
-    uint32 tileChunkValue = GetTileValue
+    u32 tileChunkValue = GetTileValue
         (
             tileMap, tileChunk,
             chunkPos.relTileX, chunkPos.relTileY
@@ -178,14 +178,14 @@ GetTileValue
     return tileChunkValue;
 }
 
-internal uint32
+internal u32
 GetTileValue
 (
     tile_map *tileMap,
     tile_map_position pos
 )
 {
-    uint32 tileChunkValue = GetTileValue
+    u32 tileChunkValue = GetTileValue
         (
             tileMap,
             pos.absTileX, pos.absTileY, pos.absTileZ
@@ -194,11 +194,11 @@ GetTileValue
     return tileChunkValue;
 }
 
-internal bool32
+internal b32
 IsTileMapPointEmpty(tile_map *tileMap, tile_map_position pos)
 {
-    uint32 tileChunkValue = GetTileValue(tileMap, pos);
-    bool32 isEmpty = ((tileChunkValue == 1) ||
+    u32 tileChunkValue = GetTileValue(tileMap, pos);
+    b32 isEmpty = ((tileChunkValue == 1) ||
                       (tileChunkValue == 3) ||
                       (tileChunkValue == 4));
 
@@ -209,8 +209,8 @@ internal void
 SetTileValue
 (
     memory_arena *arena, tile_map *tileMap,
-    uint32 absTileX, uint32 absTileY, uint32 absTileZ,
-    uint32 tileValue
+    u32 absTileX, u32 absTileY, u32 absTileZ,
+    u32 tileValue
 )
 {
     tile_chunk_position chunkPos = GetChunkPosition
@@ -227,15 +227,15 @@ SetTileValue
     Assert(tileChunk);
     if(!tileChunk->tiles)
     {
-        uint32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
+        u32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
         tileChunk->tiles = PushArray
             (
                 arena,
                 tileCount,
-                uint32
+                u32
             );
 
-        for(uint32 tileIndex = 0;
+        for(u32 tileIndex = 0;
             tileIndex < tileCount;
             tileIndex++)
         {
@@ -251,17 +251,17 @@ SetTileValue
         );
 }
 
-inline bool32
+inline b32
 AreOnSameTile(tile_map_position *a, tile_map_position *b)
 {
-    bool32 result = (a->absTileX == b->absTileX &&
-                     a->absTileY == b->absTileY &&
-                     a->absTileZ == b->absTileZ);
+    b32 result = (a->absTileX == b->absTileX &&
+                  a->absTileY == b->absTileY &&
+                  a->absTileZ == b->absTileZ);
     return result;
 }
 
 inline tile_map_difference
-SubtractInReal32
+SubtractInR32
 (
     tile_map *tileMap,
     tile_map_position *a, tile_map_position *b
@@ -269,10 +269,10 @@ SubtractInReal32
 {
     tile_map_difference result;
 
-    v2 dTileXY = {(real32)a->absTileX - (real32)b->absTileX,
-                  (real32)a->absTileY - (real32)b->absTileY};
+    v2 dTileXY = {(r32)a->absTileX - (r32)b->absTileX,
+                  (r32)a->absTileY - (r32)b->absTileY};
     
-    real32 dTileZ = (real32)a->absTileZ - (real32)b->absTileZ;
+    r32 dTileZ = (r32)a->absTileZ - (r32)b->absTileZ;
     
     result.dXY = tileMap->tileSideInMeters * dTileXY + a->offset - b->offset;
     result.dZ = tileMap->tileSideInMeters * dTileZ;

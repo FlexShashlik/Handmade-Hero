@@ -3,7 +3,7 @@
 struct memory_arena
 {
     memory_index size;
-    uint8 *base;
+    u8 *base;
     memory_index used;
 };
 
@@ -12,7 +12,7 @@ InitializeArena
 (
     memory_arena *arena,
     memory_index size,
-    uint8 *base
+    u8 *base
 )
 {
     arena->size = size;
@@ -44,15 +44,15 @@ struct world
 
 struct loaded_bitmap
 {
-    int32 width;
-    int32 height;
-    uint32 *pixels;
+    i32 width;
+    i32 height;
+    u32 *pixels;
 };
 
 struct hero_bitmaps
 {
-    int32 alignX;
-    int32 alignY;
+    i32 alignX;
+    i32 alignY;
     loaded_bitmap head;
     loaded_bitmap cape;
     loaded_bitmap torso;
@@ -69,6 +69,6 @@ struct game_state
     
     loaded_bitmap bmp;
 
-    uint32 heroFacingDirection;
+    u32 heroFacingDirection;
     hero_bitmaps heroBitmaps[4];
 };

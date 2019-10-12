@@ -2,23 +2,23 @@ struct win32_offscreen_buffer
 {
     BITMAPINFO info;
     void *memory;
-    int width;
-    int height;
-    int pitch;
-    int bytesPerPixel;
+    i32 width;
+    i32 height;
+    i32 pitch;
+    i32 bytesPerPixel;
 };
 
 struct win32_window_dimension
 {
-    int width;
-    int height;
+    i32 width;
+    i32 height;
 };
 
 struct win32_sound_output
 {
-    int samplesPerSecond;
-    uint32 runningSampleIndex;
-    int bytesPerSample;
+    i32 samplesPerSecond;
+    u32 runningSampleIndex;
+    i32 bytesPerSample;
     DWORD secondaryBufferSize;
     DWORD safetyBytes;
 };
@@ -43,7 +43,7 @@ struct win32_game_code
     game_update_and_render *updateAndRender;
     game_get_sound_samples *getSoundSamples;
 
-    bool32 isValid;
+    b32 isValid;
 };
 
 
@@ -60,7 +60,7 @@ struct win32_replay_buffer
 
 struct win32_state
 {
-    uint64 totalSize;
+    u64 totalSize;
     void *gameMemoryBlock;
     win32_replay_buffer replayBuffers[4];
     

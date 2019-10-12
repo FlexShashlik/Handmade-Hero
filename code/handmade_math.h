@@ -2,13 +2,13 @@ union v2
 {
     struct
     {
-        real32 x, y;
+        r32 x, y;
     };
-    real32 e[2];
+    r32 e[2];
 };
 
 inline v2
-operator*(real32 a, v2 b)
+operator*(r32 a, v2 b)
 {
     v2 result;
 
@@ -19,7 +19,7 @@ operator*(real32 a, v2 b)
 }
 
 inline v2
-operator*(v2 b, real32 a)
+operator*(v2 b, r32 a)
 {
     v2 result = a * b;
 
@@ -27,7 +27,7 @@ operator*(v2 b, real32 a)
 }
 
 inline v2 &
-operator*=(v2 &a, real32 b)
+operator*=(v2 &a, r32 b)
 {
     a = b * a;
 
@@ -75,10 +75,10 @@ operator-(v2 a, v2 b)
     return result;
 }
 
-inline real32
-Square(real32 value)
+inline r32
+Square(r32 value)
 {
-    real32 result = value * value;
+    r32 result = value * value;
 
     return result;
 }

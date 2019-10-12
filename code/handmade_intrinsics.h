@@ -5,63 +5,63 @@
 
 #include "math.h"
 
-inline int32
-RoundReal32ToInt32(real32 value)
+inline i32
+RoundR32ToI32(r32 value)
 {
-    return (int32)roundf(value);
+    return (i32)roundf(value);
 }
 
-inline uint32
-RoundReal32ToUInt32(real32 value)
+inline u32
+RoundR32ToU32(r32 value)
 {
-    return (uint32)roundf(value);
+    return (u32)roundf(value);
 }
 
-inline int32
-FloorReal32ToInt32(real32 value)
+inline i32
+FloorR32ToI32(r32 value)
 {
-    return (int32)floorf(value);
+    return (i32)floorf(value);
 }
 
-inline int32
-TruncateReal32ToInt32(real32 value)
+inline i32
+TruncateR32ToI32(r32 value)
 {
-    return (int32)value;
+    return (i32)value;
 }
 
-inline real32
-Sin(real32 angle)
+inline r32
+Sin(r32 angle)
 {
     return sinf(angle);
 }
 
-inline real32
-Cos(real32 angle)
+inline r32
+Cos(r32 angle)
 {
     return cosf(angle);
 }
 
-inline real32
-Atan2(real32 y, real32 x)
+inline r32
+Atan2(r32 y, r32 x)
 {
     return atan2f(y, x);
 }
 
 struct bit_scan_result
 {
-    bool32 isFound;
-    uint32 index;
+    b32 isFound;
+    u32 index;
 };
 
 inline bit_scan_result
-FindLeastSignificantSetBit(uint32 value)
+FindLeastSignificantSetBit(u32 value)
 {
     bit_scan_result result = {};
 
 #if COMPILER_MSVC
     result.isFound = _BitScanForward((unsigned long *)&result.index, value);
 #else
-    for(uint32 test = 0; test < 32; test++)
+    for(u32 test = 0; test < 32; test++)
     {
         if(value & (1 << test))
         {
