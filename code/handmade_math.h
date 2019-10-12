@@ -74,3 +74,11 @@ operator-(v2 a, v2 b)
 
     return result;
 }
+
+inline real32
+Square(real32 value)
+{
+    real32 result = value * value;
+
+    return result;
+}

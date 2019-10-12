@@ -65,6 +65,7 @@ struct game_state
 
     tile_map_position cameraPos;
     tile_map_position playerPos;
+    v2 dPlayerPos;
     
     loaded_bitmap bmp;
 

@@ -623,48 +623,56 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         else
         {
             // NOTE: Digital movement
-            v2 dPlayer = {};
+            v2 ddPlayerPos = {};
             
             if(controller->moveUp.endedDown)
             {
                 gameState->heroFacingDirection = 1;
-                dPlayer.y = 1.0f;
+                ddPlayerPos.y = 1.0f;
             }
             
             if(controller->moveDown.endedDown)
             {
                 gameState->heroFacingDirection = 3;
-                dPlayer.y = -1.0f;
+                ddPlayerPos.y = -1.0f;
             }
             
             if(controller->moveLeft.endedDown)
             {
                 gameState->heroFacingDirection = 2;
-                dPlayer.x = -1.0f;
+                ddPlayerPos.x = -1.0f;
             }
             
             if(controller->moveRight.endedDown)
             {
                 gameState->heroFacingDirection = 0;
-                dPlayer.x = 1.0f;
+                ddPlayerPos.x = 1.0f;
             }
-            
-            real32 playerSpeed = 2.0f;
+                        
+            if(ddPlayerPos.x != 0.0f && ddPlayerPos.y != 0.0f)
+            {
+                ddPlayerPos *= 0.707106781f;
+            }
+
+            real32 playerSpeed = 10.0f;
             if(controller->actionUp.endedDown)
             {
-                playerSpeed = 10.0f;
+                playerSpeed = 50.0f;
             }
             
-            dPlayer *= playerSpeed;
+            ddPlayerPos *= playerSpeed;
 
-            if(dPlayer.x != 0.0f && dPlayer.y != 0.0f)
-            {
-                dPlayer *= 0.707106781f;
-            }
-            
-            // TODO: Diagonal will be faster :D
+            // TODO: ODE!!!
+            ddPlayerPos += -1.5f * gameState->dPlayerPos;
+                
             tile_map_position newPlayerPos = gameState->playerPos;
-            newPlayerPos.offset += input->deltaTime * dPlayer;
+            newPlayerPos.offset =
+                0.5f * ddPlayerPos * Square(input->deltaTime) +
+                gameState->dPlayerPos * input->deltaTime +
+                newPlayerPos.offset;
+                        
+            gameState->dPlayerPos = ddPlayerPos * input->deltaTime +
+                gameState->dPlayerPos;
 
             newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
             
