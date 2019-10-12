@@ -683,10 +683,51 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             tile_map_position playerRight = newPlayerPos;
             playerRight.offset.x += 0.5f * playerWidth;
             playerRight = RecanonicalizePosition(tileMap, playerRight);
+
+            b32 isCollided = false;
+            tile_map_position collisionPos = {};
+            if(!IsTileMapPointEmpty(tileMap, newPlayerPos))
+            {
+                collisionPos = newPlayerPos;
+                isCollided = true;
+            }
+
+            if(!IsTileMapPointEmpty(tileMap, playerLeft))
+            {
+                collisionPos = playerLeft;
+                isCollided = true;
+            }
+
+            if(!IsTileMapPointEmpty(tileMap, playerRight))
+            {
+                collisionPos = playerRight;
+                isCollided = true;
+            }
             
-            if(IsTileMapPointEmpty(tileMap, newPlayerPos) &&
-               IsTileMapPointEmpty(tileMap, playerLeft) &&
-               IsTileMapPointEmpty(tileMap, playerRight))
+            
+            if(isCollided)
+            {
+                v2 r = {};
+                if(collisionPos.absTileX < gameState->playerPos.absTileX)
+                {
+                    r = v2{1, 0};
+                }
+                if(collisionPos.absTileX > gameState->playerPos.absTileX)
+                {
+                    r = v2{-1, 0};
+                }
+                if(collisionPos.absTileY < gameState->playerPos.absTileY)
+                {
+                    r = v2{0, 1};
+                }
+                if(collisionPos.absTileY > gameState->playerPos.absTileY)
+                {
+                    r = v2{0, -1};
+                }
+                
+                gameState->dPlayerPos = gameState->dPlayerPos - 2 * Inner(gameState->dPlayerPos, r) * r;
+            }
+            else
             {
                 if(!AreOnSameTile(&gameState->playerPos, &newPlayerPos))
                 {
@@ -711,7 +752,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 (
                     tileMap,
                     &gameState->playerPos, &gameState->cameraPos
-                 );
+                );
 
             if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
             {

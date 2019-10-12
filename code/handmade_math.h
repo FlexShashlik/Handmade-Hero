@@ -82,3 +82,11 @@ Square(r32 value)
 
     return result;
 }
+
+inline r32
+Inner(v2 a, v2 b)
+{
+    r32 result = a.x * b.x + a.y * b.y;
+    
+    return result;
+}
