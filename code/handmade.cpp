@@ -32,7 +32,7 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 internal void
 RenderWeirdGradient(game_offscreen_buffer *buffer, int blueOffset, int greenOffset)
 {
-    uint8 *row = (uint8 *)buffer->memory;
+   uint8 *row = (uint8 *)buffer->memory;
 
     for(int y = 0; y < buffer->height; y++)
     {
@@ -54,15 +54,14 @@ internal void
 DrawRectangle
 (
     game_offscreen_buffer *buffer,
-    real32 realMinX, real32 realMinY,
-    real32 realMaxX, real32 realMaxY,
+    v2 vMin, v2 vMax,
     real32 r, real32 g, real32 b
 )
 {
-    int32 minX = RoundReal32ToInt32(realMinX);
-    int32 minY = RoundReal32ToInt32(realMinY);
-    int32 maxX = RoundReal32ToInt32(realMaxX);
-    int32 maxY = RoundReal32ToInt32(realMaxY);
+    int32 minX = RoundReal32ToInt32(vMin.x);
+    int32 minY = RoundReal32ToInt32(vMin.y);
+    int32 maxX = RoundReal32ToInt32(vMax.x);
+    int32 maxY = RoundReal32ToInt32(vMax.y);
 
     if(minX < 0)
     {
@@ -402,8 +401,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         gameState->playerPos.absTileX = 1;
         gameState->playerPos.absTileY = 3;
-        gameState->playerPos.offsetX = 5.0f;
-        gameState->playerPos.offsetY = 5.0f;
+        gameState->playerPos.offset.x = 5.0f;
+        gameState->playerPos.offset.y = 5.0f;
         
         InitializeArena
             (
@@ -624,31 +623,30 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         else
         {
             // NOTE: Digital movement
-            real32 dPlayerX = 0.0f;
-            real32 dPlayerY = 0.0f;
+            v2 dPlayer = {};
             
             if(controller->moveUp.endedDown)
             {
                 gameState->heroFacingDirection = 1;
-                dPlayerY = 1.0f;
+                dPlayer.y = 1.0f;
             }
             
             if(controller->moveDown.endedDown)
             {
                 gameState->heroFacingDirection = 3;
-                dPlayerY = -1.0f;
+                dPlayer.y = -1.0f;
             }
             
             if(controller->moveLeft.endedDown)
             {
                 gameState->heroFacingDirection = 2;
-                dPlayerX = -1.0f;
+                dPlayer.x = -1.0f;
             }
             
             if(controller->moveRight.endedDown)
             {
                 gameState->heroFacingDirection = 0;
-                dPlayerX = 1.0f;
+                dPlayer.x = 1.0f;
             }
             
             real32 playerSpeed = 2.0f;
@@ -657,22 +655,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 playerSpeed = 10.0f;
             }
             
-            dPlayerX *= playerSpeed;
-            dPlayerY *= playerSpeed;
+            dPlayer *= playerSpeed;
+
+            if(dPlayer.x != 0.0f && dPlayer.y != 0.0f)
+            {
+                dPlayer *= 0.707106781f;
+            }
             
             // TODO: Diagonal will be faster :D
             tile_map_position newPlayerPos = gameState->playerPos;
-            newPlayerPos.offsetX += input->deltaTime * dPlayerX;
-            newPlayerPos.offsetY += input->deltaTime * dPlayerY;
+            newPlayerPos.offset += input->deltaTime * dPlayer;
 
             newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
             
             tile_map_position playerLeft = newPlayerPos;
-            playerLeft.offsetX -= 0.5f * playerWidth;
+            playerLeft.offset.x -= 0.5f * playerWidth;
             playerLeft = RecanonicalizePosition(tileMap, playerLeft);
             
             tile_map_position playerRight = newPlayerPos;
-            playerRight.offsetX += 0.5f * playerWidth;
+            playerRight.offset.x += 0.5f * playerWidth;
             playerRight = RecanonicalizePosition(tileMap, playerRight);
             
             if(IsTileMapPointEmpty(tileMap, newPlayerPos) &&
@@ -704,22 +705,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     &gameState->playerPos, &gameState->cameraPos
                  );
 
-            if(diff.dx > 9.0f * tileMap->tileSideInMeters)
+            if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
             {
                 gameState->cameraPos.absTileX += 17;
             }
 
-            if(diff.dx < -9.0f * tileMap->tileSideInMeters)
+            if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
             {
                 gameState->cameraPos.absTileX -= 17;
             }
 
-            if(diff.dy > 5.0f * tileMap->tileSideInMeters)
+            if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
             {
                 gameState->cameraPos.absTileY += 9;
             }
 
-            if(diff.dy < -5.0f * tileMap->tileSideInMeters)
+            if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
             {
                 gameState->cameraPos.absTileY -= 9;
             }
@@ -760,19 +761,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     gray = 0.0f;
                 }
 
-                real32 centerX = screenCenterX - metersToPixels * gameState->cameraPos.offsetX +
-                    ((real32)relColumn) * tileSideInPixels;
-                real32 centerY = screenCenterY + metersToPixels * gameState->cameraPos.offsetY -
-                    ((real32)relRow) * tileSideInPixels;
-                real32 minX = centerX - 0.5f * tileSideInPixels;
-                real32 minY = centerY - 0.5f * tileSideInPixels;
-                real32 maxX = centerX + 0.5f * tileSideInPixels;
-                real32 maxY = centerY + 0.5f * tileSideInPixels;
+                v2 tileSide =
+                    {
+                        0.5f * tileSideInPixels,
+                        0.5f * tileSideInPixels
+                    };
+                
+                v2 center =
+                    {
+                        screenCenterX - metersToPixels *
+                        gameState->cameraPos.offset.x +
+                        ((real32)relColumn) * tileSideInPixels,
+                        
+                        screenCenterY + metersToPixels *
+                        gameState->cameraPos.offset.y -
+                        ((real32)relRow) * tileSideInPixels
+                    };
+                v2 min = center - tileSide;
+                v2 max = center + tileSide;
             
                 DrawRectangle
                     (
-                        buffer, minX, minY,
-                        maxX, maxY,
+                        buffer, min, max,
                         gray, gray, gray
                     );
             }
@@ -789,18 +799,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 playerG = 1.0f;
     real32 playerB = 0.0f;
 
-    real32 playerGroundX = screenCenterX + metersToPixels * diff.dx;
-    real32 playerGroundY = screenCenterY - metersToPixels * diff.dy;
+    real32 playerGroundX = screenCenterX + metersToPixels *
+        diff.dXY.x;
+    real32 playerGroundY = screenCenterY - metersToPixels *
+        diff.dXY.y;
     
-    real32 playerLeft = playerGroundX - 0.5f * metersToPixels * playerWidth;
-    real32 playerTop = playerGroundY - metersToPixels * playerHeight;
+    v2 playerLeftTop =
+        {
+            playerGroundX - 0.5f * metersToPixels * playerWidth,
+            playerGroundY - metersToPixels * playerHeight
+        };
+
+    v2 playerWidthHeight = {playerWidth, playerHeight};
     
     DrawRectangle
         (
             buffer,
-            playerLeft, playerTop,
-            playerLeft + metersToPixels * playerWidth,
-            playerTop + metersToPixels * playerHeight,
+            playerLeftTop,
+            playerLeftTop + metersToPixels * playerWidthHeight,
             playerR, playerG, playerB
         );
 
