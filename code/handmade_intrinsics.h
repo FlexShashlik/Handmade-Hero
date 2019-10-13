@@ -5,6 +5,12 @@
 
 #include "math.h"
 
+inline r32
+AbsoluteValue(r32 value)
+{
+    return (r32)fabs(value);
+}
+
 inline i32
 RoundR32ToI32(r32 value)
 {

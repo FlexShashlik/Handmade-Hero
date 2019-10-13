@@ -272,17 +272,259 @@ DEBUGLoadBMP
     return result;
 }
 
+inline entity *
+GetEntity(game_state *gameState, u32 index)
+{
+    entity *_entity = 0;
+
+    if(index > 0 && index < ArrayCount(gameState->entities))
+    {
+        _entity = &gameState->entities[index];
+    }
+
+    return _entity;
+}
+
+internal void
+InitializePlayer(game_state *gameState, u32 entityIndex)
+{
+    entity *_entity = GetEntity(gameState, entityIndex);
+    
+    _entity->isExists = true;
+    _entity->pos.absTileX = 1;
+    _entity->pos.absTileY = 3;
+    _entity->pos.offset.x = 5.0f;
+    _entity->pos.offset.y = 5.0f;
+    _entity->height = 1.4f;
+    _entity->width = 0.75f * _entity->height;
+
+    if(!GetEntity(gameState,
+                  gameState->cameraFollowingEntityIndex))
+    {
+        gameState->cameraFollowingEntityIndex = entityIndex;
+    }
+}
+
+internal u32
+AddEntity(game_state *gameState)
+{
+    Assert(gameState->entityCount < ArrayCount(gameState->entities));
+    u32 entityIndex = gameState->entityCount++;
+    entity *_entity = &gameState->entities[entityIndex];
+    *_entity = {};
+
+    
+    return entityIndex;
+}
+
+internal void
+MovePlayer
+(
+    game_state *gameState, entity *_entity,
+    r32 deltaTime, v2 ddPlayerPos
+)
+{
+    tile_map *tileMap = gameState->worldMap->tileMap;
+    if(ddPlayerPos.x != 0.0f && ddPlayerPos.y != 0.0f)
+    {
+        ddPlayerPos *= 0.707106781f;
+    }
+
+    r32 playerSpeed = 50.0f;
+    ddPlayerPos *= playerSpeed;
+
+    // TODO: ODE!!!
+    ddPlayerPos += -8.0f * _entity->dPos;
+
+    tile_map_position oldPlayerPos = _entity->pos;
+    tile_map_position newPlayerPos = oldPlayerPos;
+    
+    v2 deltaPlayerPos = 0.5f * ddPlayerPos *
+        Square(deltaTime) + _entity->dPos * deltaTime;
+    
+    newPlayerPos.offset += deltaPlayerPos;
+                        
+    _entity->dPos = ddPlayerPos * deltaTime +
+        _entity->dPos;
+    
+    newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
+
+#if 1
+            
+    tile_map_position playerLeft = newPlayerPos;
+    playerLeft.offset.x -= 0.5f * _entity->width;
+    playerLeft = RecanonicalizePosition(tileMap, playerLeft);
+            
+    tile_map_position playerRight = newPlayerPos;
+    playerRight.offset.x += 0.5f * _entity->width;
+    playerRight = RecanonicalizePosition(tileMap, playerRight);
+
+    b32 isCollided = false;
+    tile_map_position collisionPos = {};
+    if(!IsTileMapPointEmpty(tileMap, newPlayerPos))
+    {
+        collisionPos = newPlayerPos;
+        isCollided = true;
+    }
+
+    if(!IsTileMapPointEmpty(tileMap, playerLeft))
+    {
+        collisionPos = playerLeft;
+        isCollided = true;
+    }
+
+    if(!IsTileMapPointEmpty(tileMap, playerRight))
+    {
+        collisionPos = playerRight;
+        isCollided = true;
+    }
+                        
+    if(isCollided)
+    {
+        v2 r = {};
+        if(collisionPos.absTileX < _entity->pos.absTileX)
+        {
+            r = v2{1, 0};
+        }
+        if(collisionPos.absTileX > _entity->pos.absTileX)
+        {
+            r = v2{-1, 0};
+        }
+        if(collisionPos.absTileY < _entity->pos.absTileY)
+        {
+            r = v2{0, 1};
+        }
+        if(collisionPos.absTileY > _entity->pos.absTileY)
+        {
+            r = v2{0, -1};
+        }
+                
+        _entity->dPos = _entity->dPos - 1 * Inner(_entity->dPos, r) * r;
+    }
+    else
+    {
+        _entity->pos = newPlayerPos;
+    }
+#else
+
+    u32 minTileX = 0;
+    u32 minTileY = 0;
+    u32 onePastMaxTileX = 0;
+    u32 onePastMaxTileY = 0;
+    u32 absTileZ = gameState->playerPos.absTileZ;
+    tile_map_position bestPlayerPos = gameState->playerPos;
+    r32 bestDistanceSq = LenghtSq(deltaPlayerPos);
+            
+    for(u32 absTileY = minTileY;
+        absTileY != onePastMaxTileY;
+        absTileY++)
+    {
+        for(u32 absTileX = minTileX;
+            absTileX != onePastMaxTileX;
+            absTileX++)
+        {
+            tile_map_position testTilePos = CenteredTilePoint
+                (
+                    absTileX, absTileY, absTileZ
+                );
+                    
+            u32 tileValue = GetTileValue(tileMap, testTilePos);
+                    
+            if(IsTileValueEmpty(tileValue))
+            {
+                v2 minCorner = -0.5f * v2
+                    {
+                        tileMap->tileSideInMeters,
+                        tileMap->tileSideInMeters
+                    };
+                        
+                v2 maxCorner = 0.5f * v2
+                    {
+                        tileMap->tileSideInMeters,
+                        tileMap->tileSideInMeters
+                    };
+
+                tile_map_difference relNewPlayerPos = Subtract
+                    (
+                        tileMap,
+                        &testTilePos, &newPlayerPos
+                    );
+
+                v2 testP = ClosestPointInRect
+                    (
+                        minCorner,
+                        maxCorner,
+                        relNewPlayerPos
+                    );
+
+                testDistanceSq = ;
+                if(bestDistanceSq > testDistanceSq)
+                {
+                    bestPlayerPos = ;
+                    bestDistanceSq = ;
+                }
+            }
+        }
+    }
+#endif
+
+    //
+    // NOTE: Update camera & player Z based on the last movement
+    //
+    if(!AreOnSameTile(&oldPlayerPos, &_entity->pos))
+    {
+        u32 newTileValue = GetTileValue(tileMap, _entity->pos);
+                    
+        if(newTileValue == 3)
+        {
+            _entity->pos.absTileZ++;
+        }
+        else if(newTileValue == 4)
+        {
+            _entity->pos.absTileZ--;
+        }
+    }
+
+    if(_entity->dPos.x == 0.0f && _entity->dPos.y == 0.0f)
+    {
+        // NOTE: Leave facing direction whatever it was
+    }
+    else if(AbsoluteValue(_entity->dPos.x) >
+            AbsoluteValue(_entity->dPos.y))
+    {
+        if(_entity->dPos.x > 0)
+        {
+            _entity->facingDirection = 0;
+        }
+        else
+        {
+            _entity->facingDirection = 2;
+        }
+    }
+    else if(AbsoluteValue(_entity->dPos.x) <
+            AbsoluteValue(_entity->dPos.y))
+    {
+        if(_entity->dPos.y > 0)
+        {
+            _entity->facingDirection = 1;
+        }
+        else
+        {
+            _entity->facingDirection = 3;
+        }
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
-    
-    r32 playerHeight = 1.4f;
-    r32 playerWidth = 0.75f * playerHeight;
-    
+        
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
     {
+        // NOTE: Reserve the null entity slot
+        AddEntity(gameState);
         gameState->bmp = DEBUGLoadBMP
             (
                 thread,
@@ -398,11 +640,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         gameState->cameraPos.absTileX = 17/2;
         gameState->cameraPos.absTileY = 9/2;
-        
-        gameState->playerPos.absTileX = 1;
-        gameState->playerPos.absTileY = 3;
-        gameState->playerPos.offset.x = 5.0f;
-        gameState->playerPos.offset.y = 5.0f;
         
         InitializeArena
             (
@@ -610,245 +847,108 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     r32 lowerLeftX = -(r32)tileSideInPixels/2;
     r32 lowerLeftY = (r32)buffer->height;
-
-    tile_map_position oldPlayerPos = gameState->playerPos;
     
     for(i32 controllerIndex = 0;
         controllerIndex < ArrayCount(input->controllers);
         controllerIndex++)
     {
-        game_controller_input *controller = GetController(input, controllerIndex);    
-        if(controller->isAnalog)
+        game_controller_input *controller = GetController(input, controllerIndex);
+        entity *controllingEntity = GetEntity
+            (
+                gameState,
+                gameState->playerIndexForController[controllerIndex]
+            );
+        
+        if(controllingEntity)
         {
-            // NOTE: Analog movement
-        }
-        else
-        {
-            // NOTE: Digital movement
             v2 ddPlayerPos = {};
             
-            if(controller->moveUp.endedDown)
+            if(controller->isAnalog)
             {
-                gameState->heroFacingDirection = 1;
-                ddPlayerPos.y = 1.0f;
-            }
-            
-            if(controller->moveDown.endedDown)
-            {
-                gameState->heroFacingDirection = 3;
-                ddPlayerPos.y = -1.0f;
-            }
-            
-            if(controller->moveLeft.endedDown)
-            {
-                gameState->heroFacingDirection = 2;
-                ddPlayerPos.x = -1.0f;
-            }
-            
-            if(controller->moveRight.endedDown)
-            {
-                gameState->heroFacingDirection = 0;
-                ddPlayerPos.x = 1.0f;
-            }
-                        
-            if(ddPlayerPos.x != 0.0f && ddPlayerPos.y != 0.0f)
-            {
-                ddPlayerPos *= 0.707106781f;
-            }
-
-            r32 playerSpeed = 10.0f;
-            if(controller->actionUp.endedDown)
-            {
-                playerSpeed = 50.0f;
-            }
-            
-            ddPlayerPos *= playerSpeed;
-
-            // TODO: ODE!!!
-            ddPlayerPos += -1.5f * gameState->dPlayerPos;
-
-            tile_map_position newPlayerPos = gameState->playerPos;
-            v2 deltaPlayerPos = 0.5f * ddPlayerPos *
-                Square(input->deltaTime) +
-                gameState->dPlayerPos * input->deltaTime;
-            newPlayerPos.offset += deltaPlayerPos;
-                        
-            gameState->dPlayerPos = ddPlayerPos * input->deltaTime +
-                gameState->dPlayerPos;
-            newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
-
-#if 1
-            
-            tile_map_position playerLeft = newPlayerPos;
-            playerLeft.offset.x -= 0.5f * playerWidth;
-            playerLeft = RecanonicalizePosition(tileMap, playerLeft);
-            
-            tile_map_position playerRight = newPlayerPos;
-            playerRight.offset.x += 0.5f * playerWidth;
-            playerRight = RecanonicalizePosition(tileMap, playerRight);
-
-            b32 isCollided = false;
-            tile_map_position collisionPos = {};
-            if(!IsTileMapPointEmpty(tileMap, newPlayerPos))
-            {
-                collisionPos = newPlayerPos;
-                isCollided = true;
-            }
-
-            if(!IsTileMapPointEmpty(tileMap, playerLeft))
-            {
-                collisionPos = playerLeft;
-                isCollided = true;
-            }
-
-            if(!IsTileMapPointEmpty(tileMap, playerRight))
-            {
-                collisionPos = playerRight;
-                isCollided = true;
-            }
-                        
-            if(isCollided)
-            {
-                v2 r = {};
-                if(collisionPos.absTileX < gameState->playerPos.absTileX)
-                {
-                    r = v2{1, 0};
-                }
-                if(collisionPos.absTileX > gameState->playerPos.absTileX)
-                {
-                    r = v2{-1, 0};
-                }
-                if(collisionPos.absTileY < gameState->playerPos.absTileY)
-                {
-                    r = v2{0, 1};
-                }
-                if(collisionPos.absTileY > gameState->playerPos.absTileY)
-                {
-                    r = v2{0, -1};
-                }
-                
-                gameState->dPlayerPos = gameState->dPlayerPos - 1 * Inner(gameState->dPlayerPos, r) * r;
+                // NOTE: Analog movement
+                ddPlayerPos = v2
+                    {
+                        controller->stickAverageX,
+                        controller->stickAverageY
+                    };
             }
             else
             {
-                gameState->playerPos = newPlayerPos;
-            }
-#else
-
-            u32 minTileX = 0;
-            u32 minTileY = 0;
-            u32 onePastMaxTileX = 0;
-            u32 onePastMaxTileY = 0;
-            u32 absTileZ = gameState->playerPos.absTileZ;
-            tile_map_position bestPlayerPos = gameState->playerPos;
-            r32 bestDistanceSq = LenghtSq(deltaPlayerPos);
+                // NOTE: Digital movement
+                if(controller->moveUp.endedDown)
+                {        
+                    ddPlayerPos.y = 1.0f;
+                }
             
-            for(u32 absTileY = minTileY;
-                absTileY != onePastMaxTileY;
-                absTileY++)
-            {
-                for(u32 absTileX = minTileX;
-                    absTileX != onePastMaxTileX;
-                    absTileX++)
+                if(controller->moveDown.endedDown)
                 {
-                    tile_map_position testTilePos = CenteredTilePoint
-                        (
-                            absTileX, absTileY, absTileZ
-                        );
-                    
-                    u32 tileValue = GetTileValue(tileMap, testTilePos);
-                    
-                    if(IsTileValueEmpty(tileValue))
-                    {
-                        v2 minCorner = -0.5f * v2
-                            {
-                                tileMap->tileSideInMeters,
-                                tileMap->tileSideInMeters
-                            };
-                        
-                        v2 maxCorner = 0.5f * v2
-                            {
-                                tileMap->tileSideInMeters,
-                                tileMap->tileSideInMeters
-                            };
-
-                        tile_map_difference relNewPlayerPos = Subtract
-                            (
-                                tileMap,
-                                &testTilePos, &newPlayerPos
-                            );
-
-                        v2 testP = ClosestPointInRect
-                            (
-                                minCorner,
-                                maxCorner,
-                                relNewPlayerPos
-                            );
-
-                        testDistanceSq = ;
-                        if(bestDistanceSq > testDistanceSq)
-                        {
-                            bestPlayerPos = ;
-                            bestDistanceSq = ;
-                        }
-                    }
+                    ddPlayerPos.y = -1.0f;
+                }
+            
+                if(controller->moveLeft.endedDown)
+                {
+                    ddPlayerPos.x = -1.0f;
+                }
+            
+                if(controller->moveRight.endedDown)
+                {
+                    ddPlayerPos.x = 1.0f;
                 }
             }
-#endif
-        }
-    }
 
-    //
-    // NOTE: Update camera & player Z based on the last movement
-    //
-    if(!AreOnSameTile(&oldPlayerPos, &gameState->playerPos))
-    {
-        u32 newTileValue = GetTileValue(tileMap, gameState->playerPos);
-                    
-        if(newTileValue == 3)
+            MovePlayer
+                (
+                    gameState, controllingEntity,
+                    input->deltaTime, ddPlayerPos
+                );
+        }
+        else
         {
-            gameState->playerPos.absTileZ++;
+            if(controller->start.endedDown)
+            {
+                u32 entityIndex = AddEntity(gameState);
+                controllingEntity = GetEntity(gameState, entityIndex);
+                InitializePlayer(gameState, entityIndex);
+                gameState->playerIndexForController[controllerIndex] = entityIndex;
+            }
         }
-        else if(newTileValue == 4)
+    }
+
+    entity *cameraFollowingEntity = GetEntity
+        (
+            gameState, gameState->cameraFollowingEntityIndex
+        );
+    
+    if(cameraFollowingEntity)
+    {
+        gameState->cameraPos.absTileZ = cameraFollowingEntity->pos.absTileZ;
+        
+        tile_map_difference diff = Subtract
+            (
+                tileMap,
+                &cameraFollowingEntity->pos, &gameState->cameraPos
+            );
+
+        if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
         {
-            gameState->playerPos.absTileZ--;
+            gameState->cameraPos.absTileX += 17;
+        }
+
+        if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
+        {
+            gameState->cameraPos.absTileX -= 17;
+        }
+
+        if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
+        {
+            gameState->cameraPos.absTileY += 9;
+        }
+
+        if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
+        {
+            gameState->cameraPos.absTileY -= 9;
         }
     }
-
-    gameState->cameraPos.absTileZ = gameState->playerPos.absTileZ;
-
-    tile_map_difference diff = Subtract
-        (
-            tileMap,
-            &gameState->playerPos, &gameState->cameraPos
-        );
-
-    if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
-    {
-        gameState->cameraPos.absTileX += 17;
-    }
-
-    if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
-    {
-        gameState->cameraPos.absTileX -= 17;
-    }
-
-    if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
-    {
-        gameState->cameraPos.absTileY += 9;
-    }
-
-    if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
-    {
-        gameState->cameraPos.absTileY -= 9;
-    }
-
-    diff = Subtract
-        (
-            tileMap,
-            &gameState->playerPos, &gameState->cameraPos
-        );
-
     //
     // NOTE: Render
     //
@@ -914,58 +1014,74 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
     }
-        
-    r32 playerR = 1.0f;
-    r32 playerG = 1.0f;
-    r32 playerB = 0.0f;
 
-    r32 playerGroundX = screenCenterX + metersToPixels *
-        diff.dXY.x;
-    r32 playerGroundY = screenCenterY - metersToPixels *
-        diff.dXY.y;
-    
-    v2 playerLeftTop =
+    entity *_entity = gameState->entities;
+    for(u32 entityIndex = 0;
+        entityIndex < gameState->entityCount;
+        entityIndex++, _entity++)
+    {
+        // TODO: Culling of entities based on Z-axis
+        if(_entity->isExists)
         {
-            playerGroundX - 0.5f * metersToPixels * playerWidth,
-            playerGroundY - metersToPixels * playerHeight
-        };
+            tile_map_difference diff = Subtract
+                (
+                    tileMap,
+                    &_entity->pos, &gameState->cameraPos
+                 );
+        
+            r32 playerR = 1.0f;
+            r32 playerG = 1.0f;
+            r32 playerB = 0.0f;
 
-    v2 playerWidthHeight = {playerWidth, playerHeight};
+            r32 playerGroundX = screenCenterX + metersToPixels *
+                diff.dXY.x;
+            r32 playerGroundY = screenCenterY - metersToPixels *
+                diff.dXY.y;
     
-    DrawRectangle
-        (
-            buffer,
-            playerLeftTop,
-            playerLeftTop + metersToPixels * playerWidthHeight,
-            playerR, playerG, playerB
-        );
+            v2 playerLeftTop =
+                {
+                    playerGroundX - 0.5f * metersToPixels * _entity->width,
+                    playerGroundY - metersToPixels * _entity->height
+                };
 
-    hero_bitmaps *heroBitmaps = &gameState->
-        heroBitmaps[gameState->heroFacingDirection];
+            v2 entityWidthHeight = {_entity->width, _entity->height};
     
-    DrawBitmap
-        (
-            buffer, &heroBitmaps->torso,
-            playerGroundX, playerGroundY,
-            heroBitmaps->alignX,
-            heroBitmaps->alignY
-        );
+            DrawRectangle
+                (
+                    buffer,
+                    playerLeftTop,
+                    playerLeftTop + metersToPixels * entityWidthHeight,
+                    playerR, playerG, playerB
+                );
 
-    DrawBitmap
-        (
-            buffer, &heroBitmaps->cape,
-            playerGroundX, playerGroundY,
-            heroBitmaps->alignX,
-            heroBitmaps->alignY
-        );
+            hero_bitmaps *heroBitmaps = &gameState->
+                heroBitmaps[_entity->facingDirection];
     
-    DrawBitmap
-        (
-            buffer, &heroBitmaps->head,
-            playerGroundX, playerGroundY,
-            heroBitmaps->alignX,
-            heroBitmaps->alignY
-        );
+            DrawBitmap
+                (
+                    buffer, &heroBitmaps->torso,
+                    playerGroundX, playerGroundY,
+                    heroBitmaps->alignX,
+                    heroBitmaps->alignY
+                );
+
+            DrawBitmap
+                (
+                    buffer, &heroBitmaps->cape,
+                    playerGroundX, playerGroundY,
+                    heroBitmaps->alignX,
+                    heroBitmaps->alignY
+                );
+    
+            DrawBitmap
+                (
+                    buffer, &heroBitmaps->head,
+                    playerGroundX, playerGroundY,
+                    heroBitmaps->alignX,
+                    heroBitmaps->alignY
+                );
+        }
+    }
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

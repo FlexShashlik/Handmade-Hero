@@ -977,7 +977,7 @@ Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardCo
                     {               
                         Win32ProcessKeyboardMessage
                             (
-                                &keyboardController->start,
+                                &keyboardController->back,
                                 isDown
                             );
                     }
@@ -985,7 +985,7 @@ Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardCo
                     {
                         Win32ProcessKeyboardMessage
                             (
-                                &keyboardController->back,
+                                &keyboardController->start,
                                 isDown
                             );
                     }
