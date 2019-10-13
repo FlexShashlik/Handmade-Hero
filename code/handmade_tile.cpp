@@ -195,12 +195,20 @@ GetTileValue
 }
 
 internal b32
+IsTileValueEmpty(u32 tileValue)
+{
+    b32 isEmpty = ((tileValue == 1) ||
+                   (tileValue == 3) ||
+                   (tileValue == 4));
+    
+    return isEmpty;
+}
+
+internal b32
 IsTileMapPointEmpty(tile_map *tileMap, tile_map_position pos)
 {
     u32 tileChunkValue = GetTileValue(tileMap, pos);
-    b32 isEmpty = ((tileChunkValue == 1) ||
-                      (tileChunkValue == 3) ||
-                      (tileChunkValue == 4));
+    b32 isEmpty = IsTileValueEmpty(tileChunkValue);
 
     return isEmpty;
 }
@@ -261,7 +269,7 @@ AreOnSameTile(tile_map_position *a, tile_map_position *b)
 }
 
 inline tile_map_difference
-SubtractInR32
+Subtract
 (
     tile_map *tileMap,
     tile_map_position *a, tile_map_position *b
@@ -277,5 +285,17 @@ SubtractInR32
     result.dXY = tileMap->tileSideInMeters * dTileXY + a->offset - b->offset;
     result.dZ = tileMap->tileSideInMeters * dTileZ;
  
+    return result;
+}
+
+inline tile_map_position
+CenteredTilePoint(u32 absTileX, u32 absTileY, u32 absTileZ)
+{
+    tile_map_position result = {};
+
+    result.absTileX = absTileX;
+    result.absTileY = absTileY;
+    result.absTileZ = absTileZ;
+
     return result;
 }

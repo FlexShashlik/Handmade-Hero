@@ -90,3 +90,11 @@ Inner(v2 a, v2 b)
     
     return result;
 }
+
+inline r32
+LenghtSq(v2 a)
+{
+    r32 result = Inner(a, a);
+    
+    return result;
+}

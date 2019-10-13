@@ -546,7 +546,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         {
                             tileValue = 3;
                         }
-                        else
+                        else if(isDoorDown)
                         {
                             tileValue = 4;
                         }
@@ -610,6 +610,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     r32 lowerLeftX = -(r32)tileSideInPixels/2;
     r32 lowerLeftY = (r32)buffer->height;
+
+    tile_map_position oldPlayerPos = gameState->playerPos;
     
     for(i32 controllerIndex = 0;
         controllerIndex < ArrayCount(input->controllers);
@@ -664,17 +666,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             // TODO: ODE!!!
             ddPlayerPos += -1.5f * gameState->dPlayerPos;
-                
+
             tile_map_position newPlayerPos = gameState->playerPos;
-            newPlayerPos.offset =
-                0.5f * ddPlayerPos * Square(input->deltaTime) +
-                gameState->dPlayerPos * input->deltaTime +
-                newPlayerPos.offset;
+            v2 deltaPlayerPos = 0.5f * ddPlayerPos *
+                Square(input->deltaTime) +
+                gameState->dPlayerPos * input->deltaTime;
+            newPlayerPos.offset += deltaPlayerPos;
                         
             gameState->dPlayerPos = ddPlayerPos * input->deltaTime +
                 gameState->dPlayerPos;
-
             newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
+
+#if 1
             
             tile_map_position playerLeft = newPlayerPos;
             playerLeft.offset.x -= 0.5f * playerWidth;
@@ -703,8 +706,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 collisionPos = playerRight;
                 isCollided = true;
             }
-            
-            
+                        
             if(isCollided)
             {
                 v2 r = {};
@@ -725,57 +727,131 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     r = v2{0, -1};
                 }
                 
-                gameState->dPlayerPos = gameState->dPlayerPos - 2 * Inner(gameState->dPlayerPos, r) * r;
+                gameState->dPlayerPos = gameState->dPlayerPos - 1 * Inner(gameState->dPlayerPos, r) * r;
             }
             else
             {
-                if(!AreOnSameTile(&gameState->playerPos, &newPlayerPos))
-                {
-                    u32 newTileValue = GetTileValue(tileMap, newPlayerPos);
-                    
-                    if(newTileValue == 3)
-                    {
-                        newPlayerPos.absTileZ++;
-                    }
-                    else if(newTileValue == 4)
-                    {
-                        newPlayerPos.absTileZ--;
-                    }
-                }
-                
                 gameState->playerPos = newPlayerPos;
             }
+#else
 
-            gameState->cameraPos.absTileZ = gameState->playerPos.absTileZ;
-
-            tile_map_difference diff = SubtractInR32
-                (
-                    tileMap,
-                    &gameState->playerPos, &gameState->cameraPos
-                );
-
-            if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
+            u32 minTileX = 0;
+            u32 minTileY = 0;
+            u32 onePastMaxTileX = 0;
+            u32 onePastMaxTileY = 0;
+            u32 absTileZ = gameState->playerPos.absTileZ;
+            tile_map_position bestPlayerPos = gameState->playerPos;
+            r32 bestDistanceSq = LenghtSq(deltaPlayerPos);
+            
+            for(u32 absTileY = minTileY;
+                absTileY != onePastMaxTileY;
+                absTileY++)
             {
-                gameState->cameraPos.absTileX += 17;
-            }
+                for(u32 absTileX = minTileX;
+                    absTileX != onePastMaxTileX;
+                    absTileX++)
+                {
+                    tile_map_position testTilePos = CenteredTilePoint
+                        (
+                            absTileX, absTileY, absTileZ
+                        );
+                    
+                    u32 tileValue = GetTileValue(tileMap, testTilePos);
+                    
+                    if(IsTileValueEmpty(tileValue))
+                    {
+                        v2 minCorner = -0.5f * v2
+                            {
+                                tileMap->tileSideInMeters,
+                                tileMap->tileSideInMeters
+                            };
+                        
+                        v2 maxCorner = 0.5f * v2
+                            {
+                                tileMap->tileSideInMeters,
+                                tileMap->tileSideInMeters
+                            };
 
-            if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
-            {
-                gameState->cameraPos.absTileX -= 17;
-            }
+                        tile_map_difference relNewPlayerPos = Subtract
+                            (
+                                tileMap,
+                                &testTilePos, &newPlayerPos
+                            );
 
-            if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
-            {
-                gameState->cameraPos.absTileY += 9;
-            }
+                        v2 testP = ClosestPointInRect
+                            (
+                                minCorner,
+                                maxCorner,
+                                relNewPlayerPos
+                            );
 
-            if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
-            {
-                gameState->cameraPos.absTileY -= 9;
+                        testDistanceSq = ;
+                        if(bestDistanceSq > testDistanceSq)
+                        {
+                            bestPlayerPos = ;
+                            bestDistanceSq = ;
+                        }
+                    }
+                }
             }
+#endif
         }
     }
-    
+
+    //
+    // NOTE: Update camera & player Z based on the last movement
+    //
+    if(!AreOnSameTile(&oldPlayerPos, &gameState->playerPos))
+    {
+        u32 newTileValue = GetTileValue(tileMap, gameState->playerPos);
+                    
+        if(newTileValue == 3)
+        {
+            gameState->playerPos.absTileZ++;
+        }
+        else if(newTileValue == 4)
+        {
+            gameState->playerPos.absTileZ--;
+        }
+    }
+
+    gameState->cameraPos.absTileZ = gameState->playerPos.absTileZ;
+
+    tile_map_difference diff = Subtract
+        (
+            tileMap,
+            &gameState->playerPos, &gameState->cameraPos
+        );
+
+    if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
+    {
+        gameState->cameraPos.absTileX += 17;
+    }
+
+    if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
+    {
+        gameState->cameraPos.absTileX -= 17;
+    }
+
+    if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
+    {
+        gameState->cameraPos.absTileY += 9;
+    }
+
+    if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
+    {
+        gameState->cameraPos.absTileY -= 9;
+    }
+
+    diff = Subtract
+        (
+            tileMap,
+            &gameState->playerPos, &gameState->cameraPos
+        );
+
+    //
+    // NOTE: Render
+    //
     DrawBitmap(buffer, &gameState->bmp, 0, 0);
     
     r32 screenCenterX = 0.5f * (r32)buffer->width;
@@ -826,6 +902,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         gameState->cameraPos.offset.y -
                         ((r32)relRow) * tileSideInPixels
                     };
+                
                 v2 min = center - tileSide;
                 v2 max = center + tileSide;
             
@@ -837,13 +914,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
     }
-
-    tile_map_difference diff = SubtractInR32
-        (
-            tileMap,
-            &gameState->playerPos, &gameState->cameraPos
-        );
-    
+        
     r32 playerR = 1.0f;
     r32 playerG = 1.0f;
     r32 playerB = 0.0f;
