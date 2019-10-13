@@ -11,6 +11,22 @@ AbsoluteValue(r32 value)
     return (r32)fabs(value);
 }
 
+inline u32
+RotateLeft(u32 value, i32 amount)
+{
+    u32 result = _rotl(value, amount);
+
+    return result;
+}
+
+inline u32
+RotateRight(u32 value, i32 amount)
+{
+    u32 result = _rotr(value, amount);
+
+    return result;
+}
+
 inline i32
 RoundR32ToI32(r32 value)
 {

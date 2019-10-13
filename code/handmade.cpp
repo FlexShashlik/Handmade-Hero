@@ -245,15 +245,20 @@ DEBUGLoadBMP
         u32 blueMask = header->blueMask;
         u32 alphaMask = ~(redMask | greenMask | blueMask);
         
-        bit_scan_result redShift = FindLeastSignificantSetBit(redMask);
-        bit_scan_result greenShift = FindLeastSignificantSetBit(greenMask);
-        bit_scan_result blueShift = FindLeastSignificantSetBit(blueMask);
-        bit_scan_result alphaShift = FindLeastSignificantSetBit(alphaMask);
+        bit_scan_result redScan = FindLeastSignificantSetBit(redMask);
+        bit_scan_result greenScan = FindLeastSignificantSetBit(greenMask);
+        bit_scan_result blueScan = FindLeastSignificantSetBit(blueMask);
+        bit_scan_result alphaScan = FindLeastSignificantSetBit(alphaMask);
 
-        Assert(redShift.isFound);
-        Assert(greenShift.isFound);
-        Assert(blueShift.isFound);
-        Assert(alphaShift.isFound);
+        Assert(redScan.isFound);
+        Assert(greenScan.isFound);
+        Assert(blueScan.isFound);
+        Assert(alphaScan.isFound);
+
+        i32 redShift = 16 - (i32)redScan.index;
+        i32 greenShift = 8 - (i32)greenScan.index;
+        i32 blueShift = 0 - (i32)blueScan.index;
+        i32 alphaShift = 24 - (i32)alphaScan.index;
         
         u32 *sourceDest = pixels;
         for(i32 y = 0; y < header->height; y++)
@@ -261,10 +266,10 @@ DEBUGLoadBMP
             for(i32 x = 0; x < header->width; x++)
             {
                 u32 c = *sourceDest;
-                *sourceDest = ((((c >> alphaShift.index) & 0xFF) << 24) |
-                               (((c >> redShift.index) & 0xFF) << 16) |
-                               (((c >> greenShift.index) & 0xFF) << 8) |
-                               (((c >> blueShift.index) & 0xFF) << 0));
+                *sourceDest = (RotateLeft(c & redMask, redShift) |
+                               RotateLeft(c & greenMask, greenShift) |
+                               RotateLeft(c & blueMask, blueShift) |
+                               RotateLeft(c & alphaMask, alphaShift));
             }
         }
     }
