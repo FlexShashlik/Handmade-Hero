@@ -17,7 +17,7 @@ struct win32_window_dimension
 struct win32_sound_output
 {
     i32 samplesPerSecond;
-    u32 runningSampleIndex;
+    ui32 runningSampleIndex;
     i32 bytesPerSample;
     DWORD secondaryBufferSize;
     DWORD safetyBytes;
@@ -60,7 +60,7 @@ struct win32_replay_buffer
 
 struct win32_state
 {
-    u64 totalSize;
+    ui64 totalSize;
     void *gameMemoryBlock;
     win32_replay_buffer replayBuffers[4];
     

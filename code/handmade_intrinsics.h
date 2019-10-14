@@ -11,18 +11,18 @@ AbsoluteValue(r32 value)
     return (r32)fabs(value);
 }
 
-inline u32
-RotateLeft(u32 value, i32 amount)
+inline ui32
+RotateLeft(ui32 value, i32 amount)
 {
-    u32 result = _rotl(value, amount);
+    ui32 result = _rotl(value, amount);
 
     return result;
 }
 
-inline u32
-RotateRight(u32 value, i32 amount)
+inline ui32
+RotateRight(ui32 value, i32 amount)
 {
-    u32 result = _rotr(value, amount);
+    ui32 result = _rotr(value, amount);
 
     return result;
 }
@@ -33,10 +33,10 @@ RoundR32ToI32(r32 value)
     return (i32)roundf(value);
 }
 
-inline u32
-RoundR32ToU32(r32 value)
+inline ui32
+RoundR32ToUI32(r32 value)
 {
-    return (u32)roundf(value);
+    return (ui32)roundf(value);
 }
 
 inline i32
@@ -72,18 +72,18 @@ Atan2(r32 y, r32 x)
 struct bit_scan_result
 {
     b32 isFound;
-    u32 index;
+    ui32 index;
 };
 
 inline bit_scan_result
-FindLeastSignificantSetBit(u32 value)
+FindLeastSignificantSetBit(ui32 value)
 {
     bit_scan_result result = {};
 
 #if COMPILER_MSVC
     result.isFound = _BitScanForward((unsigned long *)&result.index, value);
 #else
-    for(u32 test = 0; test < 32; test++)
+    for(ui32 test = 0; test < 32; test++)
     {
         if(value & (1 << test))
         {

@@ -129,7 +129,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         LARGE_INTEGER fileSize;
         if(GetFileSizeEx(fileHandle, &fileSize))
         {
-            u32 fileSize32 = SafeTruncateU64(fileSize.QuadPart);
+            ui32 fileSize32 = SafeTruncateUI64(fileSize.QuadPart);
             result.contents = VirtualAlloc
                 (
                     0,
@@ -578,13 +578,13 @@ Win32ClearSoundBuffer(win32_sound_output *soundOutput)
                                        &region2, &region2Bytes,
                                        0)))
     {
-        u8 *destSample = (u8 *)region1;
+        ui8 *destSample = (ui8 *)region1;
         for(DWORD byteIndex = 0; byteIndex < region1Bytes; byteIndex++)
         {            
             *destSample++ = 0;
         }
 
-        destSample = (u8 *)region2;
+        destSample = (ui8 *)region2;
         for(DWORD byteIndex = 0; byteIndex < region2Bytes; byteIndex++)
         {            
             *destSample++ = 0;
@@ -699,7 +699,7 @@ Win32GetInputFileLocation(win32_state *state, b32 isInput, i32 slotIndex, i32 de
 }
 
 internal win32_replay_buffer *
-Win32GetReplayBuffer(win32_state *state, u32 index)
+Win32GetReplayBuffer(win32_state *state, ui32 index)
 {
     Assert(index < ArrayCount(state->replayBuffers));
     win32_replay_buffer *result = &state->replayBuffers[index];
@@ -887,7 +887,7 @@ Win32ProcessPendingMessage(win32_state *state, game_controller_input *keyboardCo
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
-                u32 virtualKeyCode = (u32)message.wParam;
+                ui32 virtualKeyCode = (ui32)message.wParam;
                 b32 wasDown = ((message.lParam & (1 << 30)) != 0);
                 b32 isDown = ((message.lParam & (1 << 31)) == 0);
 
@@ -1066,7 +1066,7 @@ Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
 
 #if 0
 internal void
-Win32DebugDrawVertical(win32_offscreen_buffer *buffer, i32 x, i32 top, i32 bottom, u32 color)
+Win32DebugDrawVertical(win32_offscreen_buffer *buffer, i32 x, i32 top, i32 bottom, ui32 color)
 {
     if(top < 0)
     {
@@ -1080,10 +1080,10 @@ Win32DebugDrawVertical(win32_offscreen_buffer *buffer, i32 x, i32 top, i32 botto
     
     if(x >= 0 && x <= buffer->width)
     {
-        u8 *pixel = (u8 *)buffer->memory + x * buffer->bytesPerPixel + top * buffer->pitch;
+        ui8 *pixel = (ui8 *)buffer->memory + x * buffer->bytesPerPixel + top * buffer->pitch;
         for(i32 y = top; y < bottom; y++)
         {
-            *(u32 *)pixel = color;
+            *(ui32 *)pixel = color;
             pixel += buffer->pitch;
         }
     }
@@ -1098,7 +1098,7 @@ Win32DrawSoundBufferMarker
     i32 padX,
     i32 top, i32 bottom,
     DWORD value,
-    u32 color
+    ui32 color
 )
 {
     i32 x = padX + (i32)(coefficient * (r32)value);    
@@ -1399,7 +1399,7 @@ CALLBACK WinMain
                 );
             
             gameMemory.permanentStorage = win32State.gameMemoryBlock;            
-            gameMemory.transientStorage = (u8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
+            gameMemory.transientStorage = (ui8 *)gameMemory.permanentStorage + gameMemory.permanentStorageSize;
             
             for(i32 replayIndex = 0; replayIndex < ArrayCount(win32State.replayBuffers); replayIndex++)
             {
@@ -1478,7 +1478,7 @@ CALLBACK WinMain
                         gameCodeLockFullPath
                     );
                                                 
-                u64 lastCycleCount = __rdtsc();
+                ui64 lastCycleCount = __rdtsc();
                 while(IsRunning)
                 {
                     newInput->deltaTime = targetSecondsPerFrame;

@@ -9,9 +9,9 @@ struct tile_map_position
     // NOTE: These are fixed point tile locations. The high bits are
     // the tile chunk index, and the low bits are the tile index in
     // the chunk
-    u32 absTileX;
-    u32 absTileY;
-    u32 absTileZ;
+    ui32 absTileX;
+    ui32 absTileY;
+    ui32 absTileZ;
 
     // NOTE: This are the offsets from the tile center
     v2 offset;
@@ -19,30 +19,30 @@ struct tile_map_position
 
 struct tile_chunk_position
 {
-    u32 tileChunkX;
-    u32 tileChunkY;
-    u32 tileChunkZ;
+    ui32 tileChunkX;
+    ui32 tileChunkY;
+    ui32 tileChunkZ;
 
-    u32 relTileX;
-    u32 relTileY;
+    ui32 relTileX;
+    ui32 relTileY;
 };
 
 struct tile_chunk
 {
-    u32 *tiles;
+    ui32 *tiles;
 };
 
 struct tile_map
 {
-    u32 chunkShift;
-    u32 chunkMask;
-    u32 chunkDim;
+    ui32 chunkShift;
+    ui32 chunkMask;
+    ui32 chunkDim;
     
     r32 tileSideInMeters;
     
-    u32 tileChunkCountX;
-    u32 tileChunkCountY;
-    u32 tileChunkCountZ;
+    ui32 tileChunkCountX;
+    ui32 tileChunkCountY;
+    ui32 tileChunkCountZ;
     
     tile_chunk *tileChunks;
 };

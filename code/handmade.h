@@ -3,7 +3,7 @@
 struct memory_arena
 {
     memory_index size;
-    u8 *base;
+    ui8 *base;
     memory_index used;
 };
 
@@ -12,7 +12,7 @@ InitializeArena
 (
     memory_arena *arena,
     memory_index size,
-    u8 *base
+    ui8 *base
 )
 {
     arena->size = size;
@@ -46,7 +46,7 @@ struct loaded_bitmap
 {
     i32 width;
     i32 height;
-    u32 *pixels;
+    ui32 *pixels;
 };
 
 struct hero_bitmaps
@@ -63,7 +63,7 @@ struct entity
     b32 isExists;
     tile_map_position pos;
     v2 dPos;
-    u32 facingDirection;
+    ui32 facingDirection;
     r32 width;
     r32 height;
 };
@@ -73,12 +73,12 @@ struct game_state
     memory_arena worldArena;
     world *worldMap;
 
-    u32 cameraFollowingEntityIndex;
+    ui32 cameraFollowingEntityIndex;
     tile_map_position cameraPos;
 
-    u32 playerIndexForController[ArrayCount(((game_input *)0)->controllers)];
+    ui32 playerIndexForController[ArrayCount(((game_input *)0)->controllers)];
 
-    u32 entityCount;
+    ui32 entityCount;
     entity entities[256];
     
     loaded_bitmap bmp;

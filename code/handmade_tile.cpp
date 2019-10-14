@@ -1,7 +1,7 @@
 inline void
 RecanonicalizeCoord
 (
-    tile_map *tileMap, u32 *tile, r32 *tileRel
+    tile_map *tileMap, ui32 *tile, r32 *tileRel
 )
 {
     // NOTE: World is assumed to be toroidal topology
@@ -38,7 +38,7 @@ inline tile_chunk *
 GetTileChunk
 (
     tile_map *tileMap,
-    u32 tileChunkX, u32 tileChunkY, u32 tileChunkZ
+    ui32 tileChunkX, ui32 tileChunkY, ui32 tileChunkZ
 )
 {
     tile_chunk *tileChunk = 0;
@@ -58,12 +58,12 @@ GetTileChunk
     return tileChunk;
 }
 
-inline u32
+inline ui32
 GetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    u32 tileX, u32 tileY
+    ui32 tileX, ui32 tileY
 )
 {
     Assert(tileChunk);
@@ -78,8 +78,8 @@ SetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    u32 tileX, u32 tileY,
-    u32 tileValue
+    ui32 tileX, ui32 tileY,
+    ui32 tileValue
 )
 {
     Assert(tileChunk);
@@ -89,15 +89,15 @@ SetTileValueUnchecked
     tileChunk->tiles[tileY * tileMap->chunkDim + tileX] = tileValue;
 }
 
-inline u32
+inline ui32
 GetTileValue
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    u32 testTileX, u32 testTileY
+    ui32 testTileX, ui32 testTileY
 )
 {
-    u32 tileChunkValue = 0;
+    ui32 tileChunkValue = 0;
 
     if(tileChunk && tileChunk->tiles)
     {
@@ -117,8 +117,8 @@ SetTileValue
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    u32 testTileX, u32 testTileY,
-    u32 tileValue
+    ui32 testTileX, ui32 testTileY,
+    ui32 tileValue
 )
 {
     if(tileChunk && tileChunk->tiles)
@@ -137,7 +137,7 @@ inline tile_chunk_position
 GetChunkPosition
 (
     tile_map *tileMap,
-    u32 absTileX, u32 absTileY, u32 absTileZ
+    ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
     tile_chunk_position result;
@@ -151,11 +151,11 @@ GetChunkPosition
     return result;
 }
 
-internal u32
+internal ui32
 GetTileValue
 (
     tile_map *tileMap,
-    u32 absTileX, u32 absTileY, u32 absTileZ
+    ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
     tile_chunk_position chunkPos = GetChunkPosition
@@ -169,7 +169,7 @@ GetTileValue
             chunkPos.tileChunkZ
         );
 
-    u32 tileChunkValue = GetTileValue
+    ui32 tileChunkValue = GetTileValue
         (
             tileMap, tileChunk,
             chunkPos.relTileX, chunkPos.relTileY
@@ -178,14 +178,14 @@ GetTileValue
     return tileChunkValue;
 }
 
-internal u32
+internal ui32
 GetTileValue
 (
     tile_map *tileMap,
     tile_map_position pos
 )
 {
-    u32 tileChunkValue = GetTileValue
+    ui32 tileChunkValue = GetTileValue
         (
             tileMap,
             pos.absTileX, pos.absTileY, pos.absTileZ
@@ -195,7 +195,7 @@ GetTileValue
 }
 
 internal b32
-IsTileValueEmpty(u32 tileValue)
+IsTileValueEmpty(ui32 tileValue)
 {
     b32 isEmpty = ((tileValue == 1) ||
                    (tileValue == 3) ||
@@ -207,7 +207,7 @@ IsTileValueEmpty(u32 tileValue)
 internal b32
 IsTileMapPointEmpty(tile_map *tileMap, tile_map_position pos)
 {
-    u32 tileChunkValue = GetTileValue(tileMap, pos);
+    ui32 tileChunkValue = GetTileValue(tileMap, pos);
     b32 isEmpty = IsTileValueEmpty(tileChunkValue);
 
     return isEmpty;
@@ -217,8 +217,8 @@ internal void
 SetTileValue
 (
     memory_arena *arena, tile_map *tileMap,
-    u32 absTileX, u32 absTileY, u32 absTileZ,
-    u32 tileValue
+    ui32 absTileX, ui32 absTileY, ui32 absTileZ,
+    ui32 tileValue
 )
 {
     tile_chunk_position chunkPos = GetChunkPosition
@@ -235,15 +235,15 @@ SetTileValue
     Assert(tileChunk);
     if(!tileChunk->tiles)
     {
-        u32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
+        ui32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
         tileChunk->tiles = PushArray
             (
                 arena,
                 tileCount,
-                u32
+                ui32
             );
 
-        for(u32 tileIndex = 0;
+        for(ui32 tileIndex = 0;
             tileIndex < tileCount;
             tileIndex++)
         {
@@ -289,7 +289,7 @@ Subtract
 }
 
 inline tile_map_position
-CenteredTilePoint(u32 absTileX, u32 absTileY, u32 absTileZ)
+CenteredTilePoint(ui32 absTileX, ui32 absTileY, ui32 absTileZ)
 {
     tile_map_position result = {};
 

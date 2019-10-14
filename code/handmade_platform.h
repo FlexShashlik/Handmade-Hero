@@ -40,10 +40,10 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
+typedef uint8_t ui8;
+typedef uint16_t ui16;
+typedef uint32_t ui32;
+typedef uint64_t ui64;
 
 typedef int8_t i8;
 typedef int16_t i16;
@@ -71,16 +71,16 @@ typedef double r64;
 
 #define Kilobytes(value) ((value) * 1024)
 #define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) ((u64)Megabytes(value) * 1024)
-#define Terabytes(value) ((u64)Gigabytes(value) * 1024)
+#define Gigabytes(value) ((ui64)Megabytes(value) * 1024)
+#define Terabytes(value) ((ui64)Gigabytes(value) * 1024)
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
-inline u32
-SafeTruncateU64(u64 value)
+inline ui32
+SafeTruncateUI64(ui64 value)
 {
     Assert(value <= 0xFFFFFFFF);
-    u32 result = (u32)value;
+    ui32 result = (ui32)value;
 
     return result;
 }
@@ -100,7 +100,7 @@ typedef struct thread_context
 
 typedef struct debug_read_file_result
 {
-    u32 contentsSize;
+    ui32 contentsSize;
     void *contents;
 } debug_read_file_result;
 
@@ -110,7 +110,7 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *thread, char *fileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(thread_context *thread, char *fileName, u32 memorySize, void *memory)
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(thread_context *thread, char *fileName, ui32 memorySize, void *memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #endif
 
@@ -187,10 +187,10 @@ typedef struct game_memory
 {
     b32 isInitialized;
     
-    u64 permanentStorageSize;
+    ui64 permanentStorageSize;
     void *permanentStorage; // NOTE: REQUIRED to be cleared to zero at startup
 
-    u64 transientStorageSize;
+    ui64 transientStorageSize;
     void *transientStorage; // NOTE: REQUIRED to be cleared to zero at startup
 
     debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;

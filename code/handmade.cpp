@@ -32,16 +32,16 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 internal void
 RenderWeirdGradient(game_offscreen_buffer *buffer, i32 blueOffset, i32 greenOffset)
 {
-   u8 *row = (u8 *)buffer->memory;
+   ui8 *row = (ui8 *)buffer->memory;
 
     for(int y = 0; y < buffer->height; y++)
     {
-        u32 *pixel = (u32 *)row;
+        ui32 *pixel = (ui32 *)row;
         
         for(int x = 0; x < buffer->width; x++)
         {
-            u8 blue = (u8)(x + blueOffset);
-            u8 green = (u8)(y + greenOffset);
+            ui8 blue = (ui8)(x + blueOffset);
+            ui8 green = (ui8)(y + greenOffset);
             
             *pixel++ = ((green << 8) | blue);
         }
@@ -83,19 +83,19 @@ DrawRectangle
         maxY = buffer->height;
     }
     
-    u8 *endOfBuffer = (u8 *)buffer->memory + buffer->pitch * buffer->height;
+    ui8 *endOfBuffer = (ui8 *)buffer->memory + buffer->pitch * buffer->height;
     
-    u32 color =
+    ui32 color =
         (
-            RoundR32ToU32(r * 255.0f) << 16 |
-            RoundR32ToU32(g * 255.0f) << 8 |
-            RoundR32ToU32(b * 255.0f) << 0
+            RoundR32ToUI32(r * 255.0f) << 16 |
+            RoundR32ToUI32(g * 255.0f) << 8 |
+            RoundR32ToUI32(b * 255.0f) << 0
         );
 
-    u8 *row = (u8 *)buffer->memory + minX * buffer->bytesPerPixel + minY * buffer->pitch;
+    ui8 *row = (ui8 *)buffer->memory + minX * buffer->bytesPerPixel + minY * buffer->pitch;
     for(i32 y = minY; y < maxY; y++)
     {
-        u32 *pixel = (u32 *)row;
+        ui32 *pixel = (ui32 *)row;
         for(i32 x = minX; x < maxX; x++)
         {        
             *pixel++ = color;            
@@ -146,18 +146,18 @@ DrawBitmap
         maxY = buffer->height;
     }
     
-    u32 *sourceRow = bmp->pixels +
+    ui32 *sourceRow = bmp->pixels +
         bmp->width * (bmp->height - 1);
 
     sourceRow += -sourceOffsetY * bmp->width + sourceOffsetX;
     
-    u8 *destRow = (u8 *)buffer->memory +
+    ui8 *destRow = (ui8 *)buffer->memory +
         minX * buffer->bytesPerPixel + minY * buffer->pitch;
     
     for(i32 y = minY; y < maxY; y++)
     {        
-        u32 *dest = (u32 *)destRow;
-        u32 *source = sourceRow;
+        ui32 *dest = (ui32 *)destRow;
+        ui32 *source = sourceRow;
 
         for(i32 x = minX; x < maxX; x++)
         {
@@ -174,9 +174,9 @@ DrawBitmap
             r32 g = (1.0f - a) * dg + a * sg;
             r32 b = (1.0f - a) * db + a * sb;
 
-            *dest = ((u32)(r + 0.5f) << 16|
-                     (u32)(g + 0.5f) << 8 |
-                     (u32)(b + 0.5f) << 0);
+            *dest = ((ui32)(r + 0.5f) << 16|
+                     (ui32)(g + 0.5f) << 8 |
+                     (ui32)(b + 0.5f) << 0);
             
             dest++;
             source++;
@@ -190,26 +190,26 @@ DrawBitmap
 #pragma pack(push, 1)
 struct bitmap_header
 {
-    u16 fileType;
-	u32 fileSize;
-	u16 reserved1;
-	u16 reserved2;
-	u32 bitmapOffset;
-    u32 size;
+    ui16 fileType;
+	ui32 fileSize;
+	ui16 reserved1;
+	ui16 reserved2;
+	ui32 bitmapOffset;
+    ui32 size;
     i32 width;
 	i32 height;
-	u16 planes;
-	u16 bitsPerPixel;
-    u32 compression;
-    u32 sizeOfBitmap;
+	ui16 planes;
+	ui16 bitsPerPixel;
+    ui32 compression;
+    ui32 sizeOfBitmap;
     i32 horzResolution;
     i32 vertResolution;
-    u32 colorsUsed;
-    u32 colorsImportant;
+    ui32 colorsUsed;
+    ui32 colorsImportant;
 
-    u32 redMask;
-    u32 greenMask;
-    u32 blueMask;
+    ui32 redMask;
+    ui32 greenMask;
+    ui32 blueMask;
 };
 #pragma pack(pop)
 
@@ -237,13 +237,13 @@ DEBUGLoadBMP
         result.width = header->width;
         result.height = header->height;
 
-        u32 *pixels = (u32 *)((u8 *)readResult.contents + header->bitmapOffset);
+        ui32 *pixels = (ui32 *)((ui8 *)readResult.contents + header->bitmapOffset);
         result.pixels = pixels;
         
-        u32 redMask = header->redMask;
-        u32 greenMask = header->greenMask;
-        u32 blueMask = header->blueMask;
-        u32 alphaMask = ~(redMask | greenMask | blueMask);
+        ui32 redMask = header->redMask;
+        ui32 greenMask = header->greenMask;
+        ui32 blueMask = header->blueMask;
+        ui32 alphaMask = ~(redMask | greenMask | blueMask);
         
         bit_scan_result redScan = FindLeastSignificantSetBit(redMask);
         bit_scan_result greenScan = FindLeastSignificantSetBit(greenMask);
@@ -260,12 +260,12 @@ DEBUGLoadBMP
         i32 blueShift = 0 - (i32)blueScan.index;
         i32 alphaShift = 24 - (i32)alphaScan.index;
         
-        u32 *sourceDest = pixels;
+        ui32 *sourceDest = pixels;
         for(i32 y = 0; y < header->height; y++)
         {
             for(i32 x = 0; x < header->width; x++)
             {
-                u32 c = *sourceDest;
+                ui32 c = *sourceDest;
                 *sourceDest = (RotateLeft(c & redMask, redShift) |
                                RotateLeft(c & greenMask, greenShift) |
                                RotateLeft(c & blueMask, blueShift) |
@@ -278,7 +278,7 @@ DEBUGLoadBMP
 }
 
 inline entity *
-GetEntity(game_state *gameState, u32 index)
+GetEntity(game_state *gameState, ui32 index)
 {
     entity *_entity = 0;
 
@@ -291,7 +291,7 @@ GetEntity(game_state *gameState, u32 index)
 }
 
 internal void
-InitializePlayer(game_state *gameState, u32 entityIndex)
+InitializePlayer(game_state *gameState, ui32 entityIndex)
 {
     entity *_entity = GetEntity(gameState, entityIndex);
     
@@ -310,11 +310,11 @@ InitializePlayer(game_state *gameState, u32 entityIndex)
     }
 }
 
-internal u32
+internal ui32
 AddEntity(game_state *gameState)
 {
     Assert(gameState->entityCount < ArrayCount(gameState->entities));
-    u32 entityIndex = gameState->entityCount++;
+    ui32 entityIndex = gameState->entityCount++;
     entity *_entity = &gameState->entities[entityIndex];
     *_entity = {};
 
@@ -412,19 +412,19 @@ MovePlayer
     }
 #else
 
-    u32 minTileX = 0;
-    u32 minTileY = 0;
-    u32 onePastMaxTileX = 0;
-    u32 onePastMaxTileY = 0;
-    u32 absTileZ = gameState->playerPos.absTileZ;
+    ui32 minTileX = 0;
+    ui32 minTileY = 0;
+    ui32 onePastMaxTileX = 0;
+    ui32 onePastMaxTileY = 0;
+    ui32 absTileZ = gameState->playerPos.absTileZ;
     tile_map_position bestPlayerPos = gameState->playerPos;
     r32 bestDistanceSq = LenghtSq(deltaPlayerPos);
             
-    for(u32 absTileY = minTileY;
+    for(ui32 absTileY = minTileY;
         absTileY != onePastMaxTileY;
         absTileY++)
     {
-        for(u32 absTileX = minTileX;
+        for(ui32 absTileX = minTileX;
             absTileX != onePastMaxTileX;
             absTileX++)
         {
@@ -433,7 +433,7 @@ MovePlayer
                     absTileX, absTileY, absTileZ
                 );
                     
-            u32 tileValue = GetTileValue(tileMap, testTilePos);
+            ui32 tileValue = GetTileValue(tileMap, testTilePos);
                     
             if(IsTileValueEmpty(tileValue))
             {
@@ -478,7 +478,7 @@ MovePlayer
     //
     if(!AreOnSameTile(&oldPlayerPos, &_entity->pos))
     {
-        u32 newTileValue = GetTileValue(tileMap, _entity->pos);
+        ui32 newTileValue = GetTileValue(tileMap, _entity->pos);
                     
         if(newTileValue == 3)
         {
@@ -650,7 +650,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             (
                 &gameState->worldArena,
                 memory->permanentStorageSize - sizeof(game_state),
-                (u8 *)memory->permanentStorage + sizeof(game_state)
+                (ui8 *)memory->permanentStorage + sizeof(game_state)
             );
 
         gameState->worldMap = PushStruct
@@ -686,15 +686,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
         tileMap->tileSideInMeters = 1.4f;
 
-        u32 randomNumberIndex = 0;
+        ui32 randomNumberIndex = 0;
         
-        u32 tilesPerWidth = 17;
-        u32 tilesPerHeight = 9;
+        ui32 tilesPerWidth = 17;
+        ui32 tilesPerHeight = 9;
 
-        u32 screenX = 0;
-        u32 screenY = 0;
+        ui32 screenX = 0;
+        ui32 screenY = 0;
         
-        u32 absTileZ = 0;
+        ui32 absTileZ = 0;
 
         b32 isDoorTop = false;
         b32 isDoorLeft = false;
@@ -703,13 +703,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         b32 isDoorUp = false;
         b32 isDoorDown = false;
         
-        for(u32 screenIndex = 0;
+        for(ui32 screenIndex = 0;
             screenIndex < 100;
             screenIndex++)
         {
             // TODO: Random number generator
             Assert(randomNumberIndex < ArrayCount(randomNumberTable));
-            u32 randomChoice;
+            ui32 randomChoice;
 
             if(isDoorUp || isDoorDown)
             {
@@ -743,21 +743,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 isDoorTop = true;
             }
             
-            for(u32 tileY = 0;
+            for(ui32 tileY = 0;
                 tileY < tilesPerHeight;
                 tileY++)
             {
-                for(u32 tileX = 0;
+                for(ui32 tileX = 0;
                     tileX < tilesPerWidth;
                     tileX++)
                 {
-                    u32 absTileX = screenX * tilesPerWidth
+                    ui32 absTileX = screenX * tilesPerWidth
                         + tileX;
                         
-                    u32 absTileY = screenY * tilesPerHeight
+                    ui32 absTileY = screenY * tilesPerHeight
                         + tileY;
 
-                    u32 tileValue = 1;
+                    ui32 tileValue = 1;
                     if(tileX == 0 &&
                        (!isDoorLeft || tileY != tilesPerHeight / 2))
                     {
@@ -911,7 +911,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             if(controller->start.endedDown)
             {
-                u32 entityIndex = AddEntity(gameState);
+                ui32 entityIndex = AddEntity(gameState);
                 controllingEntity = GetEntity(gameState, entityIndex);
                 InitializePlayer(gameState, entityIndex);
                 gameState->playerIndexForController[controllerIndex] = entityIndex;
@@ -970,10 +970,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             relColumn < 20;
             relColumn++)
         {
-            u32 column = gameState->cameraPos.absTileX + relColumn;
-            u32 row = gameState->cameraPos.absTileY + relRow;
+            ui32 column = gameState->cameraPos.absTileX + relColumn;
+            ui32 row = gameState->cameraPos.absTileY + relRow;
             
-            u32 tileID = GetTileValue
+            ui32 tileID = GetTileValue
                 (
                     tileMap,
                     column, row, gameState->cameraPos.absTileZ
@@ -1021,7 +1021,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     entity *_entity = gameState->entities;
-    for(u32 entityIndex = 0;
+    for(ui32 entityIndex = 0;
         entityIndex < gameState->entityCount;
         entityIndex++, _entity++)
     {
