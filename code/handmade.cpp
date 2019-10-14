@@ -323,6 +323,30 @@ AddEntity(game_state *gameState)
 }
 
 internal void
+TestWall
+(
+    r32 wallX, r32 relX, r32 relY,
+    r32 deltaPlayerX, r32 deltaPlayerY,
+    r32 *tMin, r32 minY, r32 maxY
+)
+{
+    r32 tEpsilon = 0.0001f;
+    if(deltaPlayerX != 0.0f)
+    {
+        r32 tResult = (wallX - relX) / deltaPlayerX;
+        r32 y = relY + tResult * deltaPlayerY;
+                
+        if(tResult >= 0.0f && *tMin > tResult)
+        {
+            if(y >= minY && y <= maxY)
+            {
+                *tMin = Maximum(0.0f, tResult - tEpsilon);
+            }
+        }
+    }
+}
+
+internal void
 MovePlayer
 (
     game_state *gameState, entity *_entity,
@@ -330,11 +354,12 @@ MovePlayer
 )
 {
     tile_map *tileMap = gameState->worldMap->tileMap;
-    if(ddPlayerPos.x != 0.0f && ddPlayerPos.y != 0.0f)
+    r32 ddPLength = LengthSq(ddPlayerPos);
+    if(ddPLength > 1.0f)
     {
-        ddPlayerPos *= 0.707106781f;
+        ddPlayerPos *= 1.0f / SqRt(ddPLength);
     }
-
+    
     r32 playerSpeed = 50.0f;
     ddPlayerPos *= playerSpeed;
 
@@ -342,20 +367,17 @@ MovePlayer
     ddPlayerPos += -8.0f * _entity->dPos;
 
     tile_map_position oldPlayerPos = _entity->pos;
-    tile_map_position newPlayerPos = oldPlayerPos;
     
     v2 deltaPlayerPos = 0.5f * ddPlayerPos *
         Square(deltaTime) + _entity->dPos * deltaTime;
-    
-    newPlayerPos.offset += deltaPlayerPos;
-                        
     _entity->dPos = ddPlayerPos * deltaTime +
         _entity->dPos;
     
+    tile_map_position newPlayerPos = oldPlayerPos;        
+    newPlayerPos.offset += deltaPlayerPos;
     newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
-
-#if 1
-            
+    
+#if 0    
     tile_map_position playerLeft = newPlayerPos;
     playerLeft.offset.x -= 0.5f * _entity->width;
     playerLeft = RecanonicalizePosition(tileMap, playerLeft);
@@ -410,15 +432,14 @@ MovePlayer
     {
         _entity->pos = newPlayerPos;
     }
-#else
-
-    ui32 minTileX = 0;
-    ui32 minTileY = 0;
-    ui32 onePastMaxTileX = 0;
-    ui32 onePastMaxTileY = 0;
-    ui32 absTileZ = gameState->playerPos.absTileZ;
-    tile_map_position bestPlayerPos = gameState->playerPos;
-    r32 bestDistanceSq = LenghtSq(deltaPlayerPos);
+#else    
+    ui32 minTileX = Minimum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
+    ui32 minTileY = Minimum(oldPlayerPos.absTileY, newPlayerPos.absTileY);
+    ui32 onePastMaxTileX = Maximum(oldPlayerPos.absTileX, newPlayerPos.absTileX) + 1;
+    ui32 onePastMaxTileY = Maximum(oldPlayerPos.absTileY, newPlayerPos.absTileY) + 1;
+    
+    ui32 absTileZ = _entity->pos.absTileZ;
+    r32 tMin = 1.0f;
             
     for(ui32 absTileY = minTileY;
         absTileY != onePastMaxTileY;
@@ -435,7 +456,7 @@ MovePlayer
                     
             ui32 tileValue = GetTileValue(tileMap, testTilePos);
                     
-            if(IsTileValueEmpty(tileValue))
+            if(!IsTileValueEmpty(tileValue))
             {
                 v2 minCorner = -0.5f * v2
                     {
@@ -449,28 +470,50 @@ MovePlayer
                         tileMap->tileSideInMeters
                     };
 
-                tile_map_difference relNewPlayerPos = Subtract
+                tile_map_difference relOldPlayerPos = Subtract
                     (
                         tileMap,
-                        &testTilePos, &newPlayerPos
+                        &oldPlayerPos, &testTilePos
                     );
 
-                v2 testP = ClosestPointInRect
+                v2 rel = relOldPlayerPos.dXY;
+                
+                // NOTE: Test all four walls and take the min t
+                TestWall
                     (
-                        minCorner,
-                        maxCorner,
-                        relNewPlayerPos
+                        minCorner.x, rel.x, rel.y,
+                        deltaPlayerPos.x, deltaPlayerPos.y,
+                        &tMin, minCorner.y, maxCorner.y
                     );
-
-                testDistanceSq = ;
-                if(bestDistanceSq > testDistanceSq)
-                {
-                    bestPlayerPos = ;
-                    bestDistanceSq = ;
-                }
+                
+                TestWall
+                    (
+                        maxCorner.x, rel.x, rel.y,
+                        deltaPlayerPos.x, deltaPlayerPos.y,
+                        &tMin, minCorner.y, maxCorner.y
+                    );
+                
+                TestWall
+                    (
+                        minCorner.y, rel.y, rel.x,
+                        deltaPlayerPos.y, deltaPlayerPos.x,
+                        &tMin, minCorner.x, maxCorner.x
+                    );
+                
+                TestWall
+                    (
+                        maxCorner.y, rel.y, rel.x,
+                        deltaPlayerPos.y, deltaPlayerPos.x,
+                        &tMin, minCorner.x, maxCorner.x
+                    );
             }
         }
     }
+    
+    newPlayerPos = oldPlayerPos;        
+    newPlayerPos.offset += tMin * deltaPlayerPos;
+    newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
+    _entity->pos = newPlayerPos;
 #endif
 
     //

@@ -6,6 +6,14 @@
 #include "math.h"
 
 inline r32
+SqRt(r32 value)
+{
+    r32 result = sqrtf(value);
+
+    return result;
+}
+
+inline r32
 AbsoluteValue(r32 value)
 {
     return (r32)fabs(value);

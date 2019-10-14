@@ -1,5 +1,8 @@
 #include "handmade_platform.h"
 
+#define Minimum(a, b) ((a < b) ? (a) : (b))
+#define Maximum(a, b) ((a > b) ? (a) : (b))
+
 struct memory_arena
 {
     memory_index size;
