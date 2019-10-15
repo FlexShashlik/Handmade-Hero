@@ -14,7 +14,7 @@ struct tile_map_position
     ui32 absTileZ;
 
     // NOTE: This are the offsets from the tile center
-    v2 offset;
+    v2 _offset;
 };
 
 struct tile_chunk_position

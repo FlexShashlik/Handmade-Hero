@@ -30,27 +30,6 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
 }
 
 internal void
-RenderWeirdGradient(game_offscreen_buffer *buffer, i32 blueOffset, i32 greenOffset)
-{
-   ui8 *row = (ui8 *)buffer->memory;
-
-    for(int y = 0; y < buffer->height; y++)
-    {
-        ui32 *pixel = (ui32 *)row;
-        
-        for(int x = 0; x < buffer->width; x++)
-        {
-            ui8 blue = (ui8)(x + blueOffset);
-            ui8 green = (ui8)(y + greenOffset);
-            
-            *pixel++ = ((green << 8) | blue);
-        }
-
-        row += buffer->pitch;
-    }
-}
-
-internal void
 DrawRectangle
 (
     game_offscreen_buffer *buffer,
@@ -298,8 +277,8 @@ InitializePlayer(game_state *gameState, ui32 entityIndex)
     _entity->isExists = true;
     _entity->pos.absTileX = 1;
     _entity->pos.absTileY = 3;
-    _entity->pos.offset.x = 5.0f;
-    _entity->pos.offset.y = 5.0f;
+    _entity->pos._offset.x = 0;
+    _entity->pos._offset.y = 0;
     _entity->height = 1.4f;
     _entity->width = 0.75f * _entity->height;
 
@@ -373,17 +352,18 @@ MovePlayer
     _entity->dPos = ddPlayerPos * deltaTime +
         _entity->dPos;
     
-    tile_map_position newPlayerPos = oldPlayerPos;        
-    newPlayerPos.offset += deltaPlayerPos;
-    newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
+    tile_map_position newPlayerPos = Offset
+        (
+            tileMap, oldPlayerPos, deltaPlayerPos
+        );
     
-#if 0    
+#if 0
     tile_map_position playerLeft = newPlayerPos;
-    playerLeft.offset.x -= 0.5f * _entity->width;
+    playerLeft._offset.x -= 0.5f * _entity->width;
     playerLeft = RecanonicalizePosition(tileMap, playerLeft);
             
     tile_map_position playerRight = newPlayerPos;
-    playerRight.offset.x += 0.5f * _entity->width;
+    playerRight._offset.x += 0.5f * _entity->width;
     playerRight = RecanonicalizePosition(tileMap, playerRight);
 
     b32 isCollided = false;
@@ -432,22 +412,31 @@ MovePlayer
     {
         _entity->pos = newPlayerPos;
     }
-#else    
+#else
+
+#if 0
     ui32 minTileX = Minimum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
     ui32 minTileY = Minimum(oldPlayerPos.absTileY, newPlayerPos.absTileY);
     ui32 onePastMaxTileX = Maximum(oldPlayerPos.absTileX, newPlayerPos.absTileX) + 1;
     ui32 onePastMaxTileY = Maximum(oldPlayerPos.absTileY, newPlayerPos.absTileY) + 1;
+#else
+    ui32 startTileX = oldPlayerPos.absTileX;
+    ui32 startTileY = oldPlayerPos.absTileY;
+    ui32 endTileX = newPlayerPos.absTileX;
+    ui32 endTileY = newPlayerPos.absTileY;
+
+    i32 deltaX = SignOf(endTileX - startTileX);
+    i32 deltaY = SignOf(endTileY - startTileY);
+#endif
     
     ui32 absTileZ = _entity->pos.absTileZ;
     r32 tMin = 1.0f;
-            
-    for(ui32 absTileY = minTileY;
-        absTileY != onePastMaxTileY;
-        absTileY++)
+
+    ui32 absTileY = startTileY;
+    for(;;)
     {
-        for(ui32 absTileX = minTileX;
-            absTileX != onePastMaxTileX;
-            absTileX++)
+        ui32 absTileX = startTileX;
+        for(;;)
         {
             tile_map_position testTilePos = CenteredTilePoint
                 (
@@ -507,13 +496,28 @@ MovePlayer
                         &tMin, minCorner.x, maxCorner.x
                     );
             }
+
+            if(absTileX == endTileX)
+            {
+                break;
+            }
+            else
+            {
+                absTileX += deltaX;
+            }
+        }
+
+        if(absTileY == endTileY)
+        {
+            break;
+        }
+        else
+        {
+            absTileY += deltaY;
         }
     }
     
-    newPlayerPos = oldPlayerPos;        
-    newPlayerPos.offset += tMin * deltaPlayerPos;
-    newPlayerPos = RecanonicalizePosition(tileMap, newPlayerPos);
-    _entity->pos = newPlayerPos;
+    _entity->pos = Offset(tileMap, oldPlayerPos, tMin * deltaPlayerPos);
 #endif
 
     //
@@ -734,8 +738,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         ui32 tilesPerWidth = 17;
         ui32 tilesPerHeight = 9;
 
+#if 0
+        ui32 screenX = INT32_MAX / 2;
+        ui32 screenY = INT32_MAX / 2;
+#else
         ui32 screenX = 0;
         ui32 screenY = 0;
+#endif
         
         ui32 absTileZ = 0;
 
@@ -1043,16 +1052,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 v2 center =
                     {
                         screenCenterX - metersToPixels *
-                        gameState->cameraPos.offset.x +
+                        gameState->cameraPos._offset.x +
                         ((r32)relColumn) * tileSideInPixels,
                         
                         screenCenterY + metersToPixels *
-                        gameState->cameraPos.offset.y -
+                        gameState->cameraPos._offset.y -
                         ((r32)relRow) * tileSideInPixels
                     };
                 
-                v2 min = center - tileSide;
-                v2 max = center + tileSide;
+                v2 min = center - 0.9f * tileSide;
+                v2 max = center + 0.9f * tileSide;
             
                 DrawRectangle
                     (

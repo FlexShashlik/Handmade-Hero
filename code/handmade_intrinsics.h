@@ -5,6 +5,14 @@
 
 #include "math.h"
 
+inline i32
+SignOf(i32 value)
+{
+    i32 result = (value >= 0) ? 1 : -1;
+
+    return result;
+}
+
 inline r32
 SqRt(r32 value)
 {

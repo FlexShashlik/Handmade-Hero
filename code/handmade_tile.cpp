@@ -24,11 +24,11 @@ RecanonicalizePosition(tile_map *tileMap, tile_map_position pos)
 
     RecanonicalizeCoord
         (
-            tileMap, &result.absTileX, &result.offset.x
+            tileMap, &result.absTileX, &result._offset.x
         );
     RecanonicalizeCoord
         (
-            tileMap, &result.absTileY, &result.offset.y
+            tileMap, &result.absTileY, &result._offset.y
         );
 
     return result;
@@ -282,7 +282,8 @@ Subtract
     
     r32 dTileZ = (r32)a->absTileZ - (r32)b->absTileZ;
     
-    result.dXY = tileMap->tileSideInMeters * dTileXY + a->offset - b->offset;
+    result.dXY = tileMap->tileSideInMeters * dTileXY +
+        a->_offset - b->_offset;
     result.dZ = tileMap->tileSideInMeters * dTileZ;
  
     return result;
@@ -298,4 +299,13 @@ CenteredTilePoint(ui32 absTileX, ui32 absTileY, ui32 absTileZ)
     result.absTileZ = absTileZ;
 
     return result;
+}
+
+inline tile_map_position
+Offset(tile_map *tileMap, tile_map_position pos, v2 offset)
+{
+    pos._offset += offset;
+    pos = RecanonicalizePosition(tileMap, pos);
+
+    return pos;
 }
