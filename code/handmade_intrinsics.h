@@ -46,19 +46,33 @@ RotateRight(ui32 value, i32 amount)
 inline i32
 RoundR32ToI32(r32 value)
 {
-    return (i32)roundf(value);
+    i32 result = (i32)roundf(value);
+
+    return result;
 }
 
 inline ui32
 RoundR32ToUI32(r32 value)
 {
-    return (ui32)roundf(value);
+    ui32 result = (ui32)roundf(value);
+    
+    return result;
 }
 
 inline i32
 FloorR32ToI32(r32 value)
 {
-    return (i32)floorf(value);
+    i32 result = (i32)floorf(value);
+    
+    return result;
+}
+
+inline i32
+CeilR32ToI32(r32 value)
+{
+    i32 result = (i32)ceilf(value);
+
+    return result;
 }
 
 inline i32
