@@ -30,16 +30,26 @@ AbsoluteValue(r32 value)
 inline ui32
 RotateLeft(ui32 value, i32 amount)
 {
+#if COMPILER_MSVC
     ui32 result = _rotl(value, amount);
-
+#else
+    amount &= 31;
+    ui32 result = ((value << amount) | (value >> (32 - amount)));
+#endif
+    
     return result;
 }
 
 inline ui32
 RotateRight(ui32 value, i32 amount)
 {
+#if COMPILER_MSVC
     ui32 result = _rotr(value, amount);
-
+#else
+    amount &= 31;
+    ui32 result = ((value >> amount) | (value << (32 - amount)));
+#endif
+    
     return result;
 }
 

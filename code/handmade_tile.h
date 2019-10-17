@@ -13,7 +13,7 @@ struct tile_map_position
     ui32 absTileY;
     ui32 absTileZ;
 
-    // NOTE: This are the offsets from the tile center
+    // NOTE: These are the offsets from the tile center
     v2 _offset;
 };
 

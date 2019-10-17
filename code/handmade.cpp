@@ -256,34 +256,57 @@ DEBUGLoadBMP
     return result;
 }
 
-inline entity *
-GetEntity(game_state *gameState, ui32 index)
+inline entity
+GetEntity
+(
+    game_state *gameState, entity_residence residence, ui32 index
+)
 {
-    entity *_entity = 0;
+    entity _entity = {};
 
-    if(index > 0 && index < ArrayCount(gameState->entities))
+    if(index > 0 && index < gameState->entityCount)
     {
-        _entity = &gameState->entities[index];
+        _entity.residence = residence;
+        
+        _entity.dormant = &gameState->dormantEntities[index];
+        _entity.low = &gameState->lowEntities[index];
+        _entity.high = &gameState->highEntities[index];
     }
 
     return _entity;
 }
 
 internal void
+ChangeEntityResidence
+(
+    game_state *gameState,
+    entity _entity, entity_residence residence
+)
+{
+    // TODO: Implement
+}
+
+internal void
 InitializePlayer(game_state *gameState, ui32 entityIndex)
 {
-    entity *_entity = GetEntity(gameState, entityIndex);
+    entity _entity = GetEntity
+        (
+            gameState, EntityResidence_Dormant, entityIndex
+        );
     
-    _entity->isExists = true;
-    _entity->pos.absTileX = 1;
-    _entity->pos.absTileY = 3;
-    _entity->pos._offset.x = 0;
-    _entity->pos._offset.y = 0;
-    _entity->height = 0.5f;
-    _entity->width = 1.0f;
+    _entity.dormant->pos.absTileX = 1;
+    _entity.dormant->pos.absTileY = 3;
+    _entity.dormant->pos._offset.x = 0;
+    _entity.dormant->pos._offset.y = 0;
+    _entity.dormant->height = 0.5f;
+    _entity.dormant->width = 1.0f;
 
-    if(!GetEntity(gameState,
-                  gameState->cameraFollowingEntityIndex))
+    ChangeEntityResidence(gameState, _entity, EntityResidence_High);
+
+    if(GetEntity(gameState,
+                 EntityResidence_Dormant,
+                 gameState->cameraFollowingEntityIndex)
+       .residence == EntityResidence_Nonexistent)
     {
         gameState->cameraFollowingEntityIndex = entityIndex;
     }
@@ -292,11 +315,16 @@ InitializePlayer(game_state *gameState, ui32 entityIndex)
 internal ui32
 AddEntity(game_state *gameState)
 {
-    Assert(gameState->entityCount < ArrayCount(gameState->entities));
+    Assert(gameState->entityCount < ArrayCount(gameState->dormantEntities));
+    Assert(gameState->entityCount < ArrayCount(gameState->lowEntities));
+    Assert(gameState->entityCount < ArrayCount(gameState->highEntities));
+    
     ui32 entityIndex = gameState->entityCount++;
-    entity *_entity = &gameState->entities[entityIndex];
-    *_entity = {};
 
+    gameState->entityResidence[entityIndex] = EntityResidence_Dormant;
+    gameState->dormantEntities[entityIndex] = {};
+    gameState->lowEntities[entityIndex] = {};
+    gameState->highEntities[entityIndex] = {};
     
     return entityIndex;
 }
@@ -333,7 +361,7 @@ TestWall
 internal void
 MovePlayer
 (
-    game_state *gameState, entity *_entity,
+    game_state *gameState, entity _entity,
     r32 deltaTime, v2 ddPlayerPos
 )
 {
@@ -348,91 +376,31 @@ MovePlayer
     ddPlayerPos *= playerSpeed;
 
     // TODO: ODE!!!
-    ddPlayerPos += -8.0f * _entity->dPos;
+    ddPlayerPos += -8.0f * _entity.high->dPos;
 
-    tile_map_position oldPlayerPos = _entity->pos;
-    
+    v2 oldPlayerPos = _entity.high->pos;
     v2 deltaPlayerPos = 0.5f * ddPlayerPos *
-        Square(deltaTime) + _entity->dPos * deltaTime;
-    _entity->dPos = ddPlayerPos * deltaTime +
-        _entity->dPos;
+        Square(deltaTime) + _entity.high->dPos * deltaTime;
+    _entity.high->dPos = ddPlayerPos * deltaTime +
+        _entity.high->dPos;
     
-    tile_map_position newPlayerPos = Offset
-        (
-            tileMap, oldPlayerPos, deltaPlayerPos
-        );
-    
+    v2 newPlayerPos = oldPlayerPos + deltaPlayerPos;
+
 #if 0
-    tile_map_position playerLeft = newPlayerPos;
-    playerLeft._offset.x -= 0.5f * _entity->width;
-    playerLeft = RecanonicalizePosition(tileMap, playerLeft);
-            
-    tile_map_position playerRight = newPlayerPos;
-    playerRight._offset.x += 0.5f * _entity->width;
-    playerRight = RecanonicalizePosition(tileMap, playerRight);
-
-    b32 isCollided = false;
-    tile_map_position collisionPos = {};
-    if(!IsTileMapPointEmpty(tileMap, newPlayerPos))
-    {
-        collisionPos = newPlayerPos;
-        isCollided = true;
-    }
-
-    if(!IsTileMapPointEmpty(tileMap, playerLeft))
-    {
-        collisionPos = playerLeft;
-        isCollided = true;
-    }
-
-    if(!IsTileMapPointEmpty(tileMap, playerRight))
-    {
-        collisionPos = playerRight;
-        isCollided = true;
-    }
-                        
-    if(isCollided)
-    {
-        v2 r = {};
-        if(collisionPos.absTileX < _entity->pos.absTileX)
-        {
-            r = v2{1, 0};
-        }
-        if(collisionPos.absTileX > _entity->pos.absTileX)
-        {
-            r = v2{-1, 0};
-        }
-        if(collisionPos.absTileY < _entity->pos.absTileY)
-        {
-            r = v2{0, 1};
-        }
-        if(collisionPos.absTileY > _entity->pos.absTileY)
-        {
-            r = v2{0, -1};
-        }
-                
-        _entity->dPos = _entity->dPos - 1 * Inner(_entity->dPos, r) * r;
-    }
-    else
-    {
-        _entity->pos = newPlayerPos;
-    }
-#else
-
     ui32 minTileX = Minimum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
     ui32 minTileY = Minimum(oldPlayerPos.absTileY, newPlayerPos.absTileY);
     ui32 maxTileX = Maximum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
     ui32 maxTileY = Maximum(oldPlayerPos.absTileY, newPlayerPos.absTileY);
 
-    ui32 entityTileWidth = CeilR32ToI32(_entity->width / tileMap->tileSideInMeters);
-    ui32 entityTileHeight = CeilR32ToI32(_entity->height / tileMap->tileSideInMeters);
+    ui32 entityTileWidth = CeilR32ToI32(_entity.high->width / tileMap->tileSideInMeters);
+    ui32 entityTileHeight = CeilR32ToI32(_entity.high->height / tileMap->tileSideInMeters);
     
     minTileX -= entityTileWidth;
     minTileY -= entityTileHeight;
     maxTileX += entityTileWidth;
     maxTileY += entityTileHeight;
     
-    ui32 absTileZ = _entity->pos.absTileZ;
+    ui32 absTileZ = _entity.high->pos.absTileZ;
 
     r32 tRemaining = 1.0f;
     for(ui32 i = 0; i < 4 && tRemaining > 0.0f; i++)
@@ -517,8 +485,6 @@ MovePlayer
         
         tRemaining -= tMin * tRemaining;
     }
-        
-#endif
 
     //
     // NOTE: Update camera & player Z based on the last movement
@@ -565,6 +531,7 @@ MovePlayer
             _entity->facingDirection = 3;
         }
     }
+#endif
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -910,13 +877,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         controllerIndex++)
     {
         game_controller_input *controller = GetController(input, controllerIndex);
-        entity *controllingEntity = GetEntity
+        entity controllingEntity = GetEntity
             (
                 gameState,
+                EntityResidence_High,
                 gameState->playerIndexForController[controllerIndex]
             );
         
-        if(controllingEntity)
+        if(controllingEntity.residence != EntityResidence_Nonexistent)
         {
             v2 ddPlayerPos = {};
             
@@ -964,21 +932,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             if(controller->start.endedDown)
             {
                 ui32 entityIndex = AddEntity(gameState);
-                controllingEntity = GetEntity(gameState, entityIndex);
                 InitializePlayer(gameState, entityIndex);
                 gameState->playerIndexForController[controllerIndex] = entityIndex;
             }
         }
     }
 
-    entity *cameraFollowingEntity = GetEntity
+    entity cameraFollowingEntity = GetEntity
         (
-            gameState, gameState->cameraFollowingEntityIndex
+            gameState,
+            EntityResidence_High,
+            gameState->cameraFollowingEntityIndex
         );
     
-    if(cameraFollowingEntity)
+    if(cameraFollowingEntity.residence != EntityResidence_Nonexistent)
     {
-        gameState->cameraPos.absTileZ = cameraFollowingEntity->pos.absTileZ;
+        // TODO: Fix this to work in camera space 
+#if 0
+        gameState->cameraPos.absTileZ = cameraFollowingEntity.dormant->pos.absTileZ;
         
         tile_map_difference diff = Subtract
             (
@@ -1005,6 +976,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             gameState->cameraPos.absTileY -= 9;
         }
+#endif
     }
     //
     // NOTE: Render
@@ -1072,36 +1044,32 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    entity *_entity = gameState->entities;
     for(ui32 entityIndex = 0;
         entityIndex < gameState->entityCount;
-        entityIndex++, _entity++)
+        entityIndex++)
     {
-        // TODO: Culling of entities based on Z-axis
-        if(_entity->isExists)
+        if(gameState->entityResidence[entityIndex] == EntityResidence_High)
         {
-            tile_map_difference diff = Subtract
-                (
-                    tileMap,
-                    &_entity->pos, &gameState->cameraPos
-                 );
-        
+            high_entity *highEntity = &gameState->highEntities[entityIndex];
+            low_entity *lowEntity = &gameState->lowEntities[entityIndex];
+            dormant_entity *dormantEntity = &gameState->dormantEntities[entityIndex];
+            
             r32 playerR = 1.0f;
             r32 playerG = 1.0f;
             r32 playerB = 0.0f;
 
             r32 playerGroundX = screenCenterX + metersToPixels *
-                diff.dXY.x;
+                highEntity->pos.x;
             r32 playerGroundY = screenCenterY - metersToPixels *
-                diff.dXY.y;
+                highEntity->pos.y;
     
             v2 playerLeftTop =
                 {
-                    playerGroundX - metersToPixels * 0.5f *  _entity->width,
-                    playerGroundY - metersToPixels * 0.5f *  _entity->height
+                    playerGroundX - metersToPixels * 0.5f *  dormantEntity->width,
+                    playerGroundY - metersToPixels * 0.5f *  dormantEntity->height
                 };
 
-            v2 entityWidthHeight = {_entity->width, _entity->height};
+            v2 entityWidthHeight = {dormantEntity->width, dormantEntity->height};
     
             DrawRectangle
                 (
@@ -1112,7 +1080,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 );
 
             hero_bitmaps *heroBitmaps = &gameState->
-                heroBitmaps[_entity->facingDirection];
+                heroBitmaps[highEntity->facingDirection];
     
             DrawBitmap
                 (
