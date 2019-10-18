@@ -67,6 +67,9 @@ struct high_entity
     ui32 absTileZ;
     v2 dPos;
     ui32 facingDirection;
+
+    r32 z;
+    r32 dZ;
 };
 
 struct low_entity
@@ -117,6 +120,7 @@ struct game_state
     dormant_entity dormantEntities[256];
     
     loaded_bitmap bmp;
+    loaded_bitmap shadow;
 
     hero_bitmaps heroBitmaps[4];
 };

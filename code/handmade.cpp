@@ -90,7 +90,8 @@ DrawBitmap
     game_offscreen_buffer *buffer,
     loaded_bitmap *bmp,
     r32 rX, r32 rY,
-    i32 alignX = 0, i32 alignY = 0
+    i32 alignX = 0, i32 alignY = 0,
+    r32 cAlpha = 1.0f
 )
 {
     rX -= (r32)alignX;
@@ -141,6 +142,8 @@ DrawBitmap
         for(i32 x = minX; x < maxX; x++)
         {
             r32 a = (r32)((*source >> 24) & 0xFF) / 255.0f;
+            a *= cAlpha;
+            
             r32 sr = (r32)((*source >> 16) & 0xFF);
             r32 sg = (r32)((*source >> 8) & 0xFF);
             r32 sb = (r32)((*source >> 0) & 0xFF);
@@ -563,6 +566,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_background.bmp"
             );
 
+        gameState->shadow = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test/test_hero_shadow.bmp"
+            );
+
         hero_bitmaps *heroBMP = gameState->heroBitmaps;
 
         heroBMP->head = DEBUGLoadBMP
@@ -586,7 +596,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_right_torso.bmp"
             );
 
-        heroBMP->alignX = 72;
+        heroBMP->alignX = 70;
         heroBMP->alignY = 155;
 
         heroBMP++;
@@ -612,8 +622,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_back_torso.bmp"
             );
 
-        heroBMP->alignX = 74;
-        heroBMP->alignY = 150;
+        heroBMP->alignX = 70;
+        heroBMP->alignY = 155;
 
         heroBMP++;
 
@@ -639,7 +649,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             );
 
         heroBMP->alignX = 70;
-        heroBMP->alignY = 157;
+        heroBMP->alignY = 155;
 
         heroBMP++;
 
@@ -664,8 +674,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_front_torso.bmp"
             );
 
-        heroBMP->alignX = 72;
-        heroBMP->alignY = 150;
+        heroBMP->alignX = 70;
+        heroBMP->alignY = 155;
 
         heroBMP++;
 
@@ -933,6 +943,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 }
             }
 
+            if(controller->actionUp.endedDown)
+            {
+                controllingEntity.high->dZ = 3.0f;
+            }
+
             MovePlayer
                 (
                     gameState, controllingEntity,
@@ -1071,6 +1086,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             dormant_entity *dormantEntity = &gameState->dormantEntities[entityIndex];
 
             highEntity->pos += entityOffsetForFrame;
+
+            r32 deltaTime = input->deltaTime;
+            r32 ddZ = -9.8f;
+            highEntity->z = 0.5f*ddZ*Square(deltaTime) + highEntity->dZ * deltaTime + highEntity->z;
+            highEntity->dZ = ddZ * deltaTime + highEntity->dZ;
+            if(highEntity->z < 0)
+            {
+                highEntity->z = 0;
+            }
+            r32 cAlpha = 1.0f - 0.5f * highEntity->z;
+            if(cAlpha < 0.0f)
+            {
+                cAlpha = 0.0f;
+            }
             
             r32 playerR = 1.0f;
             r32 playerG = 1.0f;
@@ -1080,6 +1109,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 highEntity->pos.x;
             r32 playerGroundY = screenCenterY - metersToPixels *
                 highEntity->pos.y;
+
+            r32 z = -metersToPixels*highEntity->z;
     
             v2 playerLeftTop =
                 {
@@ -1088,7 +1119,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 };
 
             v2 entityWidthHeight = {dormantEntity->width, dormantEntity->height};
-    
+
+#if 0
             DrawRectangle
                 (
                     buffer,
@@ -1096,14 +1128,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     playerLeftTop + metersToPixels * entityWidthHeight,
                     playerR, playerG, playerB
                 );
-
+#endif
+            
             hero_bitmaps *heroBitmaps = &gameState->
                 heroBitmaps[highEntity->facingDirection];
-    
+
+            DrawBitmap
+                (
+                    buffer, &gameState->shadow,
+                    playerGroundX, playerGroundY,
+                    heroBitmaps->alignX,
+                    heroBitmaps->alignY,
+                    cAlpha
+                );
+            
             DrawBitmap
                 (
                     buffer, &heroBitmaps->torso,
-                    playerGroundX, playerGroundY,
+                    playerGroundX, playerGroundY + z,
                     heroBitmaps->alignX,
                     heroBitmaps->alignY
                 );
@@ -1111,7 +1153,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             DrawBitmap
                 (
                     buffer, &heroBitmaps->cape,
-                    playerGroundX, playerGroundY,
+                    playerGroundX, playerGroundY + z,
                     heroBitmaps->alignX,
                     heroBitmaps->alignY
                 );
@@ -1119,7 +1161,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             DrawBitmap
                 (
                     buffer, &heroBitmaps->head,
-                    playerGroundX, playerGroundY,
+                    playerGroundX, playerGroundY + z,
                     heroBitmaps->alignX,
                     heroBitmaps->alignY
                 );
