@@ -18,9 +18,14 @@ RecanonicalizeCoord
 }
 
 inline tile_map_position
-RecanonicalizePosition(tile_map *tileMap, tile_map_position pos)
+MapIntoTileSpace
+(
+    tile_map *tileMap,
+    tile_map_position basePos, v2 offset
+)
 {
-    tile_map_position result = pos;
+    tile_map_position result = basePos;
+    result._offset += offset;
 
     RecanonicalizeCoord
         (
@@ -277,8 +282,11 @@ Subtract
 {
     tile_map_difference result;
 
-    v2 dTileXY = {(r32)a->absTileX - (r32)b->absTileX,
-                  (r32)a->absTileY - (r32)b->absTileY};
+    v2 dTileXY =
+        {
+            (r32)a->absTileX - (r32)b->absTileX,
+            (r32)a->absTileY - (r32)b->absTileY
+        };
     
     r32 dTileZ = (r32)a->absTileZ - (r32)b->absTileZ;
     
@@ -299,13 +307,4 @@ CenteredTilePoint(ui32 absTileX, ui32 absTileY, ui32 absTileZ)
     result.absTileZ = absTileZ;
 
     return result;
-}
-
-inline tile_map_position
-Offset(tile_map *tileMap, tile_map_position pos, v2 offset)
-{
-    pos._offset += offset;
-    pos = RecanonicalizePosition(tileMap, pos);
-
-    return pos;
 }

@@ -63,8 +63,8 @@ struct hero_bitmaps
 
 struct high_entity
 {
-    b32 isExists;
     v2 pos; // NOTE: Relative to the camera
+    ui32 absTileZ;
     v2 dPos;
     ui32 facingDirection;
 };
@@ -78,6 +78,10 @@ struct dormant_entity
     tile_map_position pos;
     r32 width;
     r32 height;
+
+    // NOTE: This is for "stairs"
+    b32 isCollides;
+    i32 deltaAbsTileZ;
 };
 
 struct entity

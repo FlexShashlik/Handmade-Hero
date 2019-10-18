@@ -256,6 +256,37 @@ DEBUGLoadBMP
     return result;
 }
 
+internal void
+ChangeEntityResidence
+(
+    game_state *gameState,
+    ui32 entityIndex, entity_residence residence
+)
+{
+    if(residence == EntityResidence_High)
+    {
+        if(gameState->entityResidence[entityIndex] != EntityResidence_High)
+        {
+            high_entity *entityHigh = &gameState->highEntities[entityIndex];
+            dormant_entity *entityDormant = &gameState->dormantEntities[entityIndex];
+
+            // NOTE: Map the entity into camera space
+            tile_map_difference diff = Subtract
+                (
+                    gameState->worldMap->tileMap,
+                    &entityDormant->pos, &gameState->cameraPos
+                );
+
+            entityHigh->pos = diff.dXY;
+            entityHigh->dPos = v2{0, 0};
+            entityHigh->absTileZ = entityDormant->pos.absTileZ;
+            entityHigh->facingDirection = 0;
+        }
+    }
+
+    gameState->entityResidence[entityIndex] = residence;
+}
+
 inline entity
 GetEntity
 (
@@ -263,27 +294,22 @@ GetEntity
 )
 {
     entity _entity = {};
-
+    
     if(index > 0 && index < gameState->entityCount)
     {
-        _entity.residence = residence;
+        if(gameState->entityResidence[index] < residence)
+        {
+            ChangeEntityResidence(gameState, index, residence);
+            Assert(gameState->entityResidence[index] >= residence);
+        }
         
+        _entity.residence = residence;
         _entity.dormant = &gameState->dormantEntities[index];
         _entity.low = &gameState->lowEntities[index];
         _entity.high = &gameState->highEntities[index];
     }
 
     return _entity;
-}
-
-internal void
-ChangeEntityResidence
-(
-    game_state *gameState,
-    entity _entity, entity_residence residence
-)
-{
-    // TODO: Implement
 }
 
 internal void
@@ -300,8 +326,9 @@ InitializePlayer(game_state *gameState, ui32 entityIndex)
     _entity.dormant->pos._offset.y = 0;
     _entity.dormant->height = 0.5f;
     _entity.dormant->width = 1.0f;
+    _entity.dormant->isCollides = true;
 
-    ChangeEntityResidence(gameState, _entity, EntityResidence_High);
+    ChangeEntityResidence(gameState, entityIndex, EntityResidence_High);
 
     if(GetEntity(gameState,
                  EntityResidence_Dormant,
@@ -339,7 +366,7 @@ TestWall
 {
     b32 isHit = false;
     
-    r32 tEpsilon = 0.00001f;
+    r32 tEpsilon = 0.001f;
     if(deltaPlayerX != 0.0f)
     {
         r32 tResult = (wallX - relX) / deltaPlayerX;
@@ -386,7 +413,7 @@ MovePlayer
     
     v2 newPlayerPos = oldPlayerPos + deltaPlayerPos;
 
-#if 0
+    /*
     ui32 minTileX = Minimum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
     ui32 minTileY = Minimum(oldPlayerPos.absTileY, newPlayerPos.absTileY);
     ui32 maxTileX = Maximum(oldPlayerPos.absTileX, newPlayerPos.absTileX);
@@ -401,52 +428,38 @@ MovePlayer
     maxTileY += entityTileHeight;
     
     ui32 absTileZ = _entity.high->pos.absTileZ;
-
+    */
+    
     r32 tRemaining = 1.0f;
     for(ui32 i = 0; i < 4 && tRemaining > 0.0f; i++)
     {
         r32 tMin = 1.0f;
         v2 wallNormal = {};
-
-        Assert(maxTileX - minTileX < 32);
-        Assert(maxTileY - minTileY < 32);
-
-        for(ui32 absTileY = minTileY;
-            absTileY <= maxTileY;
-            absTileY++)
+        ui32 hitEntityIndex = 0;
+        
+        for(ui32 entityIndex = 1;
+            entityIndex < gameState->entityCount;
+            entityIndex++)
         {
-            for(ui32 absTileX = minTileX;
-                absTileX <= maxTileX;
-                absTileX++)
+            entity testEntity = GetEntity(gameState, EntityResidence_High, entityIndex);
+            if(testEntity.high != _entity.high)
             {
-                tile_map_position testTilePos = CenteredTilePoint
-                    (
-                        absTileX, absTileY, absTileZ
-                    );
-                    
-                ui32 tileValue = GetTileValue(tileMap, testTilePos);
-                    
-                if(!IsTileValueEmpty(tileValue))
+                if(testEntity.dormant->isCollides)
                 {
-                    r32 diameterW = tileMap->tileSideInMeters + _entity->width;
-                    r32 diameterH = tileMap->tileSideInMeters + _entity->height;
+                    r32 diameterW = testEntity.dormant->width + _entity.dormant->width;
+                    r32 diameterH = testEntity.dormant->height + _entity.dormant->height;
                 
                     v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
                     v2 maxCorner = 0.5f * v2{diameterW, diameterH};
 
-                    tile_map_difference relOldPlayerPos = Subtract
-                        (
-                            tileMap,
-                            &_entity->pos, &testTilePos
-                        );
-
-                    v2 rel = relOldPlayerPos.dXY;
+                    v2 rel = _entity.high->pos - testEntity.high->pos;
                 
                     if(TestWall(minCorner.x, rel.x, rel.y,
                                 deltaPlayerPos.x, deltaPlayerPos.y,
                                 &tMin, minCorner.y, maxCorner.y))
                     {
                         wallNormal = v2{-1, 0};
+                        hitEntityIndex = entityIndex;
                     }                    
                 
                     if(TestWall(maxCorner.x, rel.x, rel.y,
@@ -454,6 +467,7 @@ MovePlayer
                                 &tMin, minCorner.y, maxCorner.y))
                     {
                         wallNormal = v2{1, 0};
+                        hitEntityIndex = entityIndex;
                     }
                 
                     if(TestWall(minCorner.y, rel.y, rel.x,
@@ -461,6 +475,7 @@ MovePlayer
                                 &tMin, minCorner.x, maxCorner.x))
                     {
                         wallNormal = v2{0, -1};
+                        hitEntityIndex = entityIndex;
                     }
                 
                     if(TestWall(maxCorner.y, rel.y, rel.x,
@@ -468,70 +483,67 @@ MovePlayer
                                 &tMin, minCorner.x, maxCorner.x))
                     {
                         wallNormal = v2{0, 1};
+                        hitEntityIndex = entityIndex;
                     }
                 }
             }
         }
-
-        _entity->pos = Offset
-            (
-                tileMap, _entity->pos, tMin * deltaPlayerPos
-            );
-    
-        _entity->dPos = _entity->dPos - 1 *
-            Inner(_entity->dPos, wallNormal) * wallNormal;
-        deltaPlayerPos = deltaPlayerPos - 1 *
-            Inner(deltaPlayerPos, wallNormal) * wallNormal;
         
-        tRemaining -= tMin * tRemaining;
+        _entity.high->pos += tMin * deltaPlayerPos;
+        if(hitEntityIndex)
+        {
+            _entity.high->dPos = _entity.high->dPos - 1 *
+                Inner(_entity.high->dPos, wallNormal) * wallNormal;
+
+            deltaPlayerPos = deltaPlayerPos - 1 *
+                Inner(deltaPlayerPos, wallNormal) * wallNormal;
+            
+            tRemaining -= tMin * tRemaining;
+
+            entity hitEntity = GetEntity(gameState, EntityResidence_Dormant, hitEntityIndex);                   
+            
+            _entity.high->absTileZ += hitEntity.dormant->deltaAbsTileZ;
+        }
+        else
+        {
+            break;
+        }
     }
 
-    //
-    // NOTE: Update camera & player Z based on the last movement
-    //
-    if(!AreOnSameTile(&oldPlayerPos, &_entity->pos))
-    {
-        ui32 newTileValue = GetTileValue(tileMap, _entity->pos);
-                    
-        if(newTileValue == 3)
-        {
-            _entity->pos.absTileZ++;
-        }
-        else if(newTileValue == 4)
-        {
-            _entity->pos.absTileZ--;
-        }
-    }
-
-    if(_entity->dPos.x == 0.0f && _entity->dPos.y == 0.0f)
+    if(_entity.high->dPos.x == 0.0f && _entity.high->dPos.y == 0.0f)
     {
         // NOTE: Leave facing direction whatever it was
     }
-    else if(AbsoluteValue(_entity->dPos.x) >
-            AbsoluteValue(_entity->dPos.y))
+    else if(AbsoluteValue(_entity.high->dPos.x) >
+            AbsoluteValue(_entity.high->dPos.y))
     {
-        if(_entity->dPos.x > 0)
+        if(_entity.high->dPos.x > 0)
         {
-            _entity->facingDirection = 0;
+            _entity.high->facingDirection = 0;
         }
         else
         {
-            _entity->facingDirection = 2;
+            _entity.high->facingDirection = 2;
         }
     }
-    else if(AbsoluteValue(_entity->dPos.x) <
-            AbsoluteValue(_entity->dPos.y))
+    else if(AbsoluteValue(_entity.high->dPos.x) <
+            AbsoluteValue(_entity.high->dPos.y))
     {
-        if(_entity->dPos.y > 0)
+        if(_entity.high->dPos.y > 0)
         {
-            _entity->facingDirection = 1;
+            _entity.high->facingDirection = 1;
         }
         else
         {
-            _entity->facingDirection = 3;
+            _entity.high->facingDirection = 3;
         }
     }
-#endif
+
+    _entity.dormant->pos = MapIntoTileSpace
+        (
+            gameState->worldMap->tileMap,
+            gameState->cameraPos, _entity.high->pos
+        );
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -938,6 +950,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
+    v2 entityOffsetForFrame = {};
     entity cameraFollowingEntity = GetEntity
         (
             gameState,
@@ -947,36 +960,39 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     if(cameraFollowingEntity.residence != EntityResidence_Nonexistent)
     {
-        // TODO: Fix this to work in camera space 
-#if 0
+        tile_map_position oldCameraPos = gameState->cameraPos;
         gameState->cameraPos.absTileZ = cameraFollowingEntity.dormant->pos.absTileZ;
-        
-        tile_map_difference diff = Subtract
-            (
-                tileMap,
-                &cameraFollowingEntity->pos, &gameState->cameraPos
-            );
 
-        if(diff.dXY.x > 9.0f * tileMap->tileSideInMeters)
+        if(cameraFollowingEntity.high->pos.x >
+           9.0f * tileMap->tileSideInMeters)
         {
             gameState->cameraPos.absTileX += 17;
         }
 
-        if(diff.dXY.x < -9.0f * tileMap->tileSideInMeters)
+        if(cameraFollowingEntity.high->pos.x <
+           -9.0f * tileMap->tileSideInMeters)
         {
             gameState->cameraPos.absTileX -= 17;
         }
 
-        if(diff.dXY.y > 5.0f * tileMap->tileSideInMeters)
+        if(cameraFollowingEntity.high->pos.y >
+           5.0f * tileMap->tileSideInMeters)
         {
             gameState->cameraPos.absTileY += 9;
         }
 
-        if(diff.dXY.y < -5.0f * tileMap->tileSideInMeters)
+        if(cameraFollowingEntity.high->pos.y <
+           -5.0f * tileMap->tileSideInMeters)
         {
             gameState->cameraPos.absTileY -= 9;
         }
-#endif
+
+        tile_map_difference deltaCameraPos = Subtract
+            (
+                tileMap, &gameState->cameraPos, &oldCameraPos
+            );
+
+        entityOffsetForFrame = -deltaCameraPos.dXY;
     }
     //
     // NOTE: Render
@@ -1053,6 +1069,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             high_entity *highEntity = &gameState->highEntities[entityIndex];
             low_entity *lowEntity = &gameState->lowEntities[entityIndex];
             dormant_entity *dormantEntity = &gameState->dormantEntities[entityIndex];
+
+            highEntity->pos += entityOffsetForFrame;
             
             r32 playerR = 1.0f;
             r32 playerG = 1.0f;
