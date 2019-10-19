@@ -98,3 +98,61 @@ LengthSq(v2 a)
     
     return result;
 }
+
+struct rectangle2
+{
+    v2 min;
+    v2 max;
+};
+
+inline rectangle2
+RectMinMax(v2 min, v2 max)
+{
+    rectangle2 result;
+
+    result.min = min;
+    result.max = max;
+
+    return result;
+}
+
+inline rectangle2
+RectMinDim(v2 min, v2 dim)
+{
+    rectangle2 result;
+
+    result.min = min;
+    result.max = min + dim;
+
+    return result;
+}
+
+inline rectangle2
+RectCenterHalfDim(v2 center, v2 halfDim)
+{
+    rectangle2 result;
+
+    result.min = center - halfDim;
+    result.max = center + halfDim;
+
+    return result;
+}
+
+inline rectangle2
+RectCenterDim(v2 center, v2 dim)
+{
+    rectangle2 result = RectCenterHalfDim(center, 0.5f * dim);
+
+    return result;
+}
+
+inline b32
+IsInRectangle(rectangle2 rect, v2 test)
+{
+    b32 result = (test.x >= rect.min.x &&
+                  test.y >= rect.min.y &&
+                  test.x < rect.max.x &&
+                  test.y < rect.max.y);
+
+    return result;
+}
