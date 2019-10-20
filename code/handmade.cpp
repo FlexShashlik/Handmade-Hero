@@ -395,8 +395,7 @@ AddPlayer(game_state *gameState)
             gameState, entityIndex
         );
     
-    lowEntity->pos.absTileX = 1;
-    lowEntity->pos.absTileY = 3;
+    lowEntity->pos = gameState->cameraPos;
     lowEntity->height = 0.5f;
     lowEntity->width = 1.0f;
     lowEntity->isCollides = true;
@@ -655,10 +654,10 @@ SetCamera
             entityOffsetForFrame, cameraBounds
         );
     
-    ui32 minTileX = newCameraPos.absTileX - tileSpanX / 2;
-    ui32 minTileY = newCameraPos.absTileY - tileSpanY / 2;
-    ui32 maxTileX = newCameraPos.absTileX + tileSpanX / 2;
-    ui32 maxTileY = newCameraPos.absTileY + tileSpanY / 2;
+    i32 minTileX = newCameraPos.absTileX - tileSpanX / 2;
+    i32 minTileY = newCameraPos.absTileY - tileSpanY / 2;
+    i32 maxTileX = newCameraPos.absTileX + tileSpanX / 2;
+    i32 maxTileY = newCameraPos.absTileY + tileSpanY / 2;
     
     for(ui32 entityIndex = 1;
         entityIndex < gameState->lowEntityCount;
@@ -833,40 +832,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             );
 
         tile_map *tileMap = worldMap->tileMap;
-
-        tileMap->chunkShift = 4;
-        tileMap->chunkMask = (1 << tileMap->chunkShift) - 1;
-        tileMap->chunkDim = 1 << tileMap->chunkShift;
-        
-        tileMap->tileChunkCountX = 128;
-        tileMap->tileChunkCountY = 128;
-        tileMap->tileChunkCountZ = 2;
-
-        tileMap->tileChunks = PushArray
-            (
-                &gameState->worldArena,
-                tileMap->tileChunkCountX *
-                tileMap->tileChunkCountY *
-                tileMap->tileChunkCountZ,
-                tile_chunk
-            );
-    
-        tileMap->tileSideInMeters = 1.4f;
+        InitializeTileMap(tileMap, 1.4f);
 
         ui32 randomNumberIndex = 0;
         
         ui32 tilesPerWidth = 17;
         ui32 tilesPerHeight = 9;
-
-#if 0
-        ui32 screenX = INT32_MAX / 2;
-        ui32 screenY = INT32_MAX / 2;
-#else
-        ui32 screenX = 0;
-        ui32 screenY = 0;
-#endif
-        
-        ui32 absTileZ = 0;
+        ui32 screenBaseX = 0;
+        ui32 screenBaseY = 0;
+        ui32 screenBaseZ = 0;
+        ui32 screenX = screenBaseX;
+        ui32 screenY = screenBaseY;
+        ui32 absTileZ = screenBaseZ;
 
         b32 isDoorTop = false;
         b32 isDoorLeft = false;
@@ -899,7 +876,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 isCreatedZDoor = true;
                 
-                if(absTileZ == 0)
+                if(absTileZ == screenBaseZ)
                 {
                     isDoorUp = true;
                 }
@@ -1001,13 +978,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             if(randomChoice == 2)
             {
-                if(absTileZ == 0)
+                if(absTileZ == screenBaseZ)
                 {
-                    absTileZ = 1;
+                    absTileZ = screenBaseZ + 1;
                 }
                 else
                 {
-                    absTileZ = 0;
+                    absTileZ = screenBaseZ;
                 }
             }
             else if(randomChoice == 1)
@@ -1021,8 +998,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         
         tile_map_position newCameraPos = {};
-        newCameraPos.absTileX = 17/2;
-        newCameraPos.absTileY = 9/2;
+        newCameraPos.absTileX = screenBaseX * tilesPerWidth + 17/2;
+        newCameraPos.absTileY = screenBaseY * tilesPerHeight + 9/2;
+        newCameraPos.absTileZ = screenBaseZ;
         SetCamera(gameState, newCameraPos);
         
         memory->isInitialized = true;

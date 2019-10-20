@@ -1,7 +1,7 @@
 inline void
 RecanonicalizeCoord
 (
-    tile_map *tileMap, ui32 *tile, r32 *tileRel
+    tile_map *tileMap, i32 *tile, r32 *tileRel
 )
 {
     // NOTE: World is assumed to be toroidal topology
@@ -39,28 +39,71 @@ MapIntoTileSpace
     return result;
 }
 
+#define TILE_CHUNK_SAFE_MARGIN (INT32_MAX / 64)
+#define TILE_CHUNK_UNINITIALIZED INT32_MAX
 inline tile_chunk *
 GetTileChunk
 (
     tile_map *tileMap,
-    ui32 tileChunkX, ui32 tileChunkY, ui32 tileChunkZ
+    i32 tileChunkX, i32 tileChunkY, i32 tileChunkZ,
+    memory_arena *arena = 0
 )
 {
-    tile_chunk *tileChunk = 0;
+    Assert(tileChunkX > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(tileChunkY > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(tileChunkZ > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(tileChunkX < TILE_CHUNK_SAFE_MARGIN);
+    Assert(tileChunkY < TILE_CHUNK_SAFE_MARGIN);
+    Assert(tileChunkZ < TILE_CHUNK_SAFE_MARGIN);
     
-    if(tileChunkX >= 0 && tileChunkX < tileMap->tileChunkCountX &&
-       tileChunkY >= 0 && tileChunkY < tileMap->tileChunkCountY &&
-       tileChunkZ >= 0 && tileChunkZ < tileMap->tileChunkCountZ)
-    {
-        tileChunk = &tileMap->tileChunks
-            [
-                tileChunkZ * tileMap->tileChunkCountY * tileMap->tileChunkCountX +
-                tileChunkY * tileMap->tileChunkCountX +
-                tileChunkX
-            ];
-    }
+    // TODO: Better hash function ;D
+    ui32 hashValue = 19 * tileChunkX + 7 * tileChunkY + 3 * tileChunkZ;
+    ui32 hashSlot = hashValue & (ArrayCount(tileMap->tileChunkHash) - 1);
+    Assert(hashSlot < ArrayCount(tileMap->tileChunkHash));
 
-    return tileChunk;
+    tile_chunk *chunk = tileMap->tileChunkHash + hashSlot;
+    
+    do
+    {
+        if(tileChunkX == chunk->tileChunkX &&
+           tileChunkY == chunk->tileChunkY &&
+           tileChunkZ == chunk->tileChunkZ)
+        {
+            break;
+        }
+
+        if(arena && chunk->tileChunkX != TILE_CHUNK_UNINITIALIZED && !chunk->nextInHash)
+        {
+            chunk->nextInHash = PushStruct(arena, tile_chunk);
+            chunk = chunk->nextInHash;
+            chunk->tileChunkX = TILE_CHUNK_UNINITIALIZED;
+        }
+
+        if(arena && chunk->tileChunkX == TILE_CHUNK_UNINITIALIZED)
+        {
+            ui32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
+
+            chunk->tileChunkX = tileChunkX;
+            chunk->tileChunkY = tileChunkY;
+            chunk->tileChunkZ = tileChunkZ;
+            
+            chunk->tiles = PushArray(arena, tileCount, ui32);
+            for(ui32 tileIndex = 0;
+                tileIndex < tileCount;
+                tileIndex++)
+            {
+                chunk->tiles[tileIndex] = 1;
+            }
+
+            chunk->nextInHash = 0;
+            
+            break;
+        }
+
+        chunk = chunk->nextInHash;
+    } while (chunk);
+    
+    return chunk;
 }
 
 inline ui32
@@ -68,7 +111,7 @@ GetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    ui32 tileX, ui32 tileY
+    i32 tileX, i32 tileY
 )
 {
     Assert(tileChunk);
@@ -83,7 +126,7 @@ SetTileValueUnchecked
 (
     tile_map *tileMap,
     tile_chunk *tileChunk,
-    ui32 tileX, ui32 tileY,
+    i32 tileX, i32 tileY,
     ui32 tileValue
 )
 {
@@ -234,34 +277,32 @@ SetTileValue
             tileMap,
             chunkPos.tileChunkX,
             chunkPos.tileChunkY,
-            chunkPos.tileChunkZ
+            chunkPos.tileChunkZ,
+            arena
         );
     
-    Assert(tileChunk);
-    if(!tileChunk->tiles)
-    {
-        ui32 tileCount = tileMap->chunkDim * tileMap->chunkDim;
-        tileChunk->tiles = PushArray
-            (
-                arena,
-                tileCount,
-                ui32
-            );
-
-        for(ui32 tileIndex = 0;
-            tileIndex < tileCount;
-            tileIndex++)
-        {
-            tileChunk->tiles[tileIndex] = 1;
-        }
-    }
-
     SetTileValue
         (
             tileMap, tileChunk,
             chunkPos.relTileX, chunkPos.relTileY,
             tileValue
         );
+}
+
+internal void
+InitializeTileMap(tile_map *tileMap, r32 tileSideInMeters)
+{
+    tileMap->chunkShift = 4;
+    tileMap->chunkMask = (1 << tileMap->chunkShift) - 1;
+    tileMap->chunkDim = 1 << tileMap->chunkShift;    
+    tileMap->tileSideInMeters = 1.4f;
+
+    for(ui32 tileChunkIndex = 0;
+        tileChunkIndex < ArrayCount(tileMap->tileChunkHash);
+        tileChunkIndex++)
+    {
+        tileMap->tileChunkHash[tileChunkIndex].tileChunkX = TILE_CHUNK_UNINITIALIZED;
+    }
 }
 
 inline b32
