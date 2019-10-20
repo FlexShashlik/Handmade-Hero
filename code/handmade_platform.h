@@ -69,10 +69,12 @@ typedef double r64;
 #define Assert(expression)
 #endif
 
-#define Kilobytes(value) ((value) * 1024)
-#define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) ((ui64)Megabytes(value) * 1024)
-#define Terabytes(value) ((ui64)Gigabytes(value) * 1024)
+#define InvalidCodePath Assert(!"InvalidCodePath")
+
+#define Kilobytes(value) ((value) * 1024LL)
+#define Megabytes(value) (Kilobytes(value) * 1024LL)
+#define Gigabytes(value) (Megabytes(value) * 1024LL)
+#define Terabytes(value) (Gigabytes(value) * 1024LL)
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 

@@ -61,6 +61,13 @@ struct hero_bitmaps
     loaded_bitmap torso;
 };
 
+enum entity_type
+{
+    EntityType_Null,
+    EntityType_Hero,
+    EntityType_Wall
+};
+
 struct high_entity
 {
     v2 pos; // NOTE: Relative to the camera
@@ -70,20 +77,11 @@ struct high_entity
 
     r32 z;
     r32 dZ;
+
+    ui32 lowEntityIndex;
 };
 
 struct low_entity
-{
-};
-
-enum entity_type
-{
-    EntityType_Null,
-    EntityType_Hero,
-    EntityType_Wall
-};
-
-struct dormant_entity
 {
     entity_type type;
     
@@ -94,22 +92,15 @@ struct dormant_entity
     // NOTE: This is for "stairs"
     b32 isCollides;
     i32 deltaAbsTileZ;
+
+    ui32 highEntityIndex;
 };
 
 struct entity
 {
-    ui32 residence;
-    dormant_entity *dormant;
+    ui32 lowIndex;
     low_entity *low;
     high_entity *high;
-};
-
-enum entity_residence
-{
-    EntityResidence_Nonexistent,
-    EntityResidence_Dormant,
-    EntityResidence_Low,
-    EntityResidence_High,
 };
 
 struct game_state
@@ -122,11 +113,11 @@ struct game_state
 
     ui32 playerIndexForController[ArrayCount(((game_input *)0)->controllers)];
 
-    ui32 entityCount;
-    entity_residence entityResidence[256];
-    high_entity highEntities[256];
-    low_entity lowEntities[256];
-    dormant_entity dormantEntities[256];
+    ui32 lowEntityCount;
+    low_entity lowEntities[4096];
+
+    ui32 highEntityCount;
+    high_entity _highEntities[256];
     
     loaded_bitmap bmp;
     loaded_bitmap shadow;
