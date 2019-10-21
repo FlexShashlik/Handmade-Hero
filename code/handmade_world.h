@@ -1,10 +1,10 @@
-struct tile_map_difference
+struct world_difference
 {
     v2 dXY;
     r32 dZ;
 };
 
-struct tile_map_position
+struct world_position
 {
     // NOTE: These are fixed point tile locations. The high bits are
     // the tile chunk index, and the low bits are the tile index in
@@ -17,34 +17,30 @@ struct tile_map_position
     v2 _offset;
 };
 
-struct tile_chunk_position
+struct world_entity_block
 {
-    i32 tileChunkX;
-    i32 tileChunkY;
-    i32 tileChunkZ;
-
-    i32 relTileX;
-    i32 relTileY;
+    ui32 entityCount;
+    ui32 lowIndexEntity[16];
+    world_entity_block *next;
 };
 
-struct tile_chunk
+struct world_chunk
 {
-    i32 tileChunkX;
-    i32 tileChunkY;
-    i32 tileChunkZ;
+    i32 chunkX;
+    i32 chunkY;
+    i32 chunkZ;
     
-    ui32 *tiles;
-
-    tile_chunk *nextInHash;
+    world_entity_block firstBlock;
+    
+    world_chunk *nextInHash;
 };
 
-struct tile_map
-{
+struct world
+{    
+    r32 tileSideInMeters;
+    
     i32 chunkShift;
     i32 chunkMask;
     i32 chunkDim;
-    
-    r32 tileSideInMeters;
-    
-    tile_chunk tileChunkHash[4096];
+    world_chunk chunkHash[4096];
 };

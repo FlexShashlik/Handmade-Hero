@@ -1382,7 +1382,7 @@ CALLBACK WinMain
 #endif
             
             game_memory gameMemory = {};
-            gameMemory.permanentStorageSize = Megabytes(64);
+            gameMemory.permanentStorageSize = Megabytes(256);
             gameMemory.transientStorageSize = Gigabytes(1);
             
             gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;

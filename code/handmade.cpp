@@ -1,5 +1,5 @@
 #include "handmade.h"
-#include "handmade_tile.cpp"
+#include "handmade_world.cpp"
 #include "handmade_random.h"
 
 internal void
@@ -289,9 +289,9 @@ MakeEntityHighFrequency(game_state *gameState, ui32 lowIndex)
             highEntity = gameState->_highEntities + highIndex;
     
             // NOTE: Map the entity into camera space
-            tile_map_difference diff = Subtract
+            world_difference diff = Subtract
                 (
-                    gameState->worldMap->tileMap,
+                    gameState->worldMap,
                     &lowEntity->pos, &gameState->cameraPos
                 );
 
@@ -353,7 +353,7 @@ MakeEntityLowFrequency(game_state *gameState, ui32 lowIndex)
 inline void
 OffsetAndCheckFrequencyByArea
 (
-    game_state *gameState, v2 offset, rectangle2 cameraBounds
+    game_state *gameState, v2 offset, rectangle2 bounds
 )
 {
     for(ui32 entityIndex = 1;
@@ -363,7 +363,7 @@ OffsetAndCheckFrequencyByArea
         high_entity *high = gameState->_highEntities + entityIndex;
 
         high->pos += offset;
-        if(IsInRectangle(cameraBounds, high->pos))
+        if(IsInRectangle(bounds, high->pos))
         {
             entityIndex++;
         }
@@ -424,7 +424,7 @@ AddWall
     lowEntity->pos.absTileX = absTileX;
     lowEntity->pos.absTileY = absTileY;
     lowEntity->pos.absTileZ = absTileZ;
-    lowEntity->height = gameState->worldMap->tileMap->tileSideInMeters;
+    lowEntity->height = gameState->worldMap->tileSideInMeters;
     lowEntity->width = lowEntity->height;
     lowEntity->isCollides = true;
 
@@ -467,7 +467,7 @@ MovePlayer
     r32 deltaTime, v2 ddPlayerPos
 )
 {
-    tile_map *tileMap = gameState->worldMap->tileMap;
+    world *worldMap = gameState->worldMap;
     r32 ddPLength = LengthSq(ddPlayerPos);
     if(ddPLength > 1.0f)
     {
@@ -620,7 +620,7 @@ MovePlayer
 
     _entity.low->pos = MapIntoTileSpace
         (
-            gameState->worldMap->tileMap,
+            gameState->worldMap,
             gameState->cameraPos, _entity.high->pos
         );
 }
@@ -629,13 +629,13 @@ internal void
 SetCamera
 (
     game_state *gameState,
-    tile_map_position newCameraPos
+    world_position newCameraPos
 )
 {
-    tile_map *tileMap = gameState->worldMap->tileMap;
-    tile_map_difference deltaCameraPos = Subtract
+    world *worldMap = gameState->worldMap;
+    world_difference deltaCameraPos = Subtract
         (
-            tileMap, &newCameraPos, &gameState->cameraPos
+            worldMap, &newCameraPos, &gameState->cameraPos
         );
     gameState->cameraPos = newCameraPos;
 
@@ -644,7 +644,7 @@ SetCamera
     rectangle2 cameraBounds = RectCenterDim
         (
             v2{0, 0},
-            tileMap->tileSideInMeters * v2{(r32)tileSpanX, (r32)tileSpanY}
+            worldMap->tileSideInMeters * v2{(r32)tileSpanX, (r32)tileSpanY}
          );
 
     v2 entityOffsetForFrame = -deltaCameraPos.dXY;
@@ -663,16 +663,14 @@ SetCamera
         entityIndex < gameState->lowEntityCount;
         entityIndex++)
     {
-        low_entity *low = gameState->lowEntities  + entityIndex;
+        low_entity *low = gameState->lowEntities + entityIndex;
         if(!low->highEntityIndex)
         {
-#if 0
             if(low->pos.absTileZ == newCameraPos.absTileZ &&
                low->pos.absTileX >= minTileX &&
-               low->pos.absTileX <= minTileX &&
+               low->pos.absTileX <= maxTileX &&
                low->pos.absTileY >= minTileY &&
                low->pos.absTileY <= maxTileY)
-#endif
             {
                 MakeEntityHighFrequency(gameState, entityIndex);
             }
@@ -825,14 +823,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 world
             );
         world *worldMap = gameState->worldMap;
-        worldMap->tileMap = PushStruct
-            (
-                &gameState->worldArena,
-                tile_map
-            );
-
-        tile_map *tileMap = worldMap->tileMap;
-        InitializeTileMap(tileMap, 1.4f);
+        
+        InitializeTileMap(worldMap, 1.4f);
 
         ui32 randomNumberIndex = 0;
         
@@ -944,14 +936,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             tileValue = 4;
                         }
                     }
-                        
-                    SetTileValue
-                        (
-                            &gameState->worldArena, tileMap,
-                            absTileX, absTileY, absTileZ,
-                            tileValue
-                        );
-
+                    
                     if(tileValue == 2)
                     {
                         AddWall(gameState, absTileX, absTileY, absTileZ);
@@ -996,8 +981,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 screenY++;
             }
         }
+
+#if 0
+        while(gameState->lowEntityCount < ArrayCount(gameState->lowEntities) - 16)
+        {
+            ui32 coord = 1024 + gameState->lowEntityCount;
+            AddWall(gameState, coord, coord, coord);
+        }
+#endif
         
-        tile_map_position newCameraPos = {};
+        world_position newCameraPos = {};
         newCameraPos.absTileX = screenBaseX * tilesPerWidth + 17/2;
         newCameraPos.absTileY = screenBaseY * tilesPerHeight + 9/2;
         newCameraPos.absTileZ = screenBaseZ;
@@ -1005,12 +998,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         memory->isInitialized = true;
     }
-        
+    
     world *worldMap = gameState->worldMap;
-    tile_map *tileMap = worldMap->tileMap;
     
     i32 tileSideInPixels = 60;
-    r32 metersToPixels = (r32)tileSideInPixels / (r32)tileMap->tileSideInMeters;
+    r32 metersToPixels = (r32)tileSideInPixels / (r32)worldMap->tileSideInMeters;
     
     r32 lowerLeftX = -(r32)tileSideInPixels/2;
     r32 lowerLeftY = (r32)buffer->height;
@@ -1088,32 +1080,59 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     if(cameraFollowingEntity.high)
     {
-        tile_map_position newCameraPos = gameState->cameraPos;
+        world_position newCameraPos = gameState->cameraPos;
         gameState->cameraPos.absTileZ = cameraFollowingEntity.low->pos.absTileZ;
 
+#if 0
         if(cameraFollowingEntity.high->pos.x >
-           9.0f * tileMap->tileSideInMeters)
+           9.0f * worldMap->tileSideInMeters)
         {
             newCameraPos.absTileX += 17;
         }
 
         if(cameraFollowingEntity.high->pos.x <
-           -9.0f * tileMap->tileSideInMeters)
+           -9.0f * worldMap->tileSideInMeters)
         {
             newCameraPos.absTileX -= 17;
         }
 
         if(cameraFollowingEntity.high->pos.y >
-           5.0f * tileMap->tileSideInMeters)
+           5.0f * worldMap->tileSideInMeters)
         {
             newCameraPos.absTileY += 9;
         }
 
         if(cameraFollowingEntity.high->pos.y <
-           -5.0f * tileMap->tileSideInMeters)
+           -5.0f * worldMap->tileSideInMeters)
         {
            newCameraPos.absTileY -= 9;
         }
+#else
+        newCameraPos = cameraFollowingEntity.low->pos;
+        if(cameraFollowingEntity.high->pos.x >
+           1.0f * worldMap->tileSideInMeters)
+        {
+            newCameraPos.absTileX += 1;
+        }
+
+        if(cameraFollowingEntity.high->pos.x <
+           -1.0f * worldMap->tileSideInMeters)
+        {
+            newCameraPos.absTileX -= 1;
+        }
+
+        if(cameraFollowingEntity.high->pos.y >
+           1.0f * worldMap->tileSideInMeters)
+        {
+            newCameraPos.absTileY += 1;
+        }
+
+        if(cameraFollowingEntity.high->pos.y <
+           -1.0f * worldMap->tileSideInMeters)
+        {
+           newCameraPos.absTileY -= 1;
+        }
+#endif
 
         SetCamera(gameState, newCameraPos);
     }
@@ -1140,7 +1159,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
             ui32 tileID = GetTileValue
                 (
-                    tileMap,
+                    worldMap,
                     column, row, gameState->cameraPos.absTileZ
                 );
             
