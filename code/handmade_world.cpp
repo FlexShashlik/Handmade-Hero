@@ -1,20 +1,54 @@
+#define WORLD_CHUNK_SAFE_MARGIN (INT32_MAX / 64)
+#define WORLD_CHUNK_UNINITIALIZED INT32_MAX
+
+#define TILES_PER_CHUNK 16
+
+inline b32
+IsCanonical(world *_world, r32 tileRel)
+{
+    b32 result = (tileRel >= -0.5f * _world->chunkSideInMeters &&
+                  tileRel <= 0.5f * _world->chunkSideInMeters);
+
+    return result;
+}
+
+inline b32
+IsCanonical(world *_world, v2 offset)
+{
+    b32 result = (IsCanonical(_world, offset.x) &&
+                  IsCanonical(_world, offset.y));
+
+    return result;
+}
+
+inline b32
+AreInSameChunk(world *_world, world_position *a, world_position *b)
+{
+    Assert(IsCanonical(_world, a->_offset));
+    Assert(IsCanonical(_world, b->_offset));
+           
+    b32 result = (a->chunkX == b->chunkX &&
+                  a->chunkY == b->chunkY &&
+                  a->chunkZ == b->chunkZ);
+    
+    return result;
+}
+
 inline void
 RecanonicalizeCoord
 (
     world *_world, i32 *tile, r32 *tileRel
 )
 {
-    // NOTE: World is assumed to be toroidal topology
     i32 offset = RoundR32ToI32
         (
-            *tileRel / _world->tileSideInMeters
+            *tileRel / _world->chunkSideInMeters
         );
     *tile += offset;
     
-    *tileRel -= offset * _world->tileSideInMeters;
-    
-    Assert(*tileRel >= -0.5f * _world->tileSideInMeters);
-    Assert(*tileRel <= 0.5f * _world->tileSideInMeters);
+    *tileRel -= offset * _world->chunkSideInMeters;
+
+    Assert(IsCanonical(_world, *tileRel));
 }
 
 inline world_position
@@ -29,20 +63,37 @@ MapIntoTileSpace
 
     RecanonicalizeCoord
         (
-            _world, &result.absTileX, &result._offset.x
+            _world, &result.chunkX, &result._offset.x
         );
     RecanonicalizeCoord
         (
-            _world, &result.absTileY, &result._offset.y
+            _world, &result.chunkY, &result._offset.y
         );
 
     return result;
 }
 
-#define WORLD_CHUNK_SAFE_MARGIN (INT32_MAX / 64)
-#define WORLD_CHUNK_UNINITIALIZED INT32_MAX
+inline world_position
+ChunkPosFromTilePos
+(
+    world *_world,
+    i32 absTileX, i32 absTileY, i32 absTileZ
+)
+{
+    world_position result = {};
+
+    result.chunkX = absTileX / TILES_PER_CHUNK;
+    result.chunkY = absTileY / TILES_PER_CHUNK;
+    result.chunkZ = absTileZ / TILES_PER_CHUNK;
+
+    result._offset.x = (r32)(absTileX - result.chunkX * TILES_PER_CHUNK) * _world->tileSideInMeters;
+    result._offset.y = (r32)(absTileY - result.chunkY * TILES_PER_CHUNK) * _world->tileSideInMeters;
+    
+    return result;
+}
+
 inline world_chunk *
-GetTileChunk
+GetWorldChunk
 (
     world *_world,
     i32 chunkX, i32 chunkY, i32 chunkZ,
@@ -81,8 +132,6 @@ GetTileChunk
 
         if(arena && chunk->chunkX == WORLD_CHUNK_UNINITIALIZED)
         {
-            ui32 tileCount = _world->chunkDim * _world->chunkDim;
-
             chunk->chunkX = chunkX;
             chunk->chunkY = chunkY;
             chunk->chunkZ = chunkZ;
@@ -98,49 +147,20 @@ GetTileChunk
     return chunk;
 }
 
-#if 0
-inline world_chunk_position
-GetChunkPosition
-(
-    world *_world,
-    ui32 absTileX, ui32 absTileY, ui32 absTileZ
-)
-{
-    world_chunk_position result;
-
-    result.chunkX = absTileX >> _world->chunkShift;
-    result.chunkY = absTileY >> _world->chunkShift;
-    result.chunkZ = absTileZ;
-    result.relTileX = absTileX & _world->chunkMask;
-    result.relTileY = absTileY & _world->chunkMask;
-
-    return result;
-}
-#endif
-
 internal void
 InitializeTileMap(world *_world, r32 tileSideInMeters)
 {
-    _world->chunkShift = 4;
-    _world->chunkMask = (1 << _world->chunkShift) - 1;
-    _world->chunkDim = 1 << _world->chunkShift;    
-    _world->tileSideInMeters = 1.4f;
+    _world->tileSideInMeters = tileSideInMeters;
+    _world->chunkSideInMeters = (r32)TILES_PER_CHUNK * tileSideInMeters;
+    _world->firstFree = 0;
 
     for(ui32 chunkIndex = 0;
         chunkIndex < ArrayCount(_world->chunkHash);
         chunkIndex++)
     {
         _world->chunkHash[chunkIndex].chunkX = WORLD_CHUNK_UNINITIALIZED;
+        _world->chunkHash[chunkIndex].firstBlock.entityCount = 0;
     }
-}
-
-inline b32
-AreOnSameTile(world_position *a, world_position *b)
-{
-    b32 result = (a->absTileX == b->absTileX &&
-                  a->absTileY == b->absTileY &&
-                  a->absTileZ == b->absTileZ);
-    return result;
 }
 
 inline world_difference
@@ -154,27 +174,117 @@ Subtract
 
     v2 dTileXY =
         {
-            (r32)a->absTileX - (r32)b->absTileX,
-            (r32)a->absTileY - (r32)b->absTileY
+            (r32)a->chunkX - (r32)b->chunkX,
+            (r32)a->chunkY - (r32)b->chunkY
         };
     
-    r32 dTileZ = (r32)a->absTileZ - (r32)b->absTileZ;
+    r32 dTileZ = (r32)a->chunkZ - (r32)b->chunkZ;
     
-    result.dXY = _world->tileSideInMeters * dTileXY +
+    result.dXY = _world->chunkSideInMeters * dTileXY +
         a->_offset - b->_offset;
-    result.dZ = _world->tileSideInMeters * dTileZ;
+    result.dZ = _world->chunkSideInMeters * dTileZ;
  
     return result;
 }
 
 inline world_position
-CenteredTilePoint(ui32 absTileX, ui32 absTileY, ui32 absTileZ)
+CenteredChunkPoint(ui32 chunkX, ui32 chunkY, ui32 chunkZ)
 {
     world_position result = {};
 
-    result.absTileX = absTileX;
-    result.absTileY = absTileY;
-    result.absTileZ = absTileZ;
+    result.chunkX = chunkX;
+    result.chunkY = chunkY;
+    result.chunkZ = chunkZ;
 
     return result;
+}
+
+inline void
+ChangeEntityLocation
+(
+    memory_arena *arena, world *_world,
+    ui32 lowEntityIndex,
+    world_position *oldPos, world_position *newPos
+)
+{
+    if(!oldPos || !AreInSameChunk(_world, oldPos, newPos))
+    {
+        if(oldPos)
+        {
+            // NOTE: Pull the entity out of its old entity_block
+            world_chunk *chunk = GetWorldChunk
+            (
+                _world,
+                oldPos->chunkX, oldPos->chunkY, oldPos->chunkZ
+            );
+            Assert(chunk);
+            
+            if(chunk)
+            {
+                world_entity_block *firstBlock = &chunk->firstBlock;
+                for(world_entity_block *block = firstBlock;
+                    block;
+                    block = block->next)
+                {
+                    for(ui32 index = 0;
+                        index < block->entityCount;
+                        index++)
+                    {
+                        if(block->lowEntityIndex[index] == lowEntityIndex)
+                        {
+                            Assert(firstBlock->entityCount > 0);
+                            block->lowEntityIndex[index] =
+                                block->lowEntityIndex[--firstBlock->entityCount];
+
+                            if(firstBlock->entityCount == 0)
+                            {
+                                if(firstBlock->next)
+                                {
+                                    world_entity_block *nextBlock = firstBlock->next;
+                                    *firstBlock = *nextBlock;
+
+                                    nextBlock->next = _world->firstFree;
+                                    _world->firstFree = nextBlock;
+                                }
+                            }
+
+                            block = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // NOTE: Insert the entity into its new entity_block 
+        world_chunk *chunk = GetWorldChunk
+            (
+                _world,
+                newPos->chunkX, newPos->chunkY, newPos->chunkZ,
+                arena
+            );
+        Assert(chunk);
+        
+        world_entity_block *block = &chunk->firstBlock;
+        if(block->entityCount == ArrayCount(block->lowEntityIndex))
+        {
+            // NOTE: We're out of room, get a new block
+            world_entity_block *oldBlock = _world->firstFree;
+            if(oldBlock)
+            {
+                _world->firstFree = oldBlock->next;
+            }
+            else
+            {
+                oldBlock = PushStruct(arena, world_entity_block);
+            }
+            
+            *oldBlock = *block;
+            block->next = oldBlock;
+            block->entityCount = 0;
+        }
+
+        Assert(block->entityCount < ArrayCount(block->lowEntityIndex));
+        block->lowEntityIndex[block->entityCount++] = lowEntityIndex;
+    }
 }

@@ -297,7 +297,7 @@ MakeEntityHighFrequency(game_state *gameState, ui32 lowIndex)
 
             highEntity->pos = diff.dXY;
             highEntity->dPos = v2{0, 0};
-            highEntity->absTileZ = lowEntity->pos.absTileZ;
+            highEntity->chunkZ = lowEntity->pos.chunkZ;
             highEntity->facingDirection = 0;
             highEntity->lowEntityIndex = lowIndex;
 
@@ -421,9 +421,12 @@ AddWall
             gameState, entityIndex
         );
     
-    lowEntity->pos.absTileX = absTileX;
-    lowEntity->pos.absTileY = absTileY;
-    lowEntity->pos.absTileZ = absTileZ;
+    lowEntity->pos = ChunkPosFromTilePos
+        (
+            gameState->worldMap,
+            absTileX, absTileY, absTileZ
+        );
+    
     lowEntity->height = gameState->worldMap->tileSideInMeters;
     lowEntity->width = lowEntity->height;
     lowEntity->isCollides = true;
@@ -581,7 +584,7 @@ MovePlayer
             high_entity *hitHigh = gameState->_highEntities + hitHighEntityIndex;
             low_entity *hitLow = gameState->lowEntities + hitHigh->lowEntityIndex;
             
-            _entity.high->absTileZ += hitLow->deltaAbsTileZ;
+            //_entity.high->absTileZ += hitLow->deltaAbsTileZ;
         }
         else
         {
@@ -653,7 +656,8 @@ SetCamera
             gameState,
             entityOffsetForFrame, cameraBounds
         );
-    
+
+#if 0
     i32 minTileX = newCameraPos.absTileX - tileSpanX / 2;
     i32 minTileY = newCameraPos.absTileY - tileSpanY / 2;
     i32 maxTileX = newCameraPos.absTileX + tileSpanX / 2;
@@ -676,6 +680,7 @@ SetCamera
             }
         }
     }
+#endif
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -845,7 +850,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         b32 isDoorDown = false;
         
         for(ui32 screenIndex = 0;
-            screenIndex < 2;
+            screenIndex < 2000;
             screenIndex++)
         {
             // TODO: Random number generator
@@ -981,19 +986,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 screenY++;
             }
         }
-
-#if 0
-        while(gameState->lowEntityCount < ArrayCount(gameState->lowEntities) - 16)
-        {
-            ui32 coord = 1024 + gameState->lowEntityCount;
-            AddWall(gameState, coord, coord, coord);
-        }
-#endif
         
         world_position newCameraPos = {};
-        newCameraPos.absTileX = screenBaseX * tilesPerWidth + 17/2;
-        newCameraPos.absTileY = screenBaseY * tilesPerHeight + 9/2;
-        newCameraPos.absTileZ = screenBaseZ;
+        newCameraPos = ChunkPosFromTilePos
+            (
+                gameState->worldMap,
+                screenBaseX * tilesPerWidth + 17/2,
+                screenBaseY * tilesPerHeight + 9/2,
+                screenBaseZ
+            );
         SetCamera(gameState, newCameraPos);
         
         memory->isInitialized = true;
@@ -1081,7 +1082,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if(cameraFollowingEntity.high)
     {
         world_position newCameraPos = gameState->cameraPos;
-        gameState->cameraPos.absTileZ = cameraFollowingEntity.low->pos.absTileZ;
+        gameState->cameraPos.chunkZ = cameraFollowingEntity.low->pos.chunkZ;
 
 #if 0
         if(cameraFollowingEntity.high->pos.x >
@@ -1109,29 +1110,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 #else
         newCameraPos = cameraFollowingEntity.low->pos;
-        if(cameraFollowingEntity.high->pos.x >
-           1.0f * worldMap->tileSideInMeters)
-        {
-            newCameraPos.absTileX += 1;
-        }
-
-        if(cameraFollowingEntity.high->pos.x <
-           -1.0f * worldMap->tileSideInMeters)
-        {
-            newCameraPos.absTileX -= 1;
-        }
-
-        if(cameraFollowingEntity.high->pos.y >
-           1.0f * worldMap->tileSideInMeters)
-        {
-            newCameraPos.absTileY += 1;
-        }
-
-        if(cameraFollowingEntity.high->pos.y <
-           -1.0f * worldMap->tileSideInMeters)
-        {
-           newCameraPos.absTileY -= 1;
-        }
 #endif
 
         SetCamera(gameState, newCameraPos);

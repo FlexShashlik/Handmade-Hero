@@ -66,7 +66,7 @@ enum entity_type
 struct high_entity
 {
     v2 pos; // NOTE: Relative to the camera
-    ui32 absTileZ;
+    ui32 chunkZ;
     v2 dPos;
     ui32 facingDirection;
 
