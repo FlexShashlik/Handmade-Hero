@@ -22,7 +22,6 @@ inline v2
 operator*(v2 b, r32 a)
 {
     v2 result = a * b;
-
     return result;
 }
 
@@ -30,7 +29,6 @@ inline v2 &
 operator*=(v2 &a, r32 b)
 {
     a = b * a;
-
     return a;
 }
 
@@ -60,7 +58,6 @@ inline v2 &
 operator+=(v2 &a, v2 b)
 {
     a = a + b;
-
     return a;
 }
 
@@ -79,23 +76,20 @@ inline r32
 Square(r32 value)
 {
     r32 result = value * value;
-
     return result;
 }
 
 inline r32
 Inner(v2 a, v2 b)
 {
-    r32 result = a.x * b.x + a.y * b.y;
-    
+    r32 result = a.x * b.x + a.y * b.y;    
     return result;
 }
 
 inline r32
 LengthSq(v2 a)
 {
-    r32 result = Inner(a, a);
-    
+    r32 result = Inner(a, a);    
     return result;
 }
 
@@ -104,6 +98,27 @@ struct rectangle2
     v2 min;
     v2 max;
 };
+
+inline v2
+GetMinCorner(rectangle2 rect)
+{
+    v2 result = rect.min;
+    return result;
+}
+
+inline v2
+GetMaxCorner(rectangle2 rect)
+{
+    v2 result = rect.max;
+    return result;
+}
+
+inline v2
+GetCenter(rectangle2 rect)
+{
+    v2 result = 0.5f * (rect.min + rect.max);
+    return result;
+}
 
 inline rectangle2
 RectMinMax(v2 min, v2 max)
@@ -142,7 +157,6 @@ inline rectangle2
 RectCenterDim(v2 center, v2 dim)
 {
     rectangle2 result = RectCenterHalfDim(center, 0.5f * dim);
-
     return result;
 }
 

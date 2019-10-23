@@ -52,7 +52,7 @@ RecanonicalizeCoord
 }
 
 inline world_position
-MapIntoTileSpace
+MapIntoChunkSpace
 (
     world *_world,
     world_position basePos, v2 offset
@@ -221,13 +221,14 @@ ChangeEntityLocation
             
             if(chunk)
             {
+                b32 isFound = false;
                 world_entity_block *firstBlock = &chunk->firstBlock;
                 for(world_entity_block *block = firstBlock;
-                    block;
+                    block && !isFound;
                     block = block->next)
                 {
                     for(ui32 index = 0;
-                        index < block->entityCount;
+                        index < block->entityCount && !isFound;
                         index++)
                     {
                         if(block->lowEntityIndex[index] == lowEntityIndex)
@@ -248,8 +249,7 @@ ChangeEntityLocation
                                 }
                             }
 
-                            block = 0;
-                            break;
+                            isFound = true;
                         }
                     }
                 }

@@ -116,6 +116,7 @@ struct game_state
     
     loaded_bitmap bmp;
     loaded_bitmap shadow;
+    loaded_bitmap tree;
 
     hero_bitmaps heroBitmaps[4];
 };
