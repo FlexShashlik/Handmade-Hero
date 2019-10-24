@@ -81,13 +81,28 @@ ChunkPosFromTilePos
 )
 {
     world_position result = {};
-
+    
     result.chunkX = absTileX / TILES_PER_CHUNK;
     result.chunkY = absTileY / TILES_PER_CHUNK;
     result.chunkZ = absTileZ / TILES_PER_CHUNK;
 
-    result._offset.x = (r32)(absTileX - result.chunkX * TILES_PER_CHUNK) * _world->tileSideInMeters;
-    result._offset.y = (r32)(absTileY - result.chunkY * TILES_PER_CHUNK) * _world->tileSideInMeters;
+    if(absTileX < 0)
+    {
+        result.chunkX--;
+    }
+    if(absTileY < 0)
+    {
+        result.chunkY--;
+    }
+    if(absTileZ < 0)
+    {
+        result.chunkZ--;
+    }
+    
+    result._offset.x = (r32)((absTileX - TILES_PER_CHUNK / 2) - (result.chunkX * TILES_PER_CHUNK)) * _world->tileSideInMeters;
+    result._offset.y = (r32)((absTileY - TILES_PER_CHUNK / 2) - (result.chunkY * TILES_PER_CHUNK)) * _world->tileSideInMeters;
+
+    Assert(IsCanonical(_world, result._offset));
     
     return result;
 }
