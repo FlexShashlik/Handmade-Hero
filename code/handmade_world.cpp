@@ -163,7 +163,7 @@ GetWorldChunk
 }
 
 internal void
-InitializeTileMap(world *_world, r32 tileSideInMeters)
+InitializeWorld(world *_world, r32 tileSideInMeters)
 {
     _world->tileSideInMeters = tileSideInMeters;
     _world->chunkSideInMeters = (r32)TILES_PER_CHUNK * tileSideInMeters;

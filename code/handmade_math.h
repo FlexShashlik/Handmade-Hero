@@ -7,6 +7,32 @@ union v2
     r32 e[2];
 };
 
+union v3
+{
+    struct
+    {
+        r32 x, y, z;
+    };
+    struct
+    {
+        r32 r, g, b;
+    };
+    r32 e[3];
+};
+
+union v4
+{
+    struct
+    {
+        r32 x, y, z, w;
+    };
+    struct
+    {
+        r32 r, g, b, a;
+    };
+    r32 e[4];
+};
+
 inline v2
 operator*(r32 a, v2 b)
 {

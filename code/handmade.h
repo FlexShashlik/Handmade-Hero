@@ -64,6 +64,13 @@ enum entity_type
     EntityType_Monster
 };
 
+#define HIT_POINT_SUB_COUNT 4
+struct hit_point
+{
+    ui8 flags;
+    ui8 filledAmount;
+};
+
 struct high_entity
 {
     v2 pos; // NOTE: Relative to the camera
@@ -92,6 +99,9 @@ struct low_entity
     i32 deltaAbsTileZ;
 
     ui32 highEntityIndex;
+
+    ui32 hitPointMax;
+    hit_point hitPoint[16];
 };
 
 struct entity
@@ -106,19 +116,16 @@ struct entity_visible_piece
     loaded_bitmap *bitmap;
     v2 offset;
     r32 offsetZ;
-    r32 alpha;
-};
+    r32 entityZC;
 
-struct entity_visible_piece_group
-{    
-    ui32 pieceCount;
-    entity_visible_piece pieces[8];
+    r32 r, g, b, a;
+    v2 dim;
 };
 
 struct game_state
 {
     memory_arena worldArena;
-    world *worldMap;
+    world *_world;
 
     ui32 cameraFollowingEntityIndex;
     world_position cameraPos;
@@ -136,4 +143,12 @@ struct game_state
     loaded_bitmap tree;
 
     hero_bitmaps heroBitmaps[4];
+    r32 metersToPixels;
+};
+
+struct entity_visible_piece_group
+{
+    game_state *gameState;
+    ui32 pieceCount;
+    entity_visible_piece pieces[32];
 };
