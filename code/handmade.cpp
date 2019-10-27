@@ -333,7 +333,7 @@ MakeEntityHighFrequency(game_state *gameState, ui32 lowIndex)
             (
                 gameState, lowEntity 
             );
-        MakeEntityHighFrequency
+        highEntity = MakeEntityHighFrequency
             (
                 gameState,
                 lowEntity, lowIndex, cameraSpacePos
@@ -408,15 +408,16 @@ OffsetAndCheckFrequencyByArea
         )
     {
         high_entity *high = gameState->_highEntities + highEntityIndex;
+        low_entity *low = gameState->lowEntities + high->lowEntityIndex;
 
         high->pos += offset;
-        if(IsInRectangle(bounds, high->pos))
+        if(IsValid(low->pos) && IsInRectangle(bounds, high->pos))
         {
             highEntityIndex++;
         }
         else
         {
-            Assert(gameState->lowEntities[high->lowEntityIndex].highEntityIndex == highEntityIndex);
+            Assert(low->highEntityIndex == highEntityIndex);
             MakeEntityLowFrequency(gameState, high->lowEntityIndex);
         }
     }
@@ -617,30 +618,52 @@ TestWall
     return isHit;
 }
 
+struct move_spec
+{
+    b32 isUnitMaxAccelVector;
+    r32 speed;
+    r32 drag;
+};
+
+inline move_spec
+DefaultMoveSpec(void)
+{
+    move_spec result = {};
+    result.isUnitMaxAccelVector = false;
+    result.speed = 1.0f;
+    result.drag = 0.0f;
+
+    return result;
+}
+
 internal void
 MoveEntity
 (
-    game_state *gameState, entity _entity,
-    r32 deltaTime, v2 ddPlayerPos
+    game_state *gameState,
+    entity _entity, r32 deltaTime,
+    move_spec *moveSpec, v2 ddPos
 )
 {
     world *_world = gameState->_world;
-    r32 ddPLength = LengthSq(ddPlayerPos);
-    if(ddPLength > 1.0f)
+
+    if(moveSpec->isUnitMaxAccelVector)
     {
-        ddPlayerPos *= 1.0f / SqRt(ddPLength);
+        r32 ddPLength = LengthSq(ddPos);
+        if(ddPLength > 1.0f)
+        {
+            ddPos *= 1.0f / SqRt(ddPLength);
+        }
     }
     
-    r32 playerSpeed = 50.0f;
-    ddPlayerPos *= playerSpeed;
+    ddPos *= moveSpec->speed;
 
     // TODO: ODE!!!
-    ddPlayerPos += -8.0f * _entity.high->dPos;
+    ddPos += -moveSpec->drag * _entity.high->dPos;
 
     v2 oldPlayerPos = _entity.high->pos;
-    v2 deltaPlayerPos = 0.5f * ddPlayerPos *
+    v2 deltaPlayerPos = 0.5f * ddPos *
         Square(deltaTime) + _entity.high->dPos * deltaTime;
-    _entity.high->dPos = ddPlayerPos * deltaTime +
+    _entity.high->dPos = ddPos * deltaTime +
         _entity.high->dPos;
     
     v2 newPlayerPos = oldPlayerPos + deltaPlayerPos;
@@ -652,57 +675,60 @@ MoveEntity
         ui32 hitHighEntityIndex = 0;
 
         v2 desiredPos = _entity.high->pos + deltaPlayerPos;
-        
-        for(ui32 highEntityIndex = 1;
-            highEntityIndex < gameState->highEntityCount;
-            highEntityIndex++)
-        {
-            if(highEntityIndex != _entity.low->highEntityIndex)
-            {
-                entity testEntity = {};
-                testEntity.high = gameState->_highEntities + highEntityIndex;
-                testEntity.lowIndex = testEntity.high->lowEntityIndex;
-                testEntity.low = gameState->lowEntities + testEntity.lowIndex;
-                if(testEntity.low->isCollides)
-                {
-                    r32 diameterW = testEntity.low->width + _entity.low->width;
-                    r32 diameterH = testEntity.low->height + _entity.low->height;
-                
-                    v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
-                    v2 maxCorner = 0.5f * v2{diameterW, diameterH};
 
-                    v2 rel = _entity.high->pos - testEntity.high->pos;
-                
-                    if(TestWall(minCorner.x, rel.x, rel.y,
-                                deltaPlayerPos.x, deltaPlayerPos.y,
-                                &tMin, minCorner.y, maxCorner.y))
+        if(_entity.low->isCollides)
+        {
+            for(ui32 highEntityIndex = 1;
+                highEntityIndex < gameState->highEntityCount;
+                highEntityIndex++)
+            {
+                if(highEntityIndex != _entity.low->highEntityIndex)
+                {
+                    entity testEntity = {};
+                    testEntity.high = gameState->_highEntities + highEntityIndex;
+                    testEntity.lowIndex = testEntity.high->lowEntityIndex;
+                    testEntity.low = gameState->lowEntities + testEntity.lowIndex;
+                    if(testEntity.low->isCollides)
                     {
-                        wallNormal = v2{-1, 0};
-                        hitHighEntityIndex = highEntityIndex;
-                    }                    
+                        r32 diameterW = testEntity.low->width + _entity.low->width;
+                        r32 diameterH = testEntity.low->height + _entity.low->height;
                 
-                    if(TestWall(maxCorner.x, rel.x, rel.y,
-                                deltaPlayerPos.x, deltaPlayerPos.y,
-                                &tMin, minCorner.y, maxCorner.y))
-                    {
-                        wallNormal = v2{1, 0};
-                        hitHighEntityIndex = highEntityIndex;
-                    }
+                        v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
+                        v2 maxCorner = 0.5f * v2{diameterW, diameterH};
+
+                        v2 rel = _entity.high->pos - testEntity.high->pos;
                 
-                    if(TestWall(minCorner.y, rel.y, rel.x,
-                                deltaPlayerPos.y, deltaPlayerPos.x,
-                                &tMin, minCorner.x, maxCorner.x))
-                    {
-                        wallNormal = v2{0, -1};
-                        hitHighEntityIndex = highEntityIndex;
-                    }
+                        if(TestWall(minCorner.x, rel.x, rel.y,
+                                    deltaPlayerPos.x, deltaPlayerPos.y,
+                                    &tMin, minCorner.y, maxCorner.y))
+                        {
+                            wallNormal = v2{-1, 0};
+                            hitHighEntityIndex = highEntityIndex;
+                        }                    
                 
-                    if(TestWall(maxCorner.y, rel.y, rel.x,
-                                deltaPlayerPos.y, deltaPlayerPos.x,
-                                &tMin, minCorner.x, maxCorner.x))
-                    {
-                        wallNormal = v2{0, 1};
-                        hitHighEntityIndex = highEntityIndex;
+                        if(TestWall(maxCorner.x, rel.x, rel.y,
+                                    deltaPlayerPos.x, deltaPlayerPos.y,
+                                    &tMin, minCorner.y, maxCorner.y))
+                        {
+                            wallNormal = v2{1, 0};
+                            hitHighEntityIndex = highEntityIndex;
+                        }
+                
+                        if(TestWall(minCorner.y, rel.y, rel.x,
+                                    deltaPlayerPos.y, deltaPlayerPos.x,
+                                    &tMin, minCorner.x, maxCorner.x))
+                        {
+                            wallNormal = v2{0, -1};
+                            hitHighEntityIndex = highEntityIndex;
+                        }
+                
+                        if(TestWall(maxCorner.y, rel.y, rel.x,
+                                    deltaPlayerPos.y, deltaPlayerPos.x,
+                                    &tMin, minCorner.x, maxCorner.x))
+                        {
+                            wallNormal = v2{0, 1};
+                            hitHighEntityIndex = highEntityIndex;
+                        }
                     }
                 }
             }
@@ -980,7 +1006,11 @@ UpdateFamiliar
         ddPos = (0.5f / SqRt(closestHeroDSq)) * deltaPos;
     }
     
-    MoveEntity(gameState, _entity, deltaTime, ddPos);
+    move_spec moveSpec = DefaultMoveSpec();
+    moveSpec.isUnitMaxAccelVector = true;
+    moveSpec.speed = 50.0f;
+    moveSpec.drag = 8.0f;
+    MoveEntity(gameState, _entity, deltaTime, &moveSpec, ddPos);
 }
 
 inline void
@@ -989,6 +1019,32 @@ UpdateMonster
     game_state *gameState, entity _entity, r32 deltaTime
 )
 {
+}
+
+inline void
+UpdateSword
+(
+    game_state *gameState, entity _entity, r32 deltaTime
+)
+{
+    move_spec moveSpec = DefaultMoveSpec();
+    moveSpec.isUnitMaxAccelVector = false;
+    moveSpec.speed = 0.0f;
+    moveSpec.drag = 0.0f;
+
+    v2 oldPos = _entity.high->pos;
+    MoveEntity(gameState, _entity, deltaTime, &moveSpec, v2{0, 0});
+    r32 distanceTraveled = Length(_entity.high->pos - oldPos);
+    _entity.low->distanceRemaining -= distanceTraveled;
+    if(_entity.low->distanceRemaining < 0.0f)
+    {
+        ChangeEntityLocation
+            (
+                &gameState->worldArena, gameState->_world,
+                _entity.lowIndex, _entity.low,
+                &_entity.low->pos, 0
+            );
+    }
 }
 
 internal void
@@ -1409,12 +1465,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         else
         {
             entity controllingEntity = ForceEntityIntoHigh(gameState, lowIndex);
-            v2 ddPlayerPos = {};
+            v2 ddPos = {};
             
             if(controller->isAnalog)
             {
                 // NOTE: Analog movement
-                ddPlayerPos = v2
+                ddPos = v2
                     {
                         controller->stickAverageX,
                         controller->stickAverageY
@@ -1425,22 +1481,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 // NOTE: Digital movement
                 if(controller->moveUp.endedDown)
                 {        
-                    ddPlayerPos.y = 1.0f;
+                    ddPos.y = 1.0f;
                 }
             
                 if(controller->moveDown.endedDown)
                 {
-                    ddPlayerPos.y = -1.0f;
+                    ddPos.y = -1.0f;
                 }
             
                 if(controller->moveLeft.endedDown)
                 {
-                    ddPlayerPos.x = -1.0f;
+                    ddPos.x = -1.0f;
                 }
             
                 if(controller->moveRight.endedDown)
                 {
-                    ddPlayerPos.x = 1.0f;
+                    ddPos.x = 1.0f;
                 }
             }
 
@@ -1469,21 +1525,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 dSword = v2{1.0f, 0.0f};
             }
-            
+
+            move_spec moveSpec = DefaultMoveSpec();
+            moveSpec.isUnitMaxAccelVector = false;
+            moveSpec.speed = 50.0f;
+            moveSpec.drag = 8.0f;
             MoveEntity
                 (
-                    gameState, controllingEntity,
-                    input->deltaTime, ddPlayerPos
+                    gameState,
+                    controllingEntity, input->deltaTime,
+                    &moveSpec, ddPos
                 );
 
             if(dSword.x != 0 || dSword.y != 0)
             {
-                low_entity *sword = GetLowEntity
+                low_entity *lowSword = GetLowEntity
                     (
                         gameState,
                         controllingEntity.low->swordIndex
                     );
-                if(sword && !IsValid(sword->pos))
+                if(lowSword && !IsValid(lowSword->pos))
                 {
                     world_position swordPos = controllingEntity.low->pos;
                     ChangeEntityLocation
@@ -1491,9 +1552,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             &gameState->worldArena,
                             gameState->_world,
                             controllingEntity.low->swordIndex,
-                            sword,
+                            lowSword,
                             0, &swordPos
                         );
+
+                    entity sword = ForceEntityIntoHigh
+                        (
+                            gameState,
+                            controllingEntity.low->swordIndex
+                        );
+                    sword.low->distanceRemaining = 5.0f;
+                    sword.high->dPos = 5.0f * dSword;
                 }
             }
         }
@@ -1629,6 +1698,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             case EntityType_Sword:
             {
+                UpdateSword(gameState, _entity, deltaTime);
                 PushBitmap
                     (
                         &pieceGroup, &gameState->shadow,

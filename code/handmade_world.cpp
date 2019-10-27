@@ -241,7 +241,7 @@ ChangeEntityLocationRaw
     Assert(!oldPos || IsValid(*oldPos));
     Assert(!newPos || IsValid(*newPos));
     
-    if(!oldPos || !AreInSameChunk(_world, oldPos, newPos))
+    if(!oldPos || !newPos || !AreInSameChunk(_world, oldPos, newPos))
     {
         if(oldPos)
         {
