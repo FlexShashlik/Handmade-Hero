@@ -39,6 +39,7 @@ PushSize_(memory_arena *arena, memory_index size)
 #include "handmade_intrinsics.h"
 #include "handmade_math.h"
 #include "handmade_world.h"
+#include "handmade_sim_region.h"
 
 struct loaded_bitmap
 {
@@ -72,47 +73,27 @@ struct hit_point
     ui8 filledAmount;
 };
 
-struct high_entity
-{
-    v2 pos; // NOTE: Relative to the camera
-    ui32 chunkZ;
-    v2 dPos;
-    ui32 facingDirection;
-
-    r32 tBob;
-    
-    r32 z;
-    r32 dZ;
-
-    ui32 lowEntityIndex;
-};
-
 struct low_entity
 {
     entity_type type;
     
     world_position pos;
+    v2 dPos;
     r32 width;
     r32 height;
 
+    ui32 facingDirection;
+    r32 tBob;
+    
     // NOTE: This is for "stairs"
     b32 isCollides;
     i32 deltaAbsTileZ;
-
-    ui32 highEntityIndex;
 
     ui32 hitPointMax;
     hit_point hitPoint[16];
 
     ui32 swordIndex;
     r32 distanceRemaining;
-};
-
-struct entity
-{
-    ui32 lowIndex;
-    low_entity *low;
-    high_entity *high;
 };
 
 struct entity_visible_piece
@@ -138,9 +119,6 @@ struct game_state
 
     ui32 lowEntityCount;
     low_entity lowEntities[100000];
-
-    ui32 highEntityCount;
-    high_entity _highEntities[256];
     
     loaded_bitmap bmp;
     loaded_bitmap shadow;
