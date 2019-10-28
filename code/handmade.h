@@ -56,44 +56,10 @@ struct hero_bitmaps
     loaded_bitmap torso;
 };
 
-enum entity_type
-{
-    EntityType_Null,
-    EntityType_Hero,
-    EntityType_Wall,
-    EntityType_Familiar,
-    EntityType_Monster,
-    EntityType_Sword
-};
-
-#define HIT_POINT_SUB_COUNT 4
-struct hit_point
-{
-    ui8 flags;
-    ui8 filledAmount;
-};
-
 struct low_entity
 {
-    entity_type type;
-    
     world_position pos;
-    v2 dPos;
-    r32 width;
-    r32 height;
-
-    ui32 facingDirection;
-    r32 tBob;
-    
-    // NOTE: This is for "stairs"
-    b32 isCollides;
-    i32 deltaAbsTileZ;
-
-    ui32 hitPointMax;
-    hit_point hitPoint[16];
-
-    ui32 swordIndex;
-    r32 distanceRemaining;
+    sim_entity sim;
 };
 
 struct entity_visible_piece
@@ -135,3 +101,16 @@ struct entity_visible_piece_group
     ui32 pieceCount;
     entity_visible_piece pieces[32];
 };
+
+inline low_entity *
+GetLowEntity(game_state *gameState, ui32 index)
+{
+    low_entity *result = 0;
+    
+    if(index > 0 && index < gameState->lowEntityCount)
+    {
+        result = gameState->lowEntities + index;
+    }
+
+    return result;
+}
