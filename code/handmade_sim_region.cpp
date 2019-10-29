@@ -9,8 +9,9 @@ GetHashFromStorageIndex(sim_region *simRegion, ui32 storageIndex)
         offset < ArrayCount(simRegion->hash);
         offset++)
     {
-        sim_entity_hash *entry = simRegion->hash +
-            ((hashValue + offset) & (ArrayCount(simRegion->hash) - 1));
+        ui32 hashMask = (ArrayCount(simRegion->hash) - 1);
+        ui32 hashIndex = ((hashValue + offset) & hashMask);
+        sim_entity_hash *entry = simRegion->hash + hashIndex;
 
         if(entry->index == 0 || entry->index == storageIndex)
         {
@@ -72,7 +73,7 @@ LoadEntityReference
             );
         if(entry->ptr == 0)
         {
-            entry->ref = ref->index;
+            entry->index = ref->index;
             entry->ptr = AddEntity
                 (
                     gameState,
@@ -102,29 +103,29 @@ AddEntity
 )
 {
     Assert(storageIndex);
-    sim_entity *entity = 0;
+    sim_entity *_entity = 0;
     if(simRegion->entityCount < simRegion->maxEntityCount)
     {
-        entity = simRegion->entities + simRegion->entityCount++;
-        MapStorageIndexToEntity(simRegion, storageIndex, entity);
+        _entity = simRegion->entities + simRegion->entityCount++;
+        MapStorageIndexToEntity(simRegion, storageIndex, _entity);
         
         if(source)
         {
-            *entity = source->sim;
+            *_entity = source->sim;
             LoadEntityReference
                 (
-                    gameState, simRegion, &entity->sword
+                    gameState, simRegion, &_entity->sword
                 );
         }
         
-        entity->storageIndex = storageIndex;
+        _entity->storageIndex = storageIndex;
     }
     else
     {
         InvalidCodePath;
     }
 
-    return entity;
+    return _entity;
 }
 
 inline v2
@@ -168,6 +169,8 @@ AddEntity
                 );
         }
     }
+
+    return dest;
 }
 
 internal sim_region *
@@ -178,6 +181,7 @@ BeginSim
 )
 {
     sim_region *simRegion = PushStruct(simArena, sim_region);
+    ZeroStruct(simRegion->hash);
     
     simRegion->_world = _world;
     simRegion->origin = origin;
@@ -246,35 +250,37 @@ BeginSim
             }
         }
     }
+
+    return simRegion;
 }
 
 internal void
 EndSim(sim_region *region, game_state *gameState)
 {
-    sim_entity *entity = region->entities;
+    sim_entity *_entity = region->entities;
     for(ui32 entityIndex = 0;
         entityIndex < region->entityCount;
-        entityIndex++, entity++)
+        entityIndex++, _entity++)
     {
-        low_entity *stored = gameState->lowEntities + entity->storageIndex;
+        low_entity *stored = gameState->lowEntities + _entity->storageIndex;
 
-        stored->sim = *entity;
+        stored->sim = *_entity;
         StoreEntityReference(&stored->sim.sword);
         
         world_position newPos = MapIntoChunkSpace
             (
                 gameState->_world,
-                region->origin, entity->pos
+                region->origin, _entity->pos
             );
         ChangeEntityLocation
         (
             &gameState->worldArena,
             gameState->_world,
-            entity->storageIndex, stored,
+            _entity->storageIndex, stored,
             &stored->pos, &newPos
         );
     
-        if(entity->storageIndex == gameState->cameraFollowingEntityIndex)
+        if(_entity->storageIndex == gameState->cameraFollowingEntityIndex)
         {
             world_position newCameraPos = gameState->cameraPos;
             gameState->cameraPos.chunkZ = stored->pos.chunkZ;

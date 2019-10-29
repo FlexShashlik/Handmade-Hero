@@ -10,22 +10,22 @@ struct memory_arena
     memory_index used;
 };
 
-internal void
+inline void
 InitializeArena
 (
     memory_arena *arena,
     memory_index size,
-    ui8 *base
+    void *base
 )
 {
     arena->size = size;
-    arena->base = base;
+    arena->base = (ui8 *)base;
     arena->used = 0;
 }
 
 #define PushStruct(arena, type) (type *)PushSize_(arena, sizeof(type))
 #define PushArray(arena, count, type) (type *)PushSize_(arena, (count) * sizeof(type))
-void *
+inline void *
 PushSize_(memory_arena *arena, memory_index size)
 {
     Assert(arena->used + size <= arena->size)
@@ -36,10 +36,22 @@ PushSize_(memory_arena *arena, memory_index size)
     return result;
 }
 
+#define ZeroStruct(instance) ZeroSize(sizeof(instance), &(instance))
+inline void
+ZeroSize(memory_index size, void *ptr)
+{
+    ui8 *byte = (ui8 *)ptr;
+    while(size--)
+    {
+        *byte++ = 0;
+    }
+}
+
 #include "handmade_intrinsics.h"
 #include "handmade_math.h"
 #include "handmade_world.h"
 #include "handmade_sim_region.h"
+#include "handmade_entity.h"
 
 struct loaded_bitmap
 {
@@ -73,6 +85,16 @@ struct entity_visible_piece
     v2 dim;
 };
 
+struct controlled_hero
+{
+    ui32 entityIndex;
+
+    // NOTE: These are the controller requests for simulation
+    v2 ddPos;
+    v2 dPosSword;
+    r32 dZ;
+};
+
 struct game_state
 {
     memory_arena worldArena;
@@ -81,7 +103,7 @@ struct game_state
     ui32 cameraFollowingEntityIndex;
     world_position cameraPos;
 
-    ui32 playerIndexForController[ArrayCount(((game_input *)0)->controllers)];
+    controlled_hero controlledHeroes[ArrayCount(((game_input *)0)->controllers)];
 
     ui32 lowEntityCount;
     low_entity lowEntities[100000];

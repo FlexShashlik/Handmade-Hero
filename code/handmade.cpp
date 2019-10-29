@@ -2,6 +2,7 @@
 #include "handmade_world.cpp"
 #include "handmade_random.h"
 #include "handmade_sim_region.cpp"
+#include "handmade_entity.cpp"
 
 internal void
 GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
@@ -437,17 +438,6 @@ AddWall
     return _entity;
 }
 
-inline move_spec
-DefaultMoveSpec(void)
-{
-    move_spec result = {};
-    result.isUnitMaxAccelVector = false;
-    result.speed = 1.0f;
-    result.drag = 0.0f;
-
-    return result;
-}
-
 inline void
 PushPiece
 (
@@ -512,105 +502,29 @@ PushRect
         );
 }
 
-inline void
-UpdateFamiliar
-(
-    game_state *gameState, entity _entity, r32 deltaTime
-)
-{
-    entity closestHero = {};
-    r32 closestHeroDSq = Square(10.0f);
-    for(ui32 highEntityIndex = 1;
-        highEntityIndex < gameState->highEntityCount;
-        highEntityIndex++)
-    {
-        entity testEntity = EntityFromHighIndex
-            (
-                gameState, highEntityIndex
-            );
-
-        if(testEntity.low->sim.type == EntityType_Hero)
-        {
-            r32 testDSq = LengthSq(testEntity.high->pos - _entity.high->pos) * 0.75f;
-            if(closestHeroDSq > testDSq)
-            {
-                closestHero = testEntity;
-                closestHeroDSq = testDSq;
-            }
-        }
-    }
-
-    v2 ddPos = {};
-    if(closestHero.high && closestHeroDSq > Square(3.0f))
-    {
-        v2 deltaPos = closestHero.high->pos - _entity.high->pos;
-        ddPos = (0.5f / SqRt(closestHeroDSq)) * deltaPos;
-    }
-    
-    move_spec moveSpec = DefaultMoveSpec();
-    moveSpec.isUnitMaxAccelVector = true;
-    moveSpec.speed = 50.0f;
-    moveSpec.drag = 8.0f;
-    MoveEntity(gameState, _entity, deltaTime, &moveSpec, ddPos);
-}
-
-inline void
-UpdateMonster
-(
-    game_state *gameState, entity _entity, r32 deltaTime
-)
-{
-}
-
-inline void
-UpdateSword
-(
-    game_state *gameState, entity _entity, r32 deltaTime
-)
-{
-    move_spec moveSpec = DefaultMoveSpec();
-    moveSpec.isUnitMaxAccelVector = false;
-    moveSpec.speed = 0.0f;
-    moveSpec.drag = 0.0f;
-
-    v2 oldPos = _entity.high->pos;
-    MoveEntity(gameState, _entity, deltaTime, &moveSpec, v2{0, 0});
-    r32 distanceTraveled = Length(_entity.high->pos - oldPos);
-    _entity.low->sim.distanceRemaining -= distanceTraveled;
-    if(_entity.low->sim.distanceRemaining < 0.0f)
-    {
-        ChangeEntityLocation
-            (
-                &gameState->worldArena, gameState->_world,
-                _entity.lowIndex, _entity.low,
-                &_entity.low->sim.pos, 0
-            );
-    }
-}
-
 internal void
 DrawHitPoints
 (
-    low_entity *lowEntity,
+    sim_entity *entity,
     entity_visible_piece_group *pieceGroup
 )
 {
-    if(lowEntity->sim.hitPointMax >= 1)
+    if(entity->hitPointMax >= 1)
     {
         v2 healthDim = {0.2f, 0.2f};
         r32 spacingX = 1.5f * healthDim.x;
         v2 hitPos =
             {
-                (lowEntity->sim.hitPointMax - 1) * -0.5f * spacingX,
+                (entity->hitPointMax - 1) * -0.5f * spacingX,
                 -0.25f
             };
         v2 deltaHitPos = {spacingX, 0.0f};
                 
         for(ui32 healthIndex = 0;
-            healthIndex < lowEntity->sim.hitPointMax;
+            healthIndex < entity->hitPointMax;
             healthIndex++)
         {
-            hit_point *hitPoint = lowEntity->sim.hitPoint + healthIndex;
+            hit_point *hitPoint = entity->hitPoint + healthIndex;
             v4 color = {1.0f, 0.0f, 0.0f, 1.0f};
             if(hitPoint->filledAmount == 0)
             {
@@ -638,7 +552,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         // NOTE: Reserve the null entity slot
         AddLowEntity(gameState, EntityType_Null, 0);
-        gameState->highEntityCount = 1;
         
         gameState->bmp = DEBUGLoadBMP
             (
@@ -992,24 +905,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         controllerIndex++)
     {
         game_controller_input *controller = GetController(input, controllerIndex);
-        ui32 lowIndex = gameState->playerIndexForController[controllerIndex];
-        if(!lowIndex)
+        controlled_hero *conHero = gameState->controlledHeroes + controllerIndex;
+        if(conHero->entityIndex == 0)
         {
             if(controller->start.endedDown)
             {
-                ui32 entityIndex = AddPlayer(gameState).lowIndex;
-                gameState->playerIndexForController[controllerIndex] = entityIndex;
+                *conHero = {};
+                conHero->entityIndex = AddPlayer(gameState).lowIndex;
             }
         }
         else
         {
-            entity controllingEntity = ForceEntityIntoHigh(gameState, lowIndex);
-            v2 ddPos = {};
+            conHero->ddPos = {};
             
             if(controller->isAnalog)
             {
                 // NOTE: Analog movement
-                ddPos = v2
+                conHero->ddPos = v2
                     {
                         controller->stickAverageX,
                         controller->stickAverageY
@@ -1020,95 +932,53 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 // NOTE: Digital movement
                 if(controller->moveUp.endedDown)
                 {        
-                    ddPos.y = 1.0f;
+                    conHero->ddPos.y = 1.0f;
                 }
             
                 if(controller->moveDown.endedDown)
                 {
-                    ddPos.y = -1.0f;
+                    conHero->ddPos.y = -1.0f;
                 }
             
                 if(controller->moveLeft.endedDown)
                 {
-                    ddPos.x = -1.0f;
+                    conHero->ddPos.x = -1.0f;
                 }
             
                 if(controller->moveRight.endedDown)
                 {
-                    ddPos.x = 1.0f;
+                    conHero->ddPos.x = 1.0f;
                 }
             }
 
             if(controller->start.endedDown)
             {
-                controllingEntity.high->dZ = 3.0f;
+                conHero->dZ = 3.0f;
             }
 
-            v2 dSword = {};
+            conHero->dPosSword = {};
             if(controller->actionUp.endedDown)
             {
-                dSword = v2{0.0f, 1.0f};
+                conHero->dPosSword = v2{0.0f, 1.0f};
             }
 
             if(controller->actionDown.endedDown)
             {
-                dSword = v2{0.0f, -1.0f};
+                conHero->dPosSword = v2{0.0f, -1.0f};
             }
 
             if(controller->actionLeft.endedDown)
             {
-                dSword = v2{-1.0f, 0.0f};
+                conHero->dPosSword = v2{-1.0f, 0.0f};
             }
 
             if(controller->actionRight.endedDown)
             {
-                dSword = v2{1.0f, 0.0f};
-            }
-
-            move_spec moveSpec = DefaultMoveSpec();
-            moveSpec.isUnitMaxAccelVector = false;
-            moveSpec.speed = 50.0f;
-            moveSpec.drag = 8.0f;
-            MoveEntity
-                (
-                    gameState,
-                    controllingEntity, input->deltaTime,
-                    &moveSpec, ddPos
-                );
-
-            if(dSword.x != 0 || dSword.y != 0)
-            {
-                low_entity *lowSword = GetLowEntity
-                    (
-                        gameState,
-                        controllingEntity.low->sim.swordIndex
-                    );
-                if(lowSword && !IsValid(lowSword->pos))
-                {
-                    world_position swordPos = controllingEntity.low->sim.pos;
-                    ChangeEntityLocation
-                        (
-                            &gameState->worldArena,
-                            gameState->_world,
-                            controllingEntity.low->sim.swordIndex,
-                            lowSword,
-                            0, &swordPos
-                        );
-
-                    entity sword = ForceEntityIntoHigh
-                        (
-                            gameState,
-                            controllingEntity.low->sim.swordIndex
-                        );
-                    sword.low->sim.distanceRemaining = 5.0f;
-                    sword.high->dPos = 5.0f * dSword;
-                }
+                conHero->dPosSword = v2{1.0f, 0.0f};
             }
         }
     }
 
-    world *_world = gameState->_world;
-    
     ui32 tileSpanX = 17 * 3;
     ui32 tileSpanY = 9 * 3;
     rectangle2 cameraBounds = RectCenterDim
@@ -1117,9 +987,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             _world->tileSideInMeters * v2{(r32)tileSpanX, (r32)tileSpanY}
         );
 
+    memory_arena simArena;
+    InitializeArena
+        (
+            &simArena,
+            memory->transientStorageSize,
+            memory->transientStorage
+        );
     sim_region *simRegion = BeginSim
         (
-            simArena, gameState->_world,
+            &simArena, gameState, gameState->_world,
             gameState->cameraPos, cameraBounds
         );
     
@@ -1139,29 +1016,59 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     entity_visible_piece_group pieceGroup = {};
     pieceGroup.gameState = gameState;
-    entity *_entity = simRegion->entities;
+    sim_entity *_entity = simRegion->entities;
     for(ui32 entityIndex = 0;
         entityIndex < simRegion->entityCount;
-        entityIndex++)
+        entityIndex++, _entity++)
     {
         pieceGroup.pieceCount = 0;
-        
-        low_entity *lowEntity = gameState->lowEntities + highEntity->lowEntityIndex;
-        
         r32 deltaTime = input->deltaTime;
         // TODO: Should be computed after update
-        r32 shadowAlpha = 1.0f - 0.5f * highEntity->z;
+        r32 shadowAlpha = 1.0f - 0.5f * _entity->z;
         if(shadowAlpha < 0.0f)
         {
             shadowAlpha = 0.0f;
         }
         
         hero_bitmaps *heroBitmaps = &gameState->
-            heroBitmaps[lowEntity->sim.facingDirection];
-        switch(lowEntity->sim.type)
+            heroBitmaps[_entity->facingDirection];
+        switch(_entity->type)
         {
             case EntityType_Hero:
             {
+                for(ui32 controlIndex = 0;
+                    controlIndex < ArrayCount(gameState->controlledHeroes);
+                    controlIndex++)
+                {
+                    controlled_hero *conHero = gameState->controlledHeroes + controlIndex;
+                    if(_entity->storageIndex == conHero->entityIndex)
+                    {
+                        _entity->dZ = conHero->dZ;
+                        
+                        move_spec moveSpec = DefaultMoveSpec();
+                        moveSpec.isUnitMaxAccelVector = false;
+                        moveSpec.speed = 50.0f;
+                        moveSpec.drag = 8.0f;
+                        MoveEntity
+                            (
+                                simRegion,
+                                _entity, input->deltaTime,
+                                &moveSpec, conHero->ddPos
+                            );
+                    }
+
+                    if(conHero->dPosSword.x != 0 || conHero->dPosSword.y != 0)
+                    {
+                        sim_entity *sword = _entity->sword.ptr;
+                        if(sword)
+                        {
+                            sword->pos = _entity->pos; 
+                            sword->distanceRemaining = 5.0f;
+                            sword->dPos = 5.0f * conHero->dPosSword;
+                        }
+                    }
+                }
+            
                 PushBitmap
                     (
                         &pieceGroup, &gameState->shadow,
@@ -1191,7 +1098,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         heroBitmaps->align
                     );
 
-                DrawHitPoints(lowEntity, &pieceGroup);
+                DrawHitPoints(_entity, &pieceGroup);
             } break;
             
             case EntityType_Wall:
@@ -1206,7 +1113,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             case EntityType_Sword:
             {
-                UpdateSword(gameState, _entity, deltaTime);
+                UpdateSword(simRegion, _entity, deltaTime);
                 PushBitmap
                     (
                         &pieceGroup, &gameState->shadow,
@@ -1224,13 +1131,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
             case EntityType_Familiar:
             {
-                UpdateFamiliar(gameState, _entity, deltaTime);
-                _entity.high->tBob += deltaTime;
-                if(_entity.high->tBob > 2.0f * Pi32)
+                UpdateFamiliar(simRegion, _entity, deltaTime);
+                _entity->tBob += deltaTime;
+                if(_entity->tBob > 2.0f * Pi32)
                 {
-                    _entity.high->tBob -= 2.0f * Pi32;
+                    _entity->tBob -= 2.0f * Pi32;
                 }
-                r32 bobSin = Sin(2.0f * _entity.high->tBob);
+                r32 bobSin = Sin(2.0f * _entity->tBob);
                 
                 PushBitmap
                     (
@@ -1250,7 +1157,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             case EntityType_Monster:
             {
-                UpdateMonster(gameState, _entity, deltaTime);
+                UpdateMonster(simRegion, _entity, deltaTime);
                 PushBitmap
                     (
                         &pieceGroup, &gameState->shadow,
@@ -1265,7 +1172,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         heroBitmaps->align
                     );
                 
-                DrawHitPoints(lowEntity, &pieceGroup);
+                DrawHitPoints(_entity, &pieceGroup);
             } break;
 
             default:
@@ -1320,6 +1227,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
     }
+
+    world_position worldOrigin = {};
+    world_difference diff = Subtract(simRegion->_world, &worldOrigin, &simRegion->origin);
+    DrawRectangle(buffer, diff.dXY, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);
     
     EndSim(simRegion, gameState);
 }

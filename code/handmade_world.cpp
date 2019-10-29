@@ -22,8 +22,9 @@ IsValid(world_position pos)
 inline b32
 IsCanonical(world *_world, r32 tileRel)
 {
-    b32 result = (tileRel >= -0.5f * _world->chunkSideInMeters &&
-                  tileRel <= 0.5f * _world->chunkSideInMeters);
+    r32 epsilon = 0.0001f;
+    b32 result = (tileRel >= -(0.5f * _world->chunkSideInMeters + epsilon) &&
+                  tileRel <= (0.5f * _world->chunkSideInMeters + epsilon));
 
     return result;
 }
