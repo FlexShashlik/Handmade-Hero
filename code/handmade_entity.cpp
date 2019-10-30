@@ -62,17 +62,23 @@ UpdateSword
     sim_region *simRegion, sim_entity *_entity, r32 deltaTime
 )
 {
-    move_spec moveSpec = DefaultMoveSpec();
-    moveSpec.isUnitMaxAccelVector = false;
-    moveSpec.speed = 0.0f;
-    moveSpec.drag = 0.0f;
-
-    v2 oldPos = _entity->pos;
-    MoveEntity(simRegion, _entity, deltaTime, &moveSpec, v2{0, 0});
-    r32 distanceTraveled = Length(_entity->pos - oldPos);
-    _entity->distanceRemaining -= distanceTraveled;
-    if(_entity->distanceRemaining < 0.0f)
+    if(IsSet(_entity, EntityFlag_Nonspatial))
     {
-        Assert(!"MAKE ENTITIES BE ABLE TO NOT BE THERE");
+    }
+    else
+    {
+        move_spec moveSpec = DefaultMoveSpec();
+        moveSpec.isUnitMaxAccelVector = false;
+        moveSpec.speed = 0.0f;
+        moveSpec.drag = 0.0f;
+
+        v2 oldPos = _entity->pos;
+        MoveEntity(simRegion, _entity, deltaTime, &moveSpec, v2{0, 0});
+        r32 distanceTraveled = Length(_entity->pos - oldPos);
+        _entity->distanceRemaining -= distanceTraveled;
+        if(_entity->distanceRemaining < 0.0f)
+        {
+            MakeEntityNonSpatial(_entity);
+        }
     }
 }

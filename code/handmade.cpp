@@ -282,7 +282,7 @@ internal add_low_entity_result
 AddLowEntity
 (
     game_state *gameState,
-    entity_type type, world_position *pos
+    entity_type type, world_position pos
 )
 {
     Assert(gameState->lowEntityCount < ArrayCount(gameState->lowEntities));
@@ -291,13 +291,14 @@ AddLowEntity
     low_entity *lowEntity = gameState->lowEntities + entityIndex;
     *lowEntity = {};
     lowEntity->sim.type = type;
+    lowEntity->pos = NullPosition();
 
     ChangeEntityLocation
         (
             &gameState->worldArena,
             gameState->_world,
             entityIndex, lowEntity,
-            0, pos
+            pos
         );
 
     add_low_entity_result result = {};
@@ -328,12 +329,11 @@ AddSword(game_state *gameState)
 {
     add_low_entity_result _entity = AddLowEntity
         (
-            gameState, EntityType_Sword, 0
+            gameState, EntityType_Sword, NullPosition()
         );
 
     _entity.low->sim.height = 0.5f;
     _entity.low->sim.width = 1.0f;
-    _entity.low->sim.isCollides = false;
 
     return _entity;
 }
@@ -344,13 +344,13 @@ AddPlayer(game_state *gameState)
     world_position pos = gameState->cameraPos;
     add_low_entity_result _entity = AddLowEntity
         (
-            gameState, EntityType_Hero, &pos
+            gameState, EntityType_Hero, pos
         );
 
     _entity.low->sim.height = 0.5f;
     _entity.low->sim.width = 1.0f;
-    _entity.low->sim.isCollides = true;
-
+    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    
     InitHitPoints(_entity.low, 3);
 
     add_low_entity_result sword = AddSword(gameState);
@@ -378,12 +378,12 @@ AddMonster
         );
     add_low_entity_result _entity = AddLowEntity
         (
-            gameState, EntityType_Monster, &pos
+            gameState, EntityType_Monster, pos
         );
 
     _entity.low->sim.height = 0.5f;
     _entity.low->sim.width = 1.0f;
-    _entity.low->sim.isCollides = true;
+    AddFlag(&_entity.low->sim, EntityFlag_Collides);
     
     InitHitPoints(_entity.low, 3);
 
@@ -404,13 +404,13 @@ AddFamiliar
         );
     add_low_entity_result _entity = AddLowEntity
         (
-            gameState, EntityType_Familiar, &pos
+            gameState, EntityType_Familiar, pos
         );
 
     _entity.low->sim.height = 0.5f;
     _entity.low->sim.width = 1.0f;
-    _entity.low->sim.isCollides = true;
-
+    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    
     return _entity;
 }
 
@@ -428,13 +428,13 @@ AddWall
         );
     add_low_entity_result _entity = AddLowEntity
         (
-            gameState, EntityType_Wall, &pos
+            gameState, EntityType_Wall, pos
         );
     
     _entity.low->sim.height = gameState->_world->tileSideInMeters;
     _entity.low->sim.width = _entity.low->sim.height;
-    _entity.low->sim.isCollides = true;
-
+    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    
     return _entity;
 }
 
@@ -551,7 +551,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if(!memory->isInitialized)
     {
         // NOTE: Reserve the null entity slot
-        AddLowEntity(gameState, EntityType_Null, 0);
+        AddLowEntity(gameState, EntityType_Null, NullPosition());
         
         gameState->bmp = DEBUGLoadBMP
             (
@@ -868,6 +868,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 cameraTileX, cameraTileY, cameraTileZ
             );
 
+        gameState->cameraPos = newCameraPos;
+
         AddMonster
             (
                 gameState,
@@ -916,7 +918,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         else
         {
+            conHero->dZ = 0.0f;
             conHero->ddPos = {};
+            conHero->dPosSword = {};
             
             if(controller->isAnalog)
             {
@@ -1043,7 +1047,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     controlled_hero *conHero = gameState->controlledHeroes + controlIndex;
                     if(_entity->storageIndex == conHero->entityIndex)
                     {
-                        _entity->dZ = conHero->dZ;
+                        if(conHero->dZ != 0.0f)
+                        {
+                            _entity->dZ = conHero->dZ;
+                        }
                         
                         move_spec moveSpec = DefaultMoveSpec();
                         moveSpec.isUnitMaxAccelVector = false;
@@ -1060,11 +1067,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     if(conHero->dPosSword.x != 0 || conHero->dPosSword.y != 0)
                     {
                         sim_entity *sword = _entity->sword.ptr;
-                        if(sword)
+                        if(sword && IsSet(sword, EntityFlag_Nonspatial))
                         {
-                            sword->pos = _entity->pos; 
                             sword->distanceRemaining = 5.0f;
-                            sword->dPos = 5.0f * conHero->dPosSword;
+                            MakeEntitySpatial
+                                (
+                                    sword,
+                                    _entity->pos, 5.0f * conHero->dPosSword
+                                );
                         }
                     }
                 }

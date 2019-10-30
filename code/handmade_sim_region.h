@@ -29,27 +29,34 @@ union entity_reference
     ui32 index;
 };
 
+enum sim_entity_flags
+{
+    EntityFlag_Collides = (1 << 1),
+    EntityFlag_Nonspatial = (1 << 2),
+    EntityFlag_Simming = (1 << 30)
+};
+
 struct sim_entity
 {
     ui32 storageIndex;
 
     entity_type type;
+    ui32 flags;
     
     v2 pos;
-    ui32 chunkZ;
+    v2 dPos;
     
     r32 z;
     r32 dZ;
 
-    v2 dPos;
+    ui32 chunkZ;
+    
     r32 width;
     r32 height;
 
     ui32 facingDirection;
     r32 tBob;
     
-    // NOTE: This is for "stairs"
-    b32 isCollides;
     i32 deltaAbsTileZ;
 
     ui32 hitPointMax;

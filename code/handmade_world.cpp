@@ -332,9 +332,23 @@ ChangeEntityLocation
 (
     memory_arena *arena, world *_world,
     ui32 lowEntityIndex, low_entity *lowEntity,
-    world_position *oldPos, world_position *newPos
+    world_position newPosInit
 )
 {
+    world_position *oldPos = 0;
+    world_position *newPos = 0;
+
+    if(!IsSet(&lowEntity->sim, EntityFlag_Nonspatial) &&
+       IsValid(lowEntity->pos))
+    {
+        oldPos = &lowEntity->pos;
+    }
+
+    if(IsValid(newPosInit))
+    {
+        newPos = &newPosInit;
+    }
+    
     ChangeEntityLocationRaw
         (
             arena, _world,
@@ -345,9 +359,11 @@ ChangeEntityLocation
     if(newPos)
     {
         lowEntity->pos = *newPos;
+        ClearFlag(&lowEntity->sim, EntityFlag_Nonspatial);
     }
     else
     {
         lowEntity->pos = NullPosition();
+        AddFlag(&lowEntity->sim, EntityFlag_Nonspatial);
     }
 }
