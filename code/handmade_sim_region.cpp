@@ -239,7 +239,7 @@ BeginSim
                             v2 simSpacePos = GetSimSpacePos
                                 (
                                     simRegion, low
-                                 );
+                                );
                             if(IsInRectangle(simRegion->bounds,
                                              simSpacePos))
                             {
@@ -247,7 +247,7 @@ BeginSim
                                     (
                                         gameState, simRegion,
                                         lowEntityIndex, low, &simSpacePos
-                                     );
+                                    );
                             }
                         }
                     }
@@ -268,7 +268,6 @@ EndSim(sim_region *region, game_state *gameState)
         entityIndex++, _entity++)
     {
         low_entity *stored = gameState->lowEntities + _entity->storageIndex;
-
         
         Assert(IsSet(&stored->sim, EntityFlag_Simming));    
         stored->sim = *_entity;

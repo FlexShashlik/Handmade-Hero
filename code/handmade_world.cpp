@@ -270,7 +270,7 @@ ChangeEntityLocationRaw
                         {
                             Assert(firstBlock->entityCount > 0);
                             block->lowEntityIndex[index] =
-                                block->lowEntityIndex[--firstBlock->entityCount];
+                                firstBlock->lowEntityIndex[--firstBlock->entityCount];
 
                             if(firstBlock->entityCount == 0)
                             {
