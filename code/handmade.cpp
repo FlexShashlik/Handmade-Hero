@@ -1069,7 +1069,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             sim_entity *sword = _entity->sword.ptr;
                             if(sword && IsSet(sword, EntityFlag_Nonspatial))
                             {
-                                sword->distanceRemaining = 5.0f;
+                                sword->distanceLimit = 5.0f;
                                 MakeEntitySpatial
                                     (
                                         sword,
@@ -1131,9 +1131,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     // collision routines to understand a movement
                     // limit for an entity
                     v2 oldPos = _entity->pos;
-                    r32 distanceTraveled = Length(_entity->pos - oldPos);
-                    _entity->distanceRemaining -= distanceTraveled;
-                    if(_entity->distanceRemaining < 0.0f)
+                    if(_entity->distanceLimit == 0.0f)
                     {
                         MakeEntityNonSpatial(_entity);
                     }
@@ -1183,8 +1181,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     moveSpec.isUnitMaxAccelVector = true;
                     moveSpec.speed = 50.0f;
                     moveSpec.drag = 8.0f;
-                    MoveEntity(simRegion, _entity, deltaTime, &moveSpec, ddPos);
-
+                    
                     _entity->tBob += deltaTime;
                     if(_entity->tBob > 2.0f * Pi32)
                     {

@@ -377,6 +377,17 @@ TestWall
 }
 
 internal void
+HandleCollision(sim_entity *a, sim_entity *b)
+{
+    if(a->type == EntityType_Monster &&
+       b->type == EntityType_Sword)
+    {
+        a->hitPointMax--;
+        MakeEntityNonSpatial(b);
+    }
+}
+
+internal void
 MoveEntity
 (
     sim_region *simRegion,
@@ -417,88 +428,131 @@ MoveEntity
         _entity->z = 0;
     }
 
+    r32 distanceRemaining = _entity->distanceLimit;
+    if(distanceRemaining == 0.0f)
+    {
+        // TODO: Maybe formalize this number?
+        distanceRemaining = 10000.0f;
+    }
+    
     for(ui32 i = 0; i < 4; i++)
     {
         r32 tMin = 1.0f;
-        v2 wallNormal = {};
-        sim_entity *hitEntity = 0;
-
-        v2 desiredPos = _entity->pos + deltaPlayerPos;
-
-        if(IsSet(_entity, EntityFlag_Collides) &&
-           !IsSet(_entity, EntityFlag_Nonspatial))
+        r32 playerDeltaLength = Length(deltaPlayerPos);
+        // TODO: Epsilons??
+        if(playerDeltaLength > 0.0f)
         {
-            // TODO: Spatial partition here
-            for(ui32 highEntityIndex = 0;
-                highEntityIndex < simRegion->entityCount;
-                highEntityIndex++)
+            if(playerDeltaLength > distanceRemaining)
             {
-                sim_entity *testEntity = simRegion->entities + highEntityIndex;
-                if(_entity != testEntity)
-                {
-                    if(IsSet(testEntity, EntityFlag_Collides) &&
-                       !IsSet(_entity, EntityFlag_Nonspatial))
-                    {
-                        r32 diameterW = testEntity->width + _entity->width;
-                        r32 diameterH = testEntity->height + _entity->height;
-                
-                        v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
-                        v2 maxCorner = 0.5f * v2{diameterW, diameterH};
+                tMin = distanceRemaining / playerDeltaLength;
+            }
+        
+            v2 wallNormal = {};
+            sim_entity *hitEntity = 0;
 
-                        v2 rel = _entity->pos - testEntity->pos;
-                
-                        if(TestWall(minCorner.x, rel.x, rel.y,
-                                    deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMin, minCorner.y, maxCorner.y))
+            v2 desiredPos = _entity->pos + deltaPlayerPos;
+
+            b32 stopsOnCollision = IsSet(_entity, EntityFlag_Collides);
+            
+            if(!IsSet(_entity, EntityFlag_Nonspatial))
+            {
+                // TODO: Spatial partition here
+                for(ui32 highEntityIndex = 0;
+                    highEntityIndex < simRegion->entityCount;
+                    highEntityIndex++)
+                {
+                    sim_entity *testEntity = simRegion->entities + highEntityIndex;
+                    if(_entity != testEntity)
+                    {
+                        if(IsSet(testEntity, EntityFlag_Collides) &&
+                           !IsSet(testEntity, EntityFlag_Nonspatial))
                         {
-                            wallNormal = v2{-1, 0};
-                            hitEntity = testEntity;
-                        }                    
+                            r32 diameterW = testEntity->width + _entity->width;
+                            r32 diameterH = testEntity->height + _entity->height;
                 
-                        if(TestWall(maxCorner.x, rel.x, rel.y,
-                                    deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMin, minCorner.y, maxCorner.y))
-                        {
-                            wallNormal = v2{1, 0};
-                            hitEntity = testEntity;
-                        }
+                            v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
+                            v2 maxCorner = 0.5f * v2{diameterW, diameterH};
+
+                            v2 rel = _entity->pos - testEntity->pos;
                 
-                        if(TestWall(minCorner.y, rel.y, rel.x,
-                                    deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMin, minCorner.x, maxCorner.x))
-                        {
-                            wallNormal = v2{0, -1};
-                            hitEntity = testEntity;
-                        }
+                            if(TestWall(minCorner.x, rel.x, rel.y,
+                                        deltaPlayerPos.x, deltaPlayerPos.y,
+                                        &tMin, minCorner.y, maxCorner.y))
+                            {
+                                wallNormal = v2{-1, 0};
+                                hitEntity = testEntity;
+                            }                    
                 
-                        if(TestWall(maxCorner.y, rel.y, rel.x,
-                                    deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMin, minCorner.x, maxCorner.x))
-                        {
-                            wallNormal = v2{0, 1};
-                            hitEntity = testEntity;
+                            if(TestWall(maxCorner.x, rel.x, rel.y,
+                                        deltaPlayerPos.x, deltaPlayerPos.y,
+                                        &tMin, minCorner.y, maxCorner.y))
+                            {
+                                wallNormal = v2{1, 0};
+                                hitEntity = testEntity;
+                            }
+                
+                            if(TestWall(minCorner.y, rel.y, rel.x,
+                                        deltaPlayerPos.y, deltaPlayerPos.x,
+                                        &tMin, minCorner.x, maxCorner.x))
+                            {
+                                wallNormal = v2{0, -1};
+                                hitEntity = testEntity;
+                            }
+                
+                            if(TestWall(maxCorner.y, rel.y, rel.x,
+                                        deltaPlayerPos.y, deltaPlayerPos.x,
+                                        &tMin, minCorner.x, maxCorner.x))
+                            {
+                                wallNormal = v2{0, 1};
+                                hitEntity = testEntity;
+                            }
                         }
                     }
                 }
             }
-        }
         
-        _entity->pos += tMin * deltaPlayerPos;
-        if(hitEntity)
-        {
-            _entity->dPos = _entity->dPos - 1 *
-                Inner(_entity->dPos, wallNormal) * wallNormal;
+            _entity->pos += tMin * deltaPlayerPos;
+            distanceRemaining -= tMin * playerDeltaLength;
+            if(hitEntity)
+            {
+                deltaPlayerPos = desiredPos - _entity->pos;
+                if(stopsOnCollision)
+                {
+                    _entity->dPos = _entity->dPos - 1 *
+                        Inner(_entity->dPos, wallNormal) * wallNormal;
 
-            deltaPlayerPos = desiredPos - _entity->pos;
-            deltaPlayerPos = deltaPlayerPos - 1 *
-                Inner(deltaPlayerPos, wallNormal) * wallNormal;
-
-            // TODO: Stairs
+                    deltaPlayerPos = deltaPlayerPos - 1 *
+                        Inner(deltaPlayerPos, wallNormal) * wallNormal;
+                }
+                // TODO: IMPORTANT: Collision table!
+                
+                sim_entity *a = _entity;
+                sim_entity *b = hitEntity;
+                if(a->type > b->type)
+                {
+                    sim_entity *temp = a;
+                    a = b;
+                    b = temp;
+                }
+                
+                HandleCollision(a, b);
+                
+                // TODO: Stairs
+            }
+            else
+            {
+                break;
+            }
         }
         else
         {
             break;
         }
+    }
+
+    if(_entity->distanceLimit != 0.0f)
+    {
+        _entity->distanceLimit = distanceRemaining;
     }
 
     if(_entity->dPos.x == 0.0f && _entity->dPos.y == 0.0f)

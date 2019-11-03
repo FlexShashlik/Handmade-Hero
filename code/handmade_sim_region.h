@@ -50,6 +50,8 @@ struct sim_entity
     r32 z;
     r32 dZ;
 
+    r32 distanceLimit;
+
     ui32 chunkZ;
     
     r32 width;
@@ -64,7 +66,6 @@ struct sim_entity
     hit_point hitPoint[16];
 
     entity_reference sword;
-    r32 distanceRemaining;
 };
 
 struct sim_entity_hash
