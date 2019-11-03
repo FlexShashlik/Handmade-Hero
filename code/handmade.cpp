@@ -1018,6 +1018,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     r32 screenCenterX = 0.5f * (r32)buffer->width;
     r32 screenCenterY = 0.5f * (r32)buffer->height;
 
+    // TODO: Move this out into handmade.cpp
     entity_visible_piece_group pieceGroup = {};
     pieceGroup.gameState = gameState;
     sim_entity *_entity = simRegion->entities;
@@ -1025,219 +1026,263 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         entityIndex < simRegion->entityCount;
         entityIndex++, _entity++)
     {
-        pieceGroup.pieceCount = 0;
-        r32 deltaTime = input->deltaTime;
-        // TODO: Should be computed after update
-        r32 shadowAlpha = 1.0f - 0.5f * _entity->z;
-        if(shadowAlpha < 0.0f)
+        if(_entity->isUpdatable)
         {
-            shadowAlpha = 0.0f;
-        }
-        
-        hero_bitmaps *heroBitmaps = &gameState->
-            heroBitmaps[_entity->facingDirection];
-        switch(_entity->type)
-        {
-            case EntityType_Hero:
+            pieceGroup.pieceCount = 0;
+            r32 deltaTime = input->deltaTime;
+            // TODO: Should be computed after update
+            r32 shadowAlpha = 1.0f - 0.5f * _entity->z;
+            if(shadowAlpha < 0.0f)
             {
-                for(ui32 controlIndex = 0;
-                    controlIndex < ArrayCount(gameState->controlledHeroes);
-                    controlIndex++)
+                shadowAlpha = 0.0f;
+            }
+
+            move_spec moveSpec = DefaultMoveSpec();
+            v2 ddPos = {};
+            
+            hero_bitmaps *heroBitmaps = &gameState->
+                heroBitmaps[_entity->facingDirection];
+            switch(_entity->type)
+            {
+                case EntityType_Hero:
                 {
-                    controlled_hero *conHero = gameState->controlledHeroes + controlIndex;
-                    if(_entity->storageIndex == conHero->entityIndex)
+                    for(ui32 controlIndex = 0;
+                        controlIndex < ArrayCount(gameState->controlledHeroes);
+                        controlIndex++)
                     {
-                        if(conHero->dZ != 0.0f)
+                        controlled_hero *conHero = gameState->controlledHeroes + controlIndex;
+                        if(_entity->storageIndex == conHero->entityIndex)
                         {
-                            _entity->dZ = conHero->dZ;
+                            if(conHero->dZ != 0.0f)
+                            {
+                                _entity->dZ = conHero->dZ;
+                            }
+                            
+                            moveSpec.isUnitMaxAccelVector = false;
+                            moveSpec.speed = 50.0f;
+                            moveSpec.drag = 8.0f;
+                            ddPos = conHero->ddPos;
                         }
-                        
-                        move_spec moveSpec = DefaultMoveSpec();
-                        moveSpec.isUnitMaxAccelVector = false;
-                        moveSpec.speed = 50.0f;
-                        moveSpec.drag = 8.0f;
-                        MoveEntity
-                            (
-                                simRegion,
-                                _entity, input->deltaTime,
-                                &moveSpec, conHero->ddPos
-                            );
-                    }
 
-                    if(conHero->dPosSword.x != 0 || conHero->dPosSword.y != 0)
-                    {
-                        sim_entity *sword = _entity->sword.ptr;
-                        if(sword && IsSet(sword, EntityFlag_Nonspatial))
+                        if(conHero->dPosSword.x != 0 || conHero->dPosSword.y != 0)
                         {
-                            sword->distanceRemaining = 5.0f;
-                            MakeEntitySpatial
-                                (
-                                    sword,
-                                    _entity->pos, 5.0f * conHero->dPosSword
-                                );
+                            sim_entity *sword = _entity->sword.ptr;
+                            if(sword && IsSet(sword, EntityFlag_Nonspatial))
+                            {
+                                sword->distanceRemaining = 5.0f;
+                                MakeEntitySpatial
+                                    (
+                                        sword,
+                                        _entity->pos, 5.0f * conHero->dPosSword
+                                    );
+                            }
                         }
                     }
-                }
             
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->shadow,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align,
-                        shadowAlpha, 0.0f
-                    );
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->shadow,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align,
+                            shadowAlpha, 0.0f
+                        );
             
-                PushBitmap
-                    (
-                        &pieceGroup, &heroBitmaps->torso,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align
-                    );
+                    PushBitmap
+                        (
+                            &pieceGroup, &heroBitmaps->torso,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align
+                        );
 
-                PushBitmap
-                    (
-                        &pieceGroup, &heroBitmaps->cape,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align
-                    );
+                    PushBitmap
+                        (
+                            &pieceGroup, &heroBitmaps->cape,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align
+                        );
     
-                PushBitmap
-                    (
-                        &pieceGroup, &heroBitmaps->head,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align
-                    );
+                    PushBitmap
+                        (
+                            &pieceGroup, &heroBitmaps->head,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align
+                        );
 
-                DrawHitPoints(_entity, &pieceGroup);
-            } break;
+                    DrawHitPoints(_entity, &pieceGroup);
+                } break;
             
-            case EntityType_Wall:
-            {
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->tree,
-                        v2{0, 0}, 0,
-                        v2{40, 80}
-                    );
-            } break;
+                case EntityType_Wall:
+                {
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->tree,
+                            v2{0, 0}, 0,
+                            v2{40, 80}
+                         );
+                } break;
 
-            case EntityType_Sword:
-            {
-                UpdateSword(simRegion, _entity, deltaTime);
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->shadow,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align,
-                        shadowAlpha, 0.0f
-                    );
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->sword,
-                        v2{0, 0}, 0,
-                        v2{29, 10}
-                    );
-            } break;
+                case EntityType_Sword:
+                {
+                    moveSpec.isUnitMaxAccelVector = false;
+                    moveSpec.speed = 0.0f;
+                    moveSpec.drag = 0.0f;
+
+                    // TODO: IMPORTANT: Add the ability in the
+                    // collision routines to understand a movement
+                    // limit for an entity
+                    v2 oldPos = _entity->pos;
+                    r32 distanceTraveled = Length(_entity->pos - oldPos);
+                    _entity->distanceRemaining -= distanceTraveled;
+                    if(_entity->distanceRemaining < 0.0f)
+                    {
+                        MakeEntityNonSpatial(_entity);
+                    }
+
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->shadow,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align,
+                            shadowAlpha, 0.0f
+                        );
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->sword,
+                            v2{0, 0}, 0,
+                            v2{29, 10}
+                        );
+                } break;
             
-            case EntityType_Familiar:
-            {
-                UpdateFamiliar(simRegion, _entity, deltaTime);
-                _entity->tBob += deltaTime;
-                if(_entity->tBob > 2.0f * Pi32)
+                case EntityType_Familiar:
                 {
-                    _entity->tBob -= 2.0f * Pi32;
-                }
-                r32 bobSin = Sin(2.0f * _entity->tBob);
+                    sim_entity *closestHero = 0;
+                    r32 closestHeroDSq = Square(10.0f);
+
+                    sim_entity *testEntity = simRegion->entities;
+                    for(ui32 testEntityIndex = 0;
+                        testEntityIndex < simRegion->entityCount;
+                        testEntityIndex++, testEntity++)
+                    {
+                        if(testEntity->type == EntityType_Hero)
+                        {
+                            r32 testDSq = LengthSq(testEntity->pos - _entity->pos) * 0.75f;
+                            if(closestHeroDSq > testDSq)
+                            {
+                                closestHero = testEntity;
+                                closestHeroDSq = testDSq;
+                            }
+                        }
+                    }
+
+                    if(closestHero && closestHeroDSq > Square(3.0f))
+                    {
+                        v2 deltaPos = closestHero->pos - _entity->pos;
+                        ddPos = (0.5f / SqRt(closestHeroDSq)) * deltaPos;
+                    }
+    
+                    moveSpec.isUnitMaxAccelVector = true;
+                    moveSpec.speed = 50.0f;
+                    moveSpec.drag = 8.0f;
+                    MoveEntity(simRegion, _entity, deltaTime, &moveSpec, ddPos);
+
+                    _entity->tBob += deltaTime;
+                    if(_entity->tBob > 2.0f * Pi32)
+                    {
+                        _entity->tBob -= 2.0f * Pi32;
+                    }
+                    r32 bobSin = Sin(2.0f * _entity->tBob);
                 
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->shadow,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align,
-                        0.5f * shadowAlpha + 0.2f * bobSin, 0.0f
-                    );
-                PushBitmap
-                    (
-                        &pieceGroup, &heroBitmaps->head,
-                        v2{0, 0},
-                        0.25f * bobSin,
-                        heroBitmaps->align
-                    );
-            } break;
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->shadow,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align,
+                            0.5f * shadowAlpha + 0.2f * bobSin, 0.0f
+                        );
+                    PushBitmap
+                        (
+                            &pieceGroup, &heroBitmaps->head,
+                            v2{0, 0},
+                            0.25f * bobSin,
+                            heroBitmaps->align
+                        );
+                } break;
 
-            case EntityType_Monster:
-            {
-                UpdateMonster(simRegion, _entity, deltaTime);
-                PushBitmap
-                    (
-                        &pieceGroup, &gameState->shadow,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align,
-                        shadowAlpha, 0.0f
-                    );
-                PushBitmap
-                    (
-                        &pieceGroup, &heroBitmaps->torso,
-                        v2{0, 0}, 0,
-                        heroBitmaps->align
-                    );
-                
-                DrawHitPoints(_entity, &pieceGroup);
-            } break;
-
-            default:
-            {
-                InvalidCodePath;
-            } break;
-        }
-        
-        r32 ddZ = -9.8f;
-        _entity->z = 0.5f*ddZ*Square(deltaTime) + _entity->dZ * deltaTime + _entity->z;
-        _entity->dZ = ddZ * deltaTime + _entity->dZ;
-        if(_entity->z < 0)
-        {
-            _entity->z = 0;
-        }
-        
-        r32 entityGroundX = screenCenterX + metersToPixels *
-            _entity->pos.x;
-        r32 entityGroundY = screenCenterY - metersToPixels *
-            _entity->pos.y;
-
-        r32 entityZ = -metersToPixels*_entity->z;
-        
-        for(ui32 pieceIndex = 0;
-            pieceIndex < pieceGroup.pieceCount;
-            pieceIndex++)
-        {
-            entity_visible_piece *piece = pieceGroup.pieces + pieceIndex;
-            v2 center =
+                case EntityType_Monster:
                 {
-                    entityGroundX + piece->offset.x,
-                    entityGroundY + piece->offset.y + piece->offsetZ + piece->entityZC * entityZ
-                };
-            if(piece->bitmap)
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->shadow,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align,
+                            shadowAlpha, 0.0f
+                        );
+                    PushBitmap
+                        (
+                            &pieceGroup, &heroBitmaps->torso,
+                            v2{0, 0}, 0,
+                            heroBitmaps->align
+                        );
+                
+                    DrawHitPoints(_entity, &pieceGroup);
+                } break;
+
+                default:
+                {
+                    InvalidCodePath;
+                } break;
+            }
+
+            if(!IsSet(_entity, EntityFlag_Nonspatial))
             {
-                DrawBitmap
+                MoveEntity
                     (
-                        buffer, piece->bitmap,
-                        center.x, center.y,
-                        piece->a
+                        simRegion,
+                        _entity, input->deltaTime,
+                        &moveSpec, ddPos
                     );
             }
-            else
+            
+            r32 entityGroundX = screenCenterX + metersToPixels *
+                _entity->pos.x;
+            r32 entityGroundY = screenCenterY - metersToPixels *
+                _entity->pos.y;
+
+            r32 entityZ = -metersToPixels*_entity->z;
+        
+            for(ui32 pieceIndex = 0;
+                pieceIndex < pieceGroup.pieceCount;
+                pieceIndex++)
             {
-                v2 halfDim = 0.5f * metersToPixels * piece->dim;
-                DrawRectangle
-                    (
-                        buffer,
-                        center - halfDim, center + halfDim,
-                        piece->r, piece->g, piece->b
-                    );
+                entity_visible_piece *piece = pieceGroup.pieces + pieceIndex;
+                v2 center =
+                    {
+                        entityGroundX + piece->offset.x,
+                        entityGroundY + piece->offset.y + piece->offsetZ + piece->entityZC * entityZ
+                    };
+                if(piece->bitmap)
+                {
+                    DrawBitmap
+                        (
+                            buffer, piece->bitmap,
+                            center.x, center.y,
+                            piece->a
+                         );
+                }
+                else
+                {
+                    v2 halfDim = 0.5f * metersToPixels * piece->dim;
+                    DrawRectangle
+                        (
+                            buffer,
+                            center - halfDim, center + halfDim,
+                            piece->r, piece->g, piece->b
+                        );
+                }
             }
         }
     }
-
+    
     world_position worldOrigin = {};
     world_difference diff = Subtract(simRegion->_world, &worldOrigin, &simRegion->origin);
     DrawRectangle(buffer, diff.dXY, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);

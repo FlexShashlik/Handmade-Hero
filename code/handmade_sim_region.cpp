@@ -37,6 +37,24 @@ GetEntityByStorageIndex
     return result;
 }
 
+inline v2
+GetSimSpacePos(sim_region *simRegion, low_entity *stored)
+{
+    v2 result = InvalidPos;
+    if(!IsSet(&stored->sim, EntityFlag_Nonspatial))
+    {
+        world_difference diff = Subtract
+            (
+                simRegion->_world,
+                &stored->pos,
+                &simRegion->origin
+            );
+        result = diff.dXY;
+    }
+    
+    return result;
+}
+
 internal sim_entity *
 AddEntity
 (
@@ -60,12 +78,14 @@ LoadEntityReference
         if(entry->ptr == 0)
         {
             entry->index = ref->index;
+            low_entity *lowEntity = GetLowEntity(gameState, ref->index);
+            v2 pos = GetSimSpacePos(simRegion, lowEntity);
             entry->ptr = AddEntity
                 (
                     gameState,
                     simRegion, ref->index,
-                    GetLowEntity(gameState, ref->index),
-                    0
+                    lowEntity,
+                    &pos
                 );
         }
     
@@ -117,6 +137,7 @@ AddEntityRaw
             }
         
             _entity->storageIndex = storageIndex;
+            _entity->isUpdatable = false;
         }
         else
         {
@@ -125,24 +146,6 @@ AddEntityRaw
     }
     
     return _entity;
-}
-
-inline v2
-GetSimSpacePos(sim_region *simRegion, low_entity *stored)
-{
-    v2 result = InvalidPos;
-    if(!IsSet(&stored->sim, EntityFlag_Nonspatial))
-    {
-        world_difference diff = Subtract
-            (
-                simRegion->_world,
-                &stored->pos,
-                &simRegion->origin
-            );
-        result = diff.dXY;
-    }
-    
-    return result;
 }
 
 internal sim_entity *
@@ -163,6 +166,11 @@ AddEntity
         if(simPos)
         {
             dest->pos = *simPos;
+            dest->isUpdatable = IsInRectangle
+                (
+                    simRegion->updatableBounds,
+                    dest->pos
+                );
         }
         else
         {
@@ -185,10 +193,20 @@ BeginSim
 {
     sim_region *simRegion = PushStruct(simArena, sim_region);
     ZeroStruct(simRegion->hash);
+
+    // TODO: IMPORTANT: Calculate this from the max value of all
+    // entities radius + their speed
+    r32 updateSafetyMargin = 1.0f;
     
     simRegion->_world = _world;
     simRegion->origin = origin;
-    simRegion->bounds = bounds;
+    simRegion->updatableBounds = bounds;
+    simRegion->bounds = AddRadiusTo
+        (
+            simRegion->updatableBounds,
+            updateSafetyMargin,
+            updateSafetyMargin
+        );
 
     simRegion->maxEntityCount = 4096;
     simRegion->entityCount = 0;
@@ -391,7 +409,14 @@ MoveEntity
         _entity->dPos;
     
     v2 newPlayerPos = oldPlayerPos + deltaPlayerPos;
-    
+    r32 ddZ = -9.8f;
+    _entity->z = 0.5f*ddZ*Square(deltaTime) + _entity->dZ * deltaTime + _entity->z;
+    _entity->dZ = ddZ * deltaTime + _entity->dZ;
+    if(_entity->z < 0)
+    {
+        _entity->z = 0;
+    }
+
     for(ui32 i = 0; i < 4; i++)
     {
         r32 tMin = 1.0f;

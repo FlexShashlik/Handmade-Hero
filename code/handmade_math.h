@@ -193,6 +193,17 @@ RectCenterDim(v2 center, v2 dim)
     return result;
 }
 
+inline rectangle2
+AddRadiusTo(rectangle2 a, r32 radiusW, r32 radiusH)
+{
+    rectangle2 result;
+
+    result.min = a.min - v2{radiusW, radiusH};
+    result.max = a.max + v2{radiusW, radiusH};
+
+    return result;
+}
+
 inline b32
 IsInRectangle(rectangle2 rect, v2 test)
 {
