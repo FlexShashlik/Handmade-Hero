@@ -376,21 +376,80 @@ TestWall
     return isHit;
 }
 
-internal void
+internal b32
+ShouldCollide(game_state *gameState, sim_entity *a, sim_entity *b)
+{
+    b32 result = false;
+    
+    if(a->storageIndex > b->storageIndex)
+    {
+        sim_entity *temp = a;
+        a = b;
+        b = temp;
+    }
+    
+    if(!IsSet(a, EntityFlag_Nonspatial) &&
+       !IsSet(b, EntityFlag_Nonspatial))
+    {
+        result = true;
+    }
+
+    // TODO: BETTER HASH FUNCTION
+    ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
+    for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
+        rule;
+        rule = rule->nextInHash)
+    {
+        if(rule->storageIndexA == a->storageIndex &&
+           rule->storageIndexB == b->storageIndex)
+        {
+            result = rule->shouldCollide;
+            break;
+        }
+    }
+
+    return result;
+}
+
+internal b32
 HandleCollision(sim_entity *a, sim_entity *b)
 {
+    b32 stopsOnCollision = false;
+
+    if(a->type == EntityType_Sword)
+    {
+        stopsOnCollision = false;
+    }
+    else
+    {
+        stopsOnCollision = true;
+    }
+    
+    if(a->type > b->type)
+    {
+        sim_entity *temp = a;
+        a = b;
+        b = temp;
+    }
+    
     if(a->type == EntityType_Monster &&
        b->type == EntityType_Sword)
     {
-        a->hitPointMax--;
-        MakeEntityNonSpatial(b);
+        if(a->hitPointMax > 0)
+        {
+            a->hitPointMax--;
+        }
     }
+                
+    // TODO: Stairs
+    // TODO: Implement this for real
+    return stopsOnCollision;
 }
 
 internal void
 MoveEntity
 (
-    sim_region *simRegion,
+    game_state *gameState, sim_region *simRegion,
     sim_entity *_entity, r32 deltaTime,
     move_spec *moveSpec, v2 ddPos
 )
@@ -452,8 +511,6 @@ MoveEntity
 
             v2 desiredPos = _entity->pos + deltaPlayerPos;
 
-            b32 stopsOnCollision = IsSet(_entity, EntityFlag_Collides);
-            
             if(!IsSet(_entity, EntityFlag_Nonspatial))
             {
                 // TODO: Spatial partition here
@@ -462,51 +519,47 @@ MoveEntity
                     highEntityIndex++)
                 {
                     sim_entity *testEntity = simRegion->entities + highEntityIndex;
-                    if(_entity != testEntity)
-                    {
-                        if(IsSet(testEntity, EntityFlag_Collides) &&
-                           !IsSet(testEntity, EntityFlag_Nonspatial))
-                        {
-                            r32 diameterW = testEntity->width + _entity->width;
-                            r32 diameterH = testEntity->height + _entity->height;
+                    if(ShouldCollide(gameState, _entity, testEntity))
+                    {                        
+                        r32 diameterW = testEntity->width + _entity->width;
+                        r32 diameterH = testEntity->height + _entity->height;
                 
-                            v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
-                            v2 maxCorner = 0.5f * v2{diameterW, diameterH};
+                        v2 minCorner = -0.5f * v2{diameterW, diameterH};                        
+                        v2 maxCorner = 0.5f * v2{diameterW, diameterH};
 
-                            v2 rel = _entity->pos - testEntity->pos;
+                        v2 rel = _entity->pos - testEntity->pos;
                 
-                            if(TestWall(minCorner.x, rel.x, rel.y,
-                                        deltaPlayerPos.x, deltaPlayerPos.y,
-                                        &tMin, minCorner.y, maxCorner.y))
-                            {
-                                wallNormal = v2{-1, 0};
-                                hitEntity = testEntity;
-                            }                    
+                        if(TestWall(minCorner.x, rel.x, rel.y,
+                                    deltaPlayerPos.x, deltaPlayerPos.y,
+                                    &tMin, minCorner.y, maxCorner.y))
+                        {
+                            wallNormal = v2{-1, 0};
+                            hitEntity = testEntity;
+                        }                    
                 
-                            if(TestWall(maxCorner.x, rel.x, rel.y,
-                                        deltaPlayerPos.x, deltaPlayerPos.y,
-                                        &tMin, minCorner.y, maxCorner.y))
-                            {
-                                wallNormal = v2{1, 0};
-                                hitEntity = testEntity;
-                            }
-                
-                            if(TestWall(minCorner.y, rel.y, rel.x,
-                                        deltaPlayerPos.y, deltaPlayerPos.x,
-                                        &tMin, minCorner.x, maxCorner.x))
-                            {
-                                wallNormal = v2{0, -1};
-                                hitEntity = testEntity;
-                            }
-                
-                            if(TestWall(maxCorner.y, rel.y, rel.x,
-                                        deltaPlayerPos.y, deltaPlayerPos.x,
-                                        &tMin, minCorner.x, maxCorner.x))
-                            {
-                                wallNormal = v2{0, 1};
-                                hitEntity = testEntity;
-                            }
+                        if(TestWall(maxCorner.x, rel.x, rel.y,
+                                    deltaPlayerPos.x, deltaPlayerPos.y,
+                                    &tMin, minCorner.y, maxCorner.y))
+                        {
+                            wallNormal = v2{1, 0};
+                            hitEntity = testEntity;
                         }
+                
+                        if(TestWall(minCorner.y, rel.y, rel.x,
+                                    deltaPlayerPos.y, deltaPlayerPos.x,
+                                    &tMin, minCorner.x, maxCorner.x))
+                        {
+                            wallNormal = v2{0, -1};
+                            hitEntity = testEntity;
+                        }
+                
+                        if(TestWall(maxCorner.y, rel.y, rel.x,
+                                    deltaPlayerPos.y, deltaPlayerPos.x,
+                                    &tMin, minCorner.x, maxCorner.x))
+                        {
+                            wallNormal = v2{0, 1};
+                            hitEntity = testEntity;
+                        }                   
                     }
                 }
             }
@@ -516,6 +569,11 @@ MoveEntity
             if(hitEntity)
             {
                 deltaPlayerPos = desiredPos - _entity->pos;
+                                
+                b32 stopsOnCollision = HandleCollision
+                    (
+                        _entity, hitEntity
+                    );
                 if(stopsOnCollision)
                 {
                     _entity->dPos = _entity->dPos - 1 *
@@ -524,20 +582,16 @@ MoveEntity
                     deltaPlayerPos = deltaPlayerPos - 1 *
                         Inner(deltaPlayerPos, wallNormal) * wallNormal;
                 }
-                // TODO: IMPORTANT: Collision table!
-                
-                sim_entity *a = _entity;
-                sim_entity *b = hitEntity;
-                if(a->type > b->type)
+                else
                 {
-                    sim_entity *temp = a;
-                    a = b;
-                    b = temp;
+                    AddCollisionRule
+                        (
+                            gameState,
+                            _entity->storageIndex,
+                            hitEntity->storageIndex,
+                            false
+                        );
                 }
-                
-                HandleCollision(a, b);
-                
-                // TODO: Stairs
             }
             else
             {

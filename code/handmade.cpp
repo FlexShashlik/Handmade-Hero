@@ -542,6 +542,88 @@ DrawHitPoints
     }
 }
 
+
+internal void
+ClearCollisionRulesFor(game_state *gameState, ui32 storageIndex)
+{
+    for(ui32 hashBucket = 0;
+        hashBucket < ArrayCount(gameState->collisionRuleHash);
+        hashBucket++)
+    {
+        for(pairwise_collision_rule **rule = &gameState->collisionRuleHash[hashBucket];
+            *rule;
+            )
+        {
+            if((*rule)->storageIndexA == storageIndex ||
+               (*rule)->storageIndexB == storageIndex)
+            {
+                pairwise_collision_rule *removedRule = *rule;
+                *rule = (*rule)->nextInHash;
+
+                removedRule->nextInHash = gameState->firstFreeCollisionRule;
+                gameState->firstFreeCollisionRule = removedRule;
+            }
+            else
+            {
+                rule = &(*rule)->nextInHash;
+            }
+        }
+    }
+}
+
+internal void
+AddCollisionRule
+(
+    game_state *gameState,
+    ui32 storageIndexA, ui32 storageIndexB, b32 shouldCollide
+)
+{
+    if(storageIndexA > storageIndexB)
+    {
+        ui32 temp = storageIndexA;
+        storageIndexA = storageIndexB;
+        storageIndexB = temp;
+    }
+    
+    // TODO: BETTER HASH FUNCTION
+    pairwise_collision_rule *found = 0;
+    ui32 hashBucket = storageIndexA & (ArrayCount(gameState->collisionRuleHash) - 1);
+    for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
+        rule;
+        rule = rule->nextInHash)
+    {
+        if(rule->storageIndexA == storageIndexA &&
+           rule->storageIndexB == storageIndexB)
+        {
+            found = rule;
+            break;
+        }
+    }
+
+    if(!found)
+    {
+        found = gameState->firstFreeCollisionRule;
+        if(found)
+        {
+            gameState->firstFreeCollisionRule = found->nextInHash;
+        }
+        else
+        {
+            found = PushStruct(&gameState->worldArena, pairwise_collision_rule);
+        }
+
+        found->nextInHash = gameState->collisionRuleHash[hashBucket];
+        gameState->collisionRuleHash[hashBucket] = found;
+    }
+
+    if(found)
+    {
+        found->storageIndexA = storageIndexA;
+        found->storageIndexB = storageIndexB;
+        found->shouldCollide = shouldCollide;
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
@@ -1075,6 +1157,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                         sword,
                                         _entity->pos, 5.0f * conHero->dPosSword
                                     );
+                                
+                                AddCollisionRule
+                                    (
+                                        gameState,
+                                        sword->storageIndex, _entity->storageIndex, false
+                                    );
                             }
                         }
                     }
@@ -1127,12 +1215,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     moveSpec.speed = 0.0f;
                     moveSpec.drag = 0.0f;
 
-                    // TODO: IMPORTANT: Add the ability in the
-                    // collision routines to understand a movement
-                    // limit for an entity
                     v2 oldPos = _entity->pos;
                     if(_entity->distanceLimit == 0.0f)
                     {
+                        ClearCollisionRulesFor
+                            (
+                                gameState,
+                                _entity->storageIndex
+                            );
                         MakeEntityNonSpatial(_entity);
                     }
 
@@ -1234,7 +1324,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 MoveEntity
                     (
-                        simRegion,
+                        gameState, simRegion,
                         _entity, input->deltaTime,
                         &moveSpec, ddPos
                     );

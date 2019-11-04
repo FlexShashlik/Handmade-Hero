@@ -95,6 +95,15 @@ struct controlled_hero
     r32 dZ;
 };
 
+struct pairwise_collision_rule
+{
+    b32 shouldCollide;
+    ui32 storageIndexA;
+    ui32 storageIndexB;
+
+    pairwise_collision_rule *nextInHash;
+};
+
 struct game_state
 {
     memory_arena worldArena;
@@ -115,6 +124,10 @@ struct game_state
 
     hero_bitmaps heroBitmaps[4];
     r32 metersToPixels;
+
+    // NOTE: Must be power of two
+    pairwise_collision_rule *collisionRuleHash[256];
+    pairwise_collision_rule *firstFreeCollisionRule;
 };
 
 struct entity_visible_piece_group
@@ -136,3 +149,13 @@ GetLowEntity(game_state *gameState, ui32 index)
 
     return result;
 }
+
+internal void
+AddCollisionRule
+(
+    game_state *gameState,
+    ui32 storageIndexA, ui32 storageIndexB, b32 shouldCollide
+);
+
+internal void
+ClearCollisionRulesFor(game_state *gameState, ui32 storageIndex);
