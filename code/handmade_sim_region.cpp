@@ -377,37 +377,43 @@ TestWall
 }
 
 internal b32
-ShouldCollide(game_state *gameState, sim_entity *a, sim_entity *b)
+ShouldCollide
+(
+    game_state *gameState, sim_entity *a, sim_entity *b
+)
 {
     b32 result = false;
-    
-    if(a->storageIndex > b->storageIndex)
-    {
-        sim_entity *temp = a;
-        a = b;
-        b = temp;
-    }
-    
-    if(!IsSet(a, EntityFlag_Nonspatial) &&
-       !IsSet(b, EntityFlag_Nonspatial))
-    {
-        result = true;
-    }
 
-    // TODO: BETTER HASH FUNCTION
-    ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
-    for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
-        rule;
-        rule = rule->nextInHash)
+    if(a != b)
     {
-        if(rule->storageIndexA == a->storageIndex &&
-           rule->storageIndexB == b->storageIndex)
+        if(a->storageIndex > b->storageIndex)
         {
-            result = rule->shouldCollide;
-            break;
+            sim_entity *temp = a;
+            a = b;
+            b = temp;
+        }
+    
+        if(!IsSet(a, EntityFlag_Nonspatial) &&
+           !IsSet(b, EntityFlag_Nonspatial))
+        {
+            result = true;
+        }
+
+        // TODO: BETTER HASH FUNCTION
+        ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
+        for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
+            rule;
+            rule = rule->nextInHash)
+        {
+            if(rule->storageIndexA == a->storageIndex &&
+               rule->storageIndexB == b->storageIndex)
+            {
+                result = rule->shouldCollide;
+                break;
+            }
         }
     }
-
+    
     return result;
 }
 
