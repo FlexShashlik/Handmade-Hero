@@ -257,21 +257,6 @@ DEBUGLoadBMP
     return result;
 }
 
-inline v2
-GetCameraSpacePos(game_state *gameState, low_entity *lowEntity)
-{
-    // NOTE: Map the entity into camera space
-    world_difference diff = Subtract
-        (
-            gameState->_world,
-            &lowEntity->pos, &gameState->cameraPos
-        );
-
-    v2 result = diff.dXY;
-
-    return result;
-}
-
 struct add_low_entity_result
 {
     low_entity *low;
@@ -1067,10 +1052,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     ui32 tileSpanX = 17 * 3;
     ui32 tileSpanY = 9 * 3;
-    rectangle2 cameraBounds = RectCenterDim
+    ui32 tileSpanZ = 1;
+    rectangle3 cameraBounds = RectCenterDim
         (
-            v2{0, 0},
-            _world->tileSideInMeters * v2{(r32)tileSpanX, (r32)tileSpanY}
+            v3{0, 0, 0},
+            _world->tileSideInMeters *
+            v3{(r32)tileSpanX, (r32)tileSpanY, (r32)tileSpanZ}
         );
 
     memory_arena simArena;
@@ -1113,14 +1100,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             pieceGroup.pieceCount = 0;
             r32 deltaTime = input->deltaTime;
             // TODO: Should be computed after update
-            r32 shadowAlpha = 1.0f - 0.5f * _entity->z;
+            r32 shadowAlpha = 1.0f - 0.5f * _entity->pos.z;
             if(shadowAlpha < 0.0f)
             {
                 shadowAlpha = 0.0f;
             }
 
             move_spec moveSpec = DefaultMoveSpec();
-            v2 ddPos = {};
+            v3 ddPos = {};
             
             hero_bitmaps *heroBitmaps = &gameState->
                 heroBitmaps[_entity->facingDirection];
@@ -1137,13 +1124,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         {
                             if(conHero->dZ != 0.0f)
                             {
-                                _entity->dZ = conHero->dZ;
+                                _entity->dPos.z = conHero->dZ;
                             }
                             
                             moveSpec.isUnitMaxAccelVector = false;
                             moveSpec.speed = 50.0f;
                             moveSpec.drag = 8.0f;
-                            ddPos = conHero->ddPos;
+                            ddPos = V3(conHero->ddPos, 0);
                         }
 
                         if(conHero->dPosSword.x != 0 || conHero->dPosSword.y != 0)
@@ -1155,7 +1142,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                 MakeEntitySpatial
                                     (
                                         sword,
-                                        _entity->pos, 5.0f * conHero->dPosSword
+                                        _entity->pos, 5.0f * V3(conHero->dPosSword, 0)
                                     );
                                 
                                 AddCollisionRule
@@ -1215,7 +1202,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     moveSpec.speed = 0.0f;
                     moveSpec.drag = 0.0f;
 
-                    v2 oldPos = _entity->pos;
                     if(_entity->distanceLimit == 0.0f)
                     {
                         ClearCollisionRulesFor
@@ -1253,7 +1239,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     {
                         if(testEntity->type == EntityType_Hero)
                         {
-                            r32 testDSq = LengthSq(testEntity->pos - _entity->pos) * 0.75f;
+                            r32 testDSq = LengthSq(testEntity->pos - _entity->pos);
                             if(closestHeroDSq > testDSq)
                             {
                                 closestHero = testEntity;
@@ -1264,7 +1250,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                     if(closestHero && closestHeroDSq > Square(3.0f))
                     {
-                        v2 deltaPos = closestHero->pos - _entity->pos;
+                        v3 deltaPos = closestHero->pos - _entity->pos;
                         ddPos = (0.5f / SqRt(closestHeroDSq)) * deltaPos;
                     }
     
@@ -1335,7 +1321,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             r32 entityGroundY = screenCenterY - metersToPixels *
                 _entity->pos.y;
 
-            r32 entityZ = -metersToPixels*_entity->z;
+            r32 entityZ = -metersToPixels*_entity->pos.z;
         
             for(ui32 pieceIndex = 0;
                 pieceIndex < pieceGroup.pieceCount;
@@ -1371,8 +1357,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     
     world_position worldOrigin = {};
-    world_difference diff = Subtract(simRegion->_world, &worldOrigin, &simRegion->origin);
-    DrawRectangle(buffer, diff.dXY, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);
+    v3 diff = Subtract(simRegion->_world, &worldOrigin, &simRegion->origin);
+    DrawRectangle(buffer, diff.xy, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);
     
     EndSim(simRegion, gameState);
 }

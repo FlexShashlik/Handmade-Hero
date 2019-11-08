@@ -1,4 +1,4 @@
-#define InvalidPos v2{100000.0f, 100000.0f}
+#define InvalidPos v3{100000.0f, 100000.0f, 100000.0f}
 
 inline b32
 IsSet(sim_entity *_entity, ui32 flag)
@@ -27,7 +27,7 @@ MakeEntityNonSpatial(sim_entity *_entity)
 }
 
 inline void
-MakeEntitySpatial(sim_entity *_entity, v2 pos, v2 dPos)
+MakeEntitySpatial(sim_entity *_entity, v3 pos, v3 dPos)
 {
     ClearFlag(_entity, EntityFlag_Nonspatial);
     _entity->pos = pos;

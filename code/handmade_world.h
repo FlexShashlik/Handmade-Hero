@@ -1,9 +1,3 @@
-struct world_difference
-{
-    v2 dXY;
-    r32 dZ;
-};
-
 struct world_position
 {
     i32 chunkX;
@@ -11,7 +5,7 @@ struct world_position
     i32 chunkZ;
 
     // NOTE: These are the offsets from the chunk center
-    v2 _offset;
+    v3 _offset;
 };
 
 struct world_entity_block
@@ -35,7 +29,8 @@ struct world_chunk
 struct world
 {    
     r32 tileSideInMeters;
-    r32 chunkSideInMeters;    
+    r32 tileDepthInMeters;
+    v3 chunkDimInMeters;
 
     world_entity_block *firstFree;
     
