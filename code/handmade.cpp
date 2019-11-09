@@ -317,8 +317,8 @@ AddSword(game_state *gameState)
             gameState, EntityType_Sword, NullPosition()
         );
 
-    _entity.low->sim.height = 0.5f;
-    _entity.low->sim.width = 1.0f;
+    _entity.low->sim.dim.y = 0.5f;
+    _entity.low->sim.dim.x = 1.0f;
 
     return _entity;
 }
@@ -332,8 +332,8 @@ AddPlayer(game_state *gameState)
             gameState, EntityType_Hero, pos
         );
 
-    _entity.low->sim.height = 0.5f;
-    _entity.low->sim.width = 1.0f;
+    _entity.low->sim.dim.y = 0.5f;
+    _entity.low->sim.dim.x = 1.0f;
     AddFlag(&_entity.low->sim, EntityFlag_Collides);
     
     InitHitPoints(_entity.low, 3);
@@ -366,8 +366,8 @@ AddMonster
             gameState, EntityType_Monster, pos
         );
 
-    _entity.low->sim.height = 0.5f;
-    _entity.low->sim.width = 1.0f;
+    _entity.low->sim.dim.y = 0.5f;
+    _entity.low->sim.dim.x = 1.0f;
     AddFlag(&_entity.low->sim, EntityFlag_Collides);
     
     InitHitPoints(_entity.low, 3);
@@ -392,8 +392,8 @@ AddFamiliar
             gameState, EntityType_Familiar, pos
         );
 
-    _entity.low->sim.height = 0.5f;
-    _entity.low->sim.width = 1.0f;
+    _entity.low->sim.dim.y = 0.5f;
+    _entity.low->sim.dim.x = 1.0f;
     AddFlag(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
@@ -416,8 +416,8 @@ AddWall
             gameState, EntityType_Wall, pos
         );
     
-    _entity.low->sim.height = gameState->_world->tileSideInMeters;
-    _entity.low->sim.width = _entity.low->sim.height;
+    _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
+    _entity.low->sim.dim.x = _entity.low->sim.dim.y;
     AddFlag(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
@@ -1070,7 +1070,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     sim_region *simRegion = BeginSim
         (
             &simArena, gameState, gameState->_world,
-            gameState->cameraPos, cameraBounds
+            gameState->cameraPos, cameraBounds, input->deltaTime
         );
     
     //

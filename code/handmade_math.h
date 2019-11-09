@@ -445,8 +445,10 @@ IsInRectangle(rectangle3 rect, v3 test)
 {
     b32 result = (test.x >= rect.min.x &&
                   test.y >= rect.min.y &&
+                  test.z >= rect.min.z &&
                   test.x < rect.max.x &&
-                  test.y < rect.max.y);
+                  test.y < rect.max.y &&
+                  test.z < rect.max.z);
 
     return result;
 }

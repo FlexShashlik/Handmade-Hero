@@ -147,6 +147,19 @@ AddEntityRaw
     return _entity;
 }
 
+inline b32
+EntityOverlapsRectangle
+(
+    v3 pos,
+    v3 dim,
+    rectangle3 rect
+)
+{
+    rectangle3 grown = AddRadiusTo(rect, 0.5f * dim);
+    b32 result = IsInRectangle(grown, pos);
+    return result;
+}
+
 internal sim_entity *
 AddEntity
 (
@@ -165,10 +178,11 @@ AddEntity
         if(simPos)
         {
             dest->pos = *simPos;
-            dest->isUpdatable = IsInRectangle
+            dest->isUpdatable = EntityOverlapsRectangle
                 (
-                    simRegion->updatableBounds,
-                    dest->pos
+                    dest->pos,
+                    dest->dim,
+                    simRegion->updatableBounds
                 );
         }
         else
@@ -187,7 +201,7 @@ internal sim_region *
 BeginSim
 (
     memory_arena *simArena, game_state *gameState, world *_world,
-    world_position origin, rectangle3 bounds
+    world_position origin, rectangle3 bounds, r32 deltaTime
 )
 {
     sim_region *simRegion = PushStruct(simArena, sim_region);
@@ -195,12 +209,21 @@ BeginSim
 
     // TODO: IMPORTANT: Calculate this from the max value of all
     // entities radius + their speed
-    r32 updateSafetyMargin = 1.0f;
+    simRegion->maxEntityRadius = 5.0f;
+    simRegion->maxEntityVelocity = 30.0f;
+    r32 updateSafetyMargin = simRegion->maxEntityRadius +
+        deltaTime * simRegion->maxEntityVelocity;
     r32 updateSafetyMarginZ = 1.0f;
     
     simRegion->_world = _world;
     simRegion->origin = origin;
-    simRegion->updatableBounds = bounds;
+    simRegion->updatableBounds = AddRadiusTo
+        (
+            bounds,
+            v3{simRegion->maxEntityRadius,
+               simRegion->maxEntityRadius,
+               simRegion->maxEntityRadius}
+        );
     simRegion->bounds = AddRadiusTo
         (
             simRegion->updatableBounds,
@@ -259,13 +282,17 @@ BeginSim
                                 (
                                     simRegion, low
                                 );
-                            if(IsInRectangle(simRegion->bounds,
-                                             simSpacePos))
+                            
+                            if(EntityOverlapsRectangle
+                               (simSpacePos,
+                                low->sim.dim,
+                                simRegion->bounds))
                             {
                                 AddEntity
                                     (
                                         gameState, simRegion,
-                                        lowEntityIndex, low, &simSpacePos
+                                        lowEntityIndex, low,
+                                        &simSpacePos
                                     );
                             }
                         }
@@ -340,7 +367,9 @@ EndSim(sim_region *region, game_state *gameState)
                 newCameraPos.absTileY -= 9;
             }
 #else
+            r32 camZOffset = newCameraPos._offset.z;
             newCameraPos = stored->pos;
+            newCameraPos._offset.z = camZOffset;
 #endif
 
             gameState->cameraPos = newCameraPos;
@@ -485,6 +514,7 @@ MoveEntity
         Square(deltaTime) + _entity->dPos * deltaTime;
     
     _entity->dPos = ddPos * deltaTime + _entity->dPos;
+    Assert(LengthSq(_entity->dPos) <= Square(simRegion->maxEntityVelocity));
     v3 newPlayerPos = oldPlayerPos + deltaPlayerPos;
 
     r32 distanceRemaining = _entity->distanceLimit;
@@ -523,9 +553,9 @@ MoveEntity
                     {                        
                         v3 minkowskiDiameter =
                             {
-                                testEntity->width + _entity->width,
-                                testEntity->height + _entity->height,
-                                2.0f * _world->tileDepthInMeters
+                                testEntity->dim.x + _entity->dim.x,
+                                testEntity->dim.y + _entity->dim.y,
+                                testEntity->dim.z + _entity->dim.z
                             };
                         
                         v3 minCorner = -0.5f * minkowskiDiameter;                        
@@ -611,6 +641,7 @@ MoveEntity
     if(_entity->pos.z < 0)
     {
         _entity->pos.z = 0;
+        _entity->dPos.z = 0;
     }
     
     if(_entity->distanceLimit != 0.0f)
