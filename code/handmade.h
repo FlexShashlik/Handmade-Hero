@@ -95,6 +95,11 @@ struct controlled_hero
     r32 dZ;
 };
 
+enum pairwise_collision_rule_flag
+{
+    PairCollisionFlag_ShouldCollide = 1 << 0,
+    PairCollisionFlag_Temporary = 1 << 1
+};
 struct pairwise_collision_rule
 {
     b32 shouldCollide;
@@ -103,6 +108,15 @@ struct pairwise_collision_rule
 
     pairwise_collision_rule *nextInHash;
 };
+struct game_state;
+internal void
+AddCollisionRule
+(
+    game_state *gameState,
+    ui32 storageIndexA, ui32 storageIndexB, b32 shouldCollide
+);
+internal void
+ClearCollisionRulesFor(game_state *gameState, ui32 storageIndex);
 
 struct game_state
 {
@@ -121,6 +135,7 @@ struct game_state
     loaded_bitmap shadow;
     loaded_bitmap tree;
     loaded_bitmap sword;
+    loaded_bitmap stairwell;
 
     hero_bitmaps heroBitmaps[4];
     r32 metersToPixels;
@@ -149,13 +164,3 @@ GetLowEntity(game_state *gameState, ui32 index)
 
     return result;
 }
-
-internal void
-AddCollisionRule
-(
-    game_state *gameState,
-    ui32 storageIndexA, ui32 storageIndexB, b32 shouldCollide
-);
-
-internal void
-ClearCollisionRulesFor(game_state *gameState, ui32 storageIndex);

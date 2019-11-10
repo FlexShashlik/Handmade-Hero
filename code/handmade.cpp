@@ -423,6 +423,30 @@ AddWall
     return _entity;
 }
 
+internal add_low_entity_result
+AddStair
+(
+    game_state *gameState,
+    ui32 absTileX, ui32 absTileY, ui32 absTileZ
+)
+{
+    world_position pos = ChunkPosFromTilePos
+        (
+            gameState->_world,
+            absTileX, absTileY, absTileZ
+        );
+    add_low_entity_result _entity = AddLowEntity
+        (
+            gameState, EntityType_Stairwell, pos
+        );
+    
+    _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
+    _entity.low->sim.dim.x = _entity.low->sim.dim.y;
+    _entity.low->sim.dim.z = gameState->_world->tileDepthInMeters;
+    
+    return _entity;
+}
+
 inline void
 PushPiece
 (
@@ -641,6 +665,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test2/tree00.bmp"
             );
 
+        gameState->stairwell = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/rock02.bmp"
+            );
+
         gameState->sword = DEBUGLoadBMP
             (
                 thread,
@@ -795,16 +826,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Assert(randomNumberIndex < ArrayCount(randomNumberTable));
             ui32 randomChoice;
 
-            //if(isDoorUp || isDoorDown)
+            if(isDoorUp || isDoorDown)
             {
                 randomChoice = randomNumberTable[randomNumberIndex++] % 2;
             }
-#if 0
             else
             {
                 randomChoice = randomNumberTable[randomNumberIndex++] % 3;
             }
-#endif
             
             b32 isCreatedZDoor = false;
             if(randomChoice == 2)
@@ -843,46 +872,46 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ui32 absTileY = screenY * tilesPerHeight
                         + tileY;
 
-                    ui32 tileValue = 1;
+                    b32 isWall = false;
                     if(tileX == 0 &&
                        (!isDoorLeft || tileY != tilesPerHeight / 2))
                     {
-                        tileValue = 2;
+                        isWall = true;
                     }
 
                     if(tileX == tilesPerWidth - 1 &&
                        (!isDoorRight || tileY != tilesPerHeight / 2))
                     {
-                        tileValue = 2;
+                        isWall = true;
                     }
 
                     if(tileY == 0 &&
                        (!isDoorBottom || tileX != tilesPerWidth / 2))
                     {
-                        tileValue = 2;
+                        isWall = true;
                     }
 
                     if(tileY == tilesPerHeight - 1 &&
                        (!isDoorTop || tileX != tilesPerWidth / 2))
                     {
-                        tileValue = 2;
-                    }
-
-                    if(tileX == 10 && tileY == 6)
-                    {
-                        if(isDoorUp)
-                        {
-                            tileValue = 3;
-                        }
-                        else if(isDoorDown)
-                        {
-                            tileValue = 4;
-                        }
+                        isWall = true;
                     }
                     
-                    if(tileValue == 2)
+                    if(isWall)
                     {
                         AddWall(gameState, absTileX, absTileY, absTileZ);
+                    }
+                    else if(isCreatedZDoor)
+                    {
+                        if(tileX == 10 && tileY == 6)
+                        {
+                            AddStair
+                                (
+                                    gameState,
+                                    absTileX, absTileY,
+                                    isDoorDown ? absTileZ - 1 : absTileZ
+                                );
+                        }
                     }
                 }
             }
@@ -940,7 +969,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         AddMonster
             (
                 gameState,
-                cameraTileX + 2, cameraTileY + 2, cameraTileZ
+                cameraTileX - 3, cameraTileY + 2, cameraTileZ
             );
 
         for(i32 familiarIndex = 0;
@@ -1193,7 +1222,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             &pieceGroup, &gameState->tree,
                             v2{0, 0}, 0,
                             v2{40, 80}
-                         );
+                        );
+                } break;
+
+                case EntityType_Stairwell:
+                {
+                    PushBitmap
+                        (
+                            &pieceGroup, &gameState->stairwell,
+                            v2{0, 0}, 0,
+                            v2{37, 37}
+                        );
                 } break;
 
                 case EntityType_Sword:

@@ -448,12 +448,24 @@ ShouldCollide
 }
 
 internal b32
-HandleCollision(sim_entity *a, sim_entity *b)
+HandleCollision
+(
+    game_state *gameState,
+    sim_entity *a, sim_entity *b, b32 wasOverlapping
+)
 {
     b32 stopsOnCollision = false;
 
     if(a->type == EntityType_Sword)
     {
+                    
+        AddCollisionRule
+            (
+                gameState,
+                a->storageIndex,
+                b->storageIndex,
+                false
+            );
         stopsOnCollision = false;
     }
     else
@@ -476,7 +488,13 @@ HandleCollision(sim_entity *a, sim_entity *b)
             a->hitPointMax--;
         }
     }
-                
+
+    if(a->type == EntityType_Monster &&
+       b->type == EntityType_Sword)
+    {
+        stopsOnCollision = false;
+    }
+    
     // TODO: Stairs
     // TODO: Implement this for real
     return stopsOnCollision;
@@ -522,6 +540,49 @@ MoveEntity
     {
         // TODO: Maybe formalize this number?
         distanceRemaining = 10000.0f;
+    }
+
+    // NOTE: Check for initial inclusion
+    ui32 overlappingCount = 0;
+    sim_entity *overlappingEntities[16];
+    {
+        rectangle3 entityRect = RectCenterDim
+            (
+                _entity->pos,
+                _entity->dim
+            );
+        for(ui32 highEntityIndex = 0;
+            highEntityIndex < simRegion->entityCount;
+            highEntityIndex++)
+        {
+            sim_entity *testEntity = simRegion->entities + highEntityIndex;
+            if(ShouldCollide(gameState, _entity, testEntity))
+            {
+                rectangle3 testEntityRect = RectCenterDim
+                    (
+                        testEntity->pos,
+                        testEntity->dim
+                    );
+                if(RectanglesIntersect(entityRect,
+                                       testEntityRect))
+                {
+                    if(overlappingCount < ArrayCount(overlappingEntities))
+                    {
+                        /*if(AddCollisionRule(gameState,
+                                            _entity->storageIndex,
+                                            testEntity->storageIndex,
+                                            false))*/
+                        {
+                            overlappingEntities[overlappingCount++] = testEntity;
+                        }
+                    }
+                    else
+                    {
+                        InvalidCodePath;
+                    }
+                }
+            }
+        }
     }
     
     for(ui32 i = 0; i < 4; i++)
@@ -603,10 +664,24 @@ MoveEntity
             if(hitEntity)
             {
                 deltaPlayerPos = desiredPos - _entity->pos;
-                                
+                
+                ui32 overlapIndex = overlappingCount;
+                for(ui32 testOverlapIndex = 0;
+                    testOverlapIndex < overlappingCount;
+                    testOverlapIndex++)
+                {
+                    if(hitEntity == overlappingEntities[testOverlapIndex])
+                    {
+                        overlapIndex = testOverlapIndex;
+                        break;
+                    }
+                }
+
+                b32 wasOverlapping = (overlapIndex != overlappingCount);
                 b32 stopsOnCollision = HandleCollision
                     (
-                        _entity, hitEntity
+                        gameState,
+                        _entity, hitEntity, wasOverlapping
                     );
                 if(stopsOnCollision)
                 {
@@ -618,13 +693,18 @@ MoveEntity
                 }
                 else
                 {
-                    AddCollisionRule
-                        (
-                            gameState,
-                            _entity->storageIndex,
-                            hitEntity->storageIndex,
-                            false
-                        );
+                    if(wasOverlapping)
+                    {
+                        overlappingEntities[overlapIndex] = overlappingEntities[--overlappingCount];
+                    }
+                    else if(overlappingCount < ArrayCount(overlappingEntities))
+                    {
+                        overlappingEntities[overlappingCount++] = hitEntity;
+                    }
+                    else
+                    {
+                        InvalidCodePath;
+                    }
                 }
             }
             else
