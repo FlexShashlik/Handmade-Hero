@@ -434,12 +434,6 @@ CanCollide
             result = true;
         }
 
-        if(a->type == EntityType_Stairwell ||
-           b->type == EntityType_Stairwell)
-        {
-            result = false;
-        }
-
         // TODO: BETTER HASH FUNCTION
         ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
         for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
@@ -468,8 +462,7 @@ HandleCollision
     b32 stopsOnCollision = false;
 
     if(a->type == EntityType_Sword)
-    {
-                    
+    {   
         AddCollisionRule
             (
                 gameState,
@@ -552,6 +545,36 @@ HandleOverlap
     }
 }
 
+internal b32
+SpeculativeCollide(sim_entity *mover, sim_entity *region)
+{
+    b32 result = true;
+    
+    if(region->type == EntityType_Stairwell)
+    {
+        rectangle3 regionRect = RectCenterDim
+            (
+                region->pos, region->dim
+            );
+        
+        v3 bary = Clamp01(GetBarycentric
+            (
+                regionRect,
+                mover->pos
+            ));
+
+        r32 ground = Lerp
+            (
+                regionRect.min.z, bary.y, regionRect.max.z
+            );
+        r32 stepHeight = 0.1f;
+        result = (AbsoluteValue(mover->pos.z - ground) > stepHeight ||
+                  (bary.y > 0.1f && bary.y < 0.9f));
+    }
+
+    return result;
+}
+
 internal void
 MoveEntity
 (
@@ -577,8 +600,11 @@ MoveEntity
 
     // TODO: ODE!!!
     ddPos += -moveSpec->drag * _entity->dPos;
-    ddPos += v3{0, 0, -9.8f};
-
+    if(!IsSet(_entity, EntityFlag_ZSupported))
+    {
+        ddPos += v3{0, 0, -9.8f}; // NOTE: Gravity
+    }
+    
     v3 oldPlayerPos = _entity->pos;
     v3 deltaPlayerPos = 0.5f * ddPos *
         Square(deltaTime) + _entity->dPos * deltaTime;
@@ -619,8 +645,7 @@ MoveEntity
                     highEntityIndex++)
                 {
                     sim_entity *testEntity = simRegion->entities + highEntityIndex;
-                    if(CanCollide(gameState, _entity, testEntity) &&
-                       testEntity->pos.z == _entity->pos.z)
+                    if(CanCollide(gameState, _entity, testEntity))
                     {                        
                         v3 minkowskiDiameter =
                             {
@@ -633,38 +658,52 @@ MoveEntity
                         v3 maxCorner = 0.5f * minkowskiDiameter;
 
                         v3 rel = _entity->pos - testEntity->pos;
-                
+
+                        r32 tMinTest = tMin;
+                        v3 testWallNormal = {};
+                        b32 hitThis = false;
                         if(TestWall(minCorner.x, rel.x, rel.y,
                                     deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMin, minCorner.y, maxCorner.y))
+                                    &tMinTest, minCorner.y, maxCorner.y))
                         {
-                            wallNormal = v3{-1, 0, 0};
-                            hitEntity = testEntity;
+                            testWallNormal = v3{-1, 0, 0};
+                            hitThis = true;
                         }                    
                 
                         if(TestWall(maxCorner.x, rel.x, rel.y,
                                     deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMin, minCorner.y, maxCorner.y))
+                                    &tMinTest, minCorner.y, maxCorner.y))
                         {
-                            wallNormal = v3{1, 0, 0};
-                            hitEntity = testEntity;
+                            testWallNormal = v3{1, 0, 0};
+                            hitThis = true;
                         }
                 
                         if(TestWall(minCorner.y, rel.y, rel.x,
                                     deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMin, minCorner.x, maxCorner.x))
+                                    &tMinTest, minCorner.x, maxCorner.x))
                         {
-                            wallNormal = v3{0, -1, 0};
-                            hitEntity = testEntity;
+                            testWallNormal = v3{0, -1, 0};
+                            hitThis = true;
                         }
                 
                         if(TestWall(maxCorner.y, rel.y, rel.x,
                                     deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMin, minCorner.x, maxCorner.x))
+                                    &tMinTest, minCorner.x, maxCorner.x))
                         {
-                            wallNormal = v3{0, 1, 0};
-                            hitEntity = testEntity;
-                        }                   
+                            testWallNormal = v3{0, 1, 0};
+                            hitThis = true;
+                        }
+
+                        if(hitThis)
+                        {
+                            v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
+                            if(SpeculativeCollide(_entity, testEntity))
+                            {
+                                tMin = tMinTest;
+                                wallNormal = testWallNormal;
+                                hitEntity = testEntity;
+                            }
+                        }
                     }
                 }
             }
@@ -735,10 +774,17 @@ MoveEntity
         }
     }
 
-    if(_entity->pos.z < ground)
+    if(_entity->pos.z <= ground ||
+       (IsSet(_entity, EntityFlag_ZSupported) &&
+        _entity->dPos.z == 0.0f))
     {
         _entity->pos.z = ground;
         _entity->dPos.z = 0;
+        AddFlags(_entity, EntityFlag_ZSupported);
+    }
+    else
+    {
+        ClearFlags(_entity, EntityFlag_ZSupported);
     }
     
     if(_entity->distanceLimit != 0.0f)

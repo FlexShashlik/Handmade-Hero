@@ -456,9 +456,10 @@ AddStair
             gameState, EntityType_Stairwell, pos
         );
     
-    _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
-    _entity.low->sim.dim.x = _entity.low->sim.dim.y;
-    _entity.low->sim.dim.z = 1.2f * gameState->_world->tileDepthInMeters;
+    _entity.low->sim.dim.x = gameState->_world->tileSideInMeters;
+    _entity.low->sim.dim.y = 2.0f * gameState->_world->tileSideInMeters;
+    _entity.low->sim.dim.z = gameState->_world->tileDepthInMeters;
+    AddFlags(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
 }
@@ -919,7 +920,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     }
                     else if(isCreatedZDoor)
                     {
-                        if(tileX == 10 && tileY == 6)
+                        if(tileX == 10 && tileY == 5)
                         {
                             AddStair
                                 (
@@ -1287,6 +1288,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     sim_entity *closestHero = 0;
                     r32 closestHeroDSq = Square(10.0f);
 
+#if 0
                     sim_entity *testEntity = simRegion->entities;
                     for(ui32 testEntityIndex = 0;
                         testEntityIndex < simRegion->entityCount;
@@ -1302,7 +1304,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             }
                         }
                     }
-
+#endif
                     if(closestHero && closestHeroDSq > Square(3.0f))
                     {
                         v3 deltaPos = closestHero->pos - _entity->pos;
@@ -1371,13 +1373,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         &moveSpec, ddPos
                     );
             }
+
+            r32 zFudge = 1.0f + 0.1f * _entity->pos.z;
             
             r32 entityGroundX = screenCenterX + metersToPixels *
-                _entity->pos.x;
+                zFudge * _entity->pos.x;
             r32 entityGroundY = screenCenterY - metersToPixels *
-                _entity->pos.y;
+                zFudge * _entity->pos.y;
 
-            r32 entityZ = -metersToPixels*_entity->pos.z;
+            r32 entityZ = -metersToPixels * _entity->pos.z;
         
             for(ui32 pieceIndex = 0;
                 pieceIndex < pieceGroup.pieceCount;
