@@ -319,7 +319,11 @@ AddSword(game_state *gameState)
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
-
+    AddFlags
+        (
+            &_entity.low->sim, EntityFlag_Moveable
+        );
+    
     return _entity;
 }
 
@@ -334,7 +338,10 @@ AddPlayer(game_state *gameState)
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
-    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    AddFlags
+        (
+            &_entity.low->sim, EntityFlag_Collides|EntityFlag_Moveable
+        );
     
     InitHitPoints(_entity.low, 3);
 
@@ -368,7 +375,11 @@ AddMonster
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
-    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    AddFlags
+        (
+            &_entity.low->sim,
+            EntityFlag_Collides|EntityFlag_Moveable
+        );
     
     InitHitPoints(_entity.low, 3);
 
@@ -394,7 +405,11 @@ AddFamiliar
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
-    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    AddFlags
+        (
+            &_entity.low->sim,
+            EntityFlag_Collides|EntityFlag_Moveable
+        );
     
     return _entity;
 }
@@ -418,7 +433,7 @@ AddWall
     
     _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
     _entity.low->sim.dim.x = _entity.low->sim.dim.y;
-    AddFlag(&_entity.low->sim, EntityFlag_Collides);
+    AddFlags(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
 }
@@ -433,7 +448,8 @@ AddStair
     world_position pos = ChunkPosFromTilePos
         (
             gameState->_world,
-            absTileX, absTileY, absTileZ
+            absTileX, absTileY, absTileZ,
+            v3{0.0f, 0.0f, 0.5f * gameState->_world->tileDepthInMeters}
         );
     add_low_entity_result _entity = AddLowEntity
         (
@@ -442,7 +458,7 @@ AddStair
     
     _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
     _entity.low->sim.dim.x = _entity.low->sim.dim.y;
-    _entity.low->sim.dim.z = gameState->_world->tileDepthInMeters;
+    _entity.low->sim.dim.z = 1.2f * gameState->_world->tileDepthInMeters;
     
     return _entity;
 }
@@ -584,7 +600,7 @@ internal void
 AddCollisionRule
 (
     game_state *gameState,
-    ui32 storageIndexA, ui32 storageIndexB, b32 shouldCollide
+    ui32 storageIndexA, ui32 storageIndexB, b32 canCollide
 )
 {
     if(storageIndexA > storageIndexB)
@@ -629,7 +645,7 @@ AddCollisionRule
     {
         found->storageIndexA = storageIndexA;
         found->storageIndexB = storageIndexB;
-        found->shouldCollide = shouldCollide;
+        found->canCollide = canCollide;
     }
 }
 
@@ -1227,11 +1243,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Stairwell:
                 {
-                    PushBitmap
+                    PushRect
                         (
-                            &pieceGroup, &gameState->stairwell,
-                            v2{0, 0}, 0,
-                            v2{37, 37}
+                            &pieceGroup, v2{0, 0}, 0,
+                            _entity->dim.xy, v4{1, 1, 0, 1},
+                            0.0f
                         );
                 } break;
 
@@ -1345,7 +1361,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 } break;
             }
 
-            if(!IsSet(_entity, EntityFlag_Nonspatial))
+            if(!IsSet(_entity, EntityFlag_Nonspatial) &&
+               IsSet(_entity, EntityFlag_Moveable))
             {
                 MoveEntity
                     (

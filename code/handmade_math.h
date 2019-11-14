@@ -67,6 +67,37 @@ Square(r32 value)
     return result;
 }
 
+inline r32
+Lerp(r32 a, r32 t, r32 b)
+{
+    r32 result = (1.0f - t) * a + t * b;
+    return result;
+}
+
+inline r32
+Clamp(r32 min, r32 value, r32 max)
+{
+    r32 result = value;
+
+    if(result < min)
+    {
+        result = min;
+    }
+    else if(result > max)
+    {
+        result = max;
+    }
+
+    return result;
+}
+
+inline r32
+Clamp01(r32 value)
+{
+    r32 result = Clamp(0.0f, value, 1.0f);
+    return result;
+}
+
 //
 // NOTE: v2 operations
 //
@@ -277,6 +308,18 @@ Length(v3 a)
     return result;
 }
 
+inline v3
+Clamp01(v3 value)
+{
+    v3 result;
+
+    result.x = Clamp01(value.x);
+    result.y = Clamp01(value.y);
+    result.z = Clamp01(value.z);
+
+    return result;
+}
+
 //
 // NOTE: Rectangle2
 //
@@ -463,5 +506,44 @@ RectanglesIntersect(rectangle3 a, rectangle3 b)
                    b.max.z < a.min.z ||
                    b.min.z > a.max.z);
     
+    return result;
+}
+
+inline r32
+SafeRatioN(r32 numerator, r32 divisor, r32 n)
+{
+    r32 result = n;
+
+    if(divisor != 0.0f)
+    {
+        result = numerator / divisor;
+    }
+
+    return result;
+}
+
+inline r32
+SafeRatio0(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 0.0f);
+    return result;
+}
+
+inline r32
+SafeRatio1(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 1.0f);
+    return result;
+}
+
+inline v3
+GetBarycentric(rectangle3 a, v3 pos)
+{
+    v3 result;
+
+    result.x = SafeRatio0(pos.x - a.min.x, a.max.x - a.min.x);
+    result.y = SafeRatio0(pos.y - a.min.y, a.max.y - a.min.y);
+    result.z = SafeRatio0(pos.z - a.min.z, a.max.z - a.min.z);
+
     return result;
 }

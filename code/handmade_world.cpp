@@ -99,7 +99,8 @@ inline world_position
 ChunkPosFromTilePos
 (
     world *_world,
-    i32 absTileX, i32 absTileY, i32 absTileZ
+    i32 absTileX, i32 absTileY, i32 absTileZ,
+    v3 additionalOffset = v3{0, 0, 0}
 )
 {
     world_position basePos = {};
@@ -110,7 +111,7 @@ ChunkPosFromTilePos
     world_position result = MapIntoChunkSpace
         (
             _world,
-            basePos, offset
+            basePos, additionalOffset + offset
         );
     
     Assert(IsCanonical(_world, result._offset));
@@ -356,11 +357,11 @@ ChangeEntityLocation
     if(newPos)
     {
         lowEntity->pos = *newPos;
-        ClearFlag(&lowEntity->sim, EntityFlag_Nonspatial);
+        ClearFlags(&lowEntity->sim, EntityFlag_Nonspatial);
     }
     else
     {
         lowEntity->pos = NullPosition();
-        AddFlag(&lowEntity->sim, EntityFlag_Nonspatial);
+        AddFlags(&lowEntity->sim, EntityFlag_Nonspatial);
     }
 }
