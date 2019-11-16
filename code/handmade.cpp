@@ -338,6 +338,7 @@ AddPlayer(game_state *gameState)
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
+    _entity.low->sim.dim.z = 0.5f;
     AddFlags
         (
             &_entity.low->sim, EntityFlag_Collides|EntityFlag_Moveable
@@ -375,6 +376,7 @@ AddMonster
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
+    _entity.low->sim.dim.z = 0.5f;
     AddFlags
         (
             &_entity.low->sim,
@@ -405,6 +407,7 @@ AddFamiliar
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
+    _entity.low->sim.dim.z = 0.5f;
     AddFlags
         (
             &_entity.low->sim,
@@ -433,6 +436,7 @@ AddWall
     
     _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
     _entity.low->sim.dim.x = _entity.low->sim.dim.y;
+    _entity.low->sim.dim.z = 0.5f * gameState->_world->tileDepthInMeters;
     AddFlags(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
@@ -812,7 +816,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             );
         world *_world = gameState->_world;
         
-        InitializeWorld(_world, 1.4f);
+        InitializeWorld(_world, 1.4f, 3.0f);
         
         i32 tileSideInPixels = 60;
         gameState->metersToPixels = (r32)tileSideInPixels / (r32)_world->tileSideInMeters;

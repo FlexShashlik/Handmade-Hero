@@ -659,49 +659,53 @@ MoveEntity
 
                         v3 rel = _entity->pos - testEntity->pos;
 
-                        r32 tMinTest = tMin;
-                        v3 testWallNormal = {};
-                        b32 hitThis = false;
-                        if(TestWall(minCorner.x, rel.x, rel.y,
-                                    deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMinTest, minCorner.y, maxCorner.y))
+                        if(rel.z >= minCorner.z &&
+                           rel.z < maxCorner.z)
                         {
-                            testWallNormal = v3{-1, 0, 0};
-                            hitThis = true;
-                        }                    
-                
-                        if(TestWall(maxCorner.x, rel.x, rel.y,
-                                    deltaPlayerPos.x, deltaPlayerPos.y,
-                                    &tMinTest, minCorner.y, maxCorner.y))
-                        {
-                            testWallNormal = v3{1, 0, 0};
-                            hitThis = true;
-                        }
-                
-                        if(TestWall(minCorner.y, rel.y, rel.x,
-                                    deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMinTest, minCorner.x, maxCorner.x))
-                        {
-                            testWallNormal = v3{0, -1, 0};
-                            hitThis = true;
-                        }
-                
-                        if(TestWall(maxCorner.y, rel.y, rel.x,
-                                    deltaPlayerPos.y, deltaPlayerPos.x,
-                                    &tMinTest, minCorner.x, maxCorner.x))
-                        {
-                            testWallNormal = v3{0, 1, 0};
-                            hitThis = true;
-                        }
-
-                        if(hitThis)
-                        {
-                            v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
-                            if(SpeculativeCollide(_entity, testEntity))
+                            r32 tMinTest = tMin;
+                            v3 testWallNormal = {};
+                            b32 hitThis = false;
+                            if(TestWall(minCorner.x, rel.x, rel.y,
+                                        deltaPlayerPos.x, deltaPlayerPos.y,
+                                        &tMinTest, minCorner.y, maxCorner.y))
                             {
-                                tMin = tMinTest;
-                                wallNormal = testWallNormal;
-                                hitEntity = testEntity;
+                                testWallNormal = v3{-1, 0, 0};
+                                hitThis = true;
+                            }                    
+                
+                            if(TestWall(maxCorner.x, rel.x, rel.y,
+                                        deltaPlayerPos.x, deltaPlayerPos.y,
+                                        &tMinTest, minCorner.y, maxCorner.y))
+                            {
+                                testWallNormal = v3{1, 0, 0};
+                                hitThis = true;
+                            }
+                
+                            if(TestWall(minCorner.y, rel.y, rel.x,
+                                        deltaPlayerPos.y, deltaPlayerPos.x,
+                                        &tMinTest, minCorner.x, maxCorner.x))
+                            {
+                                testWallNormal = v3{0, -1, 0};
+                                hitThis = true;
+                            }
+                
+                            if(TestWall(maxCorner.y, rel.y, rel.x,
+                                        deltaPlayerPos.y, deltaPlayerPos.x,
+                                        &tMinTest, minCorner.x, maxCorner.x))
+                            {
+                                testWallNormal = v3{0, 1, 0};
+                                hitThis = true;
+                            }
+
+                            if(hitThis)
+                            {
+                                v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
+                                if(SpeculativeCollide(_entity, testEntity))
+                                {
+                                    tMin = tMinTest;
+                                    wallNormal = testWallNormal;
+                                    hitEntity = testEntity;
+                                }
                             }
                         }
                     }
