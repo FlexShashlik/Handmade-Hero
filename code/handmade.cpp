@@ -475,7 +475,7 @@ AddStair
     {
         gameState->_world->tileSideInMeters,
         2.0f * gameState->_world->tileSideInMeters,
-        gameState->_world->tileDepthInMeters
+        1.1f * gameState->_world->tileDepthInMeters
     };
     
     world_position pos = ChunkPosFromTilePos
@@ -489,6 +489,7 @@ AddStair
         );
 
     AddFlags(&_entity.low->sim, EntityFlag_Collides);
+    _entity.low->sim.walkableHeight = gameState->_world->tileDepthInMeters;
     
     return _entity;
 }
@@ -508,7 +509,7 @@ PushPiece
     entity_visible_piece *piece = group->pieces + group->pieceCount++;
     piece->bitmap = bitmap;
     piece->offset = group->gameState->metersToPixels * v2{offset.x, -offset.y} - align;
-    piece->offsetZ = group->gameState->metersToPixels * offsetZ;
+    piece->offsetZ = offsetZ;
     piece->r = color.r;
     piece->g = color.g;
     piece->b = color.b;
@@ -1175,7 +1176,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             pieceGroup.pieceCount = 0;
             r32 deltaTime = input->deltaTime;
             // TODO: Should be computed after update
-            r32 shadowAlpha = 1.0f - 0.5f * _entity->pos.z;
+            r32 shadowAlpha = 1.0f - 0.5f * (_entity->pos.z - _entity->dim.z);
             if(shadowAlpha < 0.0f)
             {
                 shadowAlpha = 0.0f;
@@ -1276,6 +1277,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushRect
                         (
                             &pieceGroup, v2{0, 0}, 0,
+                            _entity->dim.xy, v4{1, 0.5f, 0, 1},
+                            0.0f
+                        );
+                    PushRect
+                        (
+                            &pieceGroup, v2{0, 0}, _entity->dim.z,
                             _entity->dim.xy, v4{1, 1, 0, 1},
                             0.0f
                         );
@@ -1402,25 +1409,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         &moveSpec, ddPos
                     );
             }
-
-            r32 zFudge = 1.0f + 0.1f * _entity->pos.z;
-            
-            r32 entityGroundX = screenCenterX + metersToPixels *
-                zFudge * _entity->pos.x;
-            r32 entityGroundY = screenCenterY - metersToPixels *
-                zFudge * _entity->pos.y;
-
-            r32 entityZ = -metersToPixels * _entity->pos.z;
         
             for(ui32 pieceIndex = 0;
                 pieceIndex < pieceGroup.pieceCount;
                 pieceIndex++)
             {
                 entity_visible_piece *piece = pieceGroup.pieces + pieceIndex;
+
+                v3 entityBasePos = GetEntityGroundPoint(_entity); 
+                r32 zFudge = 1.0f + 0.1f * (entityBasePos.z + piece->offsetZ);
+            
+                r32 entityGroundX = screenCenterX + metersToPixels *
+                    zFudge * entityBasePos.x;
+                r32 entityGroundY = screenCenterY - metersToPixels *
+                    zFudge * entityBasePos.y;
+
+                r32 entityZ = -metersToPixels * entityBasePos.z;
+
                 v2 center =
                     {
                         entityGroundX + piece->offset.x,
-                        entityGroundY + piece->offset.y + piece->offsetZ + piece->entityZC * entityZ
+                        entityGroundY + piece->offset.y + piece->entityZC * entityZ
                     };
                 if(piece->bitmap)
                 {
@@ -1429,7 +1438,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             buffer, piece->bitmap,
                             center.x, center.y,
                             piece->a
-                         );
+                        );
                 }
                 else
                 {

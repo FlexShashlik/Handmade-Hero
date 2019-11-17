@@ -527,20 +527,9 @@ HandleOverlap
 {
     if(region->type == EntityType_Stairwell)
     {
-        rectangle3 regionRect = RectCenterDim
+        *ground = GetStairGround
             (
-                region->pos, region->dim
-            );
-        
-        v3 bary = Clamp01(GetBarycentric
-            (
-                regionRect,
-                mover->pos
-            ));
-
-        *ground = Lerp
-            (
-                regionRect.min.z, bary.y, regionRect.max.z
+                region, GetEntityGroundPoint(mover)
             );
     }
 }
@@ -552,24 +541,14 @@ SpeculativeCollide(sim_entity *mover, sim_entity *region)
     
     if(region->type == EntityType_Stairwell)
     {
-        rectangle3 regionRect = RectCenterDim
-            (
-                region->pos, region->dim
-            );
-        
-        v3 bary = Clamp01(GetBarycentric
-            (
-                regionRect,
-                mover->pos
-            ));
-
-        r32 ground = Lerp
-            (
-                regionRect.min.z, bary.y, regionRect.max.z
-            );
         r32 stepHeight = 0.1f;
-        result = (AbsoluteValue(mover->pos.z - ground) > stepHeight ||
+#if 0
+        result = (AbsoluteValue(GetEntityGroundPoint(mover).z - ground) > stepHeight ||
                   (bary.y > 0.1f && bary.y < 0.9f));
+#endif
+        v3 moverGroundPoint = GetEntityGroundPoint(mover);
+        r32 ground = GetStairGround(region, moverGroundPoint);
+        result = (AbsoluteValue(GetEntityGroundPoint(mover).z - ground) > stepHeight);
     }
 
     return result;
@@ -778,6 +757,7 @@ MoveEntity
         }
     }
 
+    ground += _entity->pos.z - GetEntityGroundPoint(_entity).z;
     if(_entity->pos.z <= ground ||
        (IsSet(_entity, EntityFlag_ZSupported) &&
         _entity->dPos.z == 0.0f))

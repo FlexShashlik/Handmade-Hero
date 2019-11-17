@@ -33,3 +33,25 @@ MakeEntitySpatial(sim_entity *_entity, v3 pos, v3 dPos)
     _entity->pos = pos;
     _entity->dPos = dPos;
 }
+
+inline v3
+GetEntityGroundPoint(sim_entity *_entity)
+{
+    v3 result = _entity->pos + v3{0, 0, -0.5f * _entity->dim.z};
+    return result;
+}
+
+inline r32
+GetStairGround(sim_entity *_entity, v3 atGroundPoint)
+{
+    rectangle3 regionRect = RectCenterDim
+        (
+            _entity->pos, _entity->dim
+        );
+        
+    v3 bary = Clamp01(GetBarycentric(regionRect, atGroundPoint));
+
+    r32 result = regionRect.min.z + bary.y * _entity->walkableHeight;
+
+    return result;
+}
