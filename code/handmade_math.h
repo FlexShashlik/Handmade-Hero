@@ -499,12 +499,12 @@ IsInRectangle(rectangle3 rect, v3 test)
 inline b32
 RectanglesIntersect(rectangle3 a, rectangle3 b)
 {
-    b32 result = !(b.max.x < a.min.x ||
-                   b.min.x > a.max.x ||
-                   b.max.y < a.min.y ||
-                   b.min.y > a.max.y ||
-                   b.max.z < a.min.z ||
-                   b.min.z > a.max.z);
+    b32 result = !(b.max.x <= a.min.x ||
+                   b.min.x >= a.max.x ||
+                   b.max.y <= a.min.y ||
+                   b.min.y >= a.max.y ||
+                   b.max.z <= a.min.z ||
+                   b.min.z >= a.max.z);
     
     return result;
 }

@@ -293,6 +293,28 @@ AddLowEntity
     return result;
 }
 
+internal add_low_entity_result
+AddGroundedEntity
+(
+    game_state *gameState,
+    entity_type type, world_position pos, v3 dim
+)
+{
+    world_position offsetPos = MapIntoChunkSpace
+        (
+            gameState->_world,
+            pos, v3{0.0f, 0.0f, 0.5f * dim.z}
+        );
+    add_low_entity_result _entity = AddLowEntity
+        (
+            gameState, type, offsetPos
+        );
+    
+    _entity.low->sim.dim = dim;
+    
+    return _entity;
+}
+
 internal void
 InitHitPoints(low_entity *lowEntity, ui32 hitPointCount)
 {
@@ -319,6 +341,7 @@ AddSword(game_state *gameState)
 
     _entity.low->sim.dim.y = 0.5f;
     _entity.low->sim.dim.x = 1.0f;
+    _entity.low->sim.dim.z = 0.1f;
     AddFlags
         (
             &_entity.low->sim, EntityFlag_Moveable
@@ -330,15 +353,14 @@ AddSword(game_state *gameState)
 internal add_low_entity_result
 AddPlayer(game_state *gameState)
 {
+    v3 dim = {1.0f, 0.5f, 1.2f};
+    
     world_position pos = gameState->cameraPos;
-    add_low_entity_result _entity = AddLowEntity
+    add_low_entity_result _entity = AddGroundedEntity
         (
-            gameState, EntityType_Hero, pos
+            gameState, EntityType_Hero, pos, dim
         );
 
-    _entity.low->sim.dim.y = 0.5f;
-    _entity.low->sim.dim.x = 1.0f;
-    _entity.low->sim.dim.z = 0.5f;
     AddFlags
         (
             &_entity.low->sim, EntityFlag_Collides|EntityFlag_Moveable
@@ -364,19 +386,17 @@ AddMonster
     ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
+    v3 dim = {1.0f, 0.5f, 0.5f};
     world_position pos = ChunkPosFromTilePos
         (
             gameState->_world,
             absTileX, absTileY, absTileZ
         );
-    add_low_entity_result _entity = AddLowEntity
+    add_low_entity_result _entity = AddGroundedEntity
         (
-            gameState, EntityType_Monster, pos
+            gameState, EntityType_Monster, pos, dim
         );
-
-    _entity.low->sim.dim.y = 0.5f;
-    _entity.low->sim.dim.x = 1.0f;
-    _entity.low->sim.dim.z = 0.5f;
+    
     AddFlags
         (
             &_entity.low->sim,
@@ -395,19 +415,17 @@ AddFamiliar
     ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
+    v3 dim = {1.0f, 0.5f, 0.5f};
     world_position pos = ChunkPosFromTilePos
         (
             gameState->_world,
             absTileX, absTileY, absTileZ
         );
-    add_low_entity_result _entity = AddLowEntity
+    add_low_entity_result _entity = AddGroundedEntity
         (
-            gameState, EntityType_Familiar, pos
+            gameState, EntityType_Familiar, pos, dim
         );
-
-    _entity.low->sim.dim.y = 0.5f;
-    _entity.low->sim.dim.x = 1.0f;
-    _entity.low->sim.dim.z = 0.5f;
+    
     AddFlags
         (
             &_entity.low->sim,
@@ -424,19 +442,23 @@ AddWall
     ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
+    v3 dim =
+    {
+        gameState->_world->tileSideInMeters,
+        gameState->_world->tileSideInMeters,
+        gameState->_world->tileDepthInMeters
+    };
+    
     world_position pos = ChunkPosFromTilePos
         (
             gameState->_world,
             absTileX, absTileY, absTileZ
         );
-    add_low_entity_result _entity = AddLowEntity
+    add_low_entity_result _entity = AddGroundedEntity
         (
-            gameState, EntityType_Wall, pos
+            gameState, EntityType_Wall, pos, dim
         );
     
-    _entity.low->sim.dim.y = gameState->_world->tileSideInMeters;
-    _entity.low->sim.dim.x = _entity.low->sim.dim.y;
-    _entity.low->sim.dim.z = 0.5f * gameState->_world->tileDepthInMeters;
     AddFlags(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
@@ -449,20 +471,23 @@ AddStair
     ui32 absTileX, ui32 absTileY, ui32 absTileZ
 )
 {
+    v3 dim =
+    {
+        gameState->_world->tileSideInMeters,
+        2.0f * gameState->_world->tileSideInMeters,
+        gameState->_world->tileDepthInMeters
+    };
+    
     world_position pos = ChunkPosFromTilePos
         (
             gameState->_world,
-            absTileX, absTileY, absTileZ,
-            v3{0.0f, 0.0f, 0.5f * gameState->_world->tileDepthInMeters}
+            absTileX, absTileY, absTileZ
         );
-    add_low_entity_result _entity = AddLowEntity
+    add_low_entity_result _entity = AddGroundedEntity
         (
-            gameState, EntityType_Stairwell, pos
+            gameState, EntityType_Stairwell, pos, dim
         );
-    
-    _entity.low->sim.dim.x = gameState->_world->tileSideInMeters;
-    _entity.low->sim.dim.y = 2.0f * gameState->_world->tileSideInMeters;
-    _entity.low->sim.dim.z = gameState->_world->tileDepthInMeters;
+
     AddFlags(&_entity.low->sim, EntityFlag_Collides);
     
     return _entity;
