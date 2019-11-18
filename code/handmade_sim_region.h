@@ -39,6 +39,22 @@ enum sim_entity_flags
     EntityFlag_Simming = (1 << 30)
 };
 
+struct sim_entity_collision_volume
+{
+    v3 offsetPos;
+    v3 dim;
+};
+
+struct sim_entity_collision_volume_group
+{
+    sim_entity_collision_volume totalVolume;
+
+    // TODO: If the volumeCount is 0 then the totalVolume should be
+    // used as the only collision volume for the entity
+    ui32 volumeCount;
+    sim_entity_collision_volume *volumes;
+};
+
 struct sim_entity
 {
     ui32 storageIndex;
@@ -51,8 +67,8 @@ struct sim_entity
     v3 dPos;
 
     r32 distanceLimit;
-    
-    v3 dim;
+
+    sim_entity_collision_volume_group *collision;
 
     ui32 facingDirection;
     r32 tBob;
@@ -65,6 +81,7 @@ struct sim_entity
     entity_reference sword;
 
     // TODO: Only for stairwells
+    v2 walkableDim;
     r32 walkableHeight;
 };
 

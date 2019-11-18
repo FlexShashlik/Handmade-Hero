@@ -151,12 +151,12 @@ inline b32
 EntityOverlapsRectangle
 (
     v3 pos,
-    v3 dim,
+    sim_entity_collision_volume volume,
     rectangle3 rect
 )
 {
-    rectangle3 grown = AddRadiusTo(rect, 0.5f * dim);
-    b32 result = IsInRectangle(grown, pos);
+    rectangle3 grown = AddRadiusTo(rect, 0.5f * volume.dim);
+    b32 result = IsInRectangle(grown, pos + volume.offsetPos);
     return result;
 }
 
@@ -181,7 +181,7 @@ AddEntity
             dest->isUpdatable = EntityOverlapsRectangle
                 (
                     dest->pos,
-                    dest->dim,
+                    dest->collision->totalVolume,
                     simRegion->updatableBounds
                 );
         }
@@ -289,7 +289,7 @@ BeginSim
                             
                                 if(EntityOverlapsRectangle
                                    (simSpacePos,
-                                    low->sim.dim,
+                                    low->sim.collision->totalVolume,
                                     simRegion->bounds))
                                 {
                                     AddEntity
@@ -578,7 +578,9 @@ MoveEntity
     ddPos *= moveSpec->speed;
 
     // TODO: ODE!!!
-    ddPos += -moveSpec->drag * _entity->dPos;
+    v3 drag = -moveSpec->drag * _entity->dPos;
+    drag.z = 0;
+    ddPos += drag;
     if(!IsSet(_entity, EntityFlag_ZSupported))
     {
         ddPos += v3{0, 0, -9.8f}; // NOTE: Gravity
@@ -625,65 +627,82 @@ MoveEntity
                 {
                     sim_entity *testEntity = simRegion->entities + highEntityIndex;
                     if(CanCollide(gameState, _entity, testEntity))
-                    {                        
-                        v3 minkowskiDiameter =
-                            {
-                                testEntity->dim.x + _entity->dim.x,
-                                testEntity->dim.y + _entity->dim.y,
-                                testEntity->dim.z + _entity->dim.z
-                            };
-                        
-                        v3 minCorner = -0.5f * minkowskiDiameter;                        
-                        v3 maxCorner = 0.5f * minkowskiDiameter;
-
-                        v3 rel = _entity->pos - testEntity->pos;
-
-                        if(rel.z >= minCorner.z &&
-                           rel.z < maxCorner.z)
+                    {
+                        for(ui32 volumeIndex = 0;
+                            volumeIndex < _entity->collision->volumeCount;
+                            volumeIndex++)
                         {
-                            r32 tMinTest = tMin;
-                            v3 testWallNormal = {};
-                            b32 hitThis = false;
-                            if(TestWall(minCorner.x, rel.x, rel.y,
-                                        deltaPlayerPos.x, deltaPlayerPos.y,
-                                        &tMinTest, minCorner.y, maxCorner.y))
+                            sim_entity_collision_volume *volume =
+                                _entity->collision->volumes + volumeIndex;
+                            
+                            for(ui32 testVolumeIndex = 0;
+                                testVolumeIndex < testEntity->collision->volumeCount;
+                                testVolumeIndex++)
                             {
-                                testWallNormal = v3{-1, 0, 0};
-                                hitThis = true;
-                            }                    
-                
-                            if(TestWall(maxCorner.x, rel.x, rel.y,
-                                        deltaPlayerPos.x, deltaPlayerPos.y,
-                                        &tMinTest, minCorner.y, maxCorner.y))
-                            {
-                                testWallNormal = v3{1, 0, 0};
-                                hitThis = true;
-                            }
-                
-                            if(TestWall(minCorner.y, rel.y, rel.x,
-                                        deltaPlayerPos.y, deltaPlayerPos.x,
-                                        &tMinTest, minCorner.x, maxCorner.x))
-                            {
-                                testWallNormal = v3{0, -1, 0};
-                                hitThis = true;
-                            }
-                
-                            if(TestWall(maxCorner.y, rel.y, rel.x,
-                                        deltaPlayerPos.y, deltaPlayerPos.x,
-                                        &tMinTest, minCorner.x, maxCorner.x))
-                            {
-                                testWallNormal = v3{0, 1, 0};
-                                hitThis = true;
-                            }
+                                sim_entity_collision_volume *testVolume =
+                                    testEntity->collision->volumes + testVolumeIndex;
+                                
+                                v3 minkowskiDiameter =
+                                    {
+                                        testVolume->dim.x + volume->dim.x,
+                                        testVolume->dim.y + volume->dim.y,
+                                        testVolume->dim.z + volume->dim.z
+                                    };
+                        
+                                v3 minCorner = -0.5f * minkowskiDiameter;                        
+                                v3 maxCorner = 0.5f * minkowskiDiameter;
 
-                            if(hitThis)
-                            {
-                                v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
-                                if(SpeculativeCollide(_entity, testEntity))
+                                v3 rel = ((_entity->pos + volume->offsetPos) -
+                                          (testEntity->pos + testVolume->offsetPos));
+
+                                if(rel.z >= minCorner.z &&
+                                   rel.z < maxCorner.z)
                                 {
-                                    tMin = tMinTest;
-                                    wallNormal = testWallNormal;
-                                    hitEntity = testEntity;
+                                    r32 tMinTest = tMin;
+                                    v3 testWallNormal = {};
+                                    b32 hitThis = false;
+                                    if(TestWall(minCorner.x, rel.x, rel.y,
+                                                deltaPlayerPos.x, deltaPlayerPos.y,
+                                                &tMinTest, minCorner.y, maxCorner.y))
+                                    {
+                                        testWallNormal = v3{-1, 0, 0};
+                                        hitThis = true;
+                                    }                    
+                
+                                    if(TestWall(maxCorner.x, rel.x, rel.y,
+                                                deltaPlayerPos.x, deltaPlayerPos.y,
+                                                &tMinTest, minCorner.y, maxCorner.y))
+                                    {
+                                        testWallNormal = v3{1, 0, 0};
+                                        hitThis = true;
+                                    }
+                
+                                    if(TestWall(minCorner.y, rel.y, rel.x,
+                                                deltaPlayerPos.y, deltaPlayerPos.x,
+                                                &tMinTest, minCorner.x, maxCorner.x))
+                                    {
+                                        testWallNormal = v3{0, -1, 0};
+                                        hitThis = true;
+                                    }
+                
+                                    if(TestWall(maxCorner.y, rel.y, rel.x,
+                                                deltaPlayerPos.y, deltaPlayerPos.x,
+                                                &tMinTest, minCorner.x, maxCorner.x))
+                                    {
+                                        testWallNormal = v3{0, 1, 0};
+                                        hitThis = true;
+                                    }
+
+                                    if(hitThis)
+                                    {
+                                        v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
+                                        if(SpeculativeCollide(_entity, testEntity))
+                                        {
+                                            tMin = tMinTest;
+                                            wallNormal = testWallNormal;
+                                            hitEntity = testEntity;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -723,13 +742,13 @@ MoveEntity
     }
 
     r32 ground = 0.0f; 
-    
+
     // NOTE: Handle events based on area overlapping
     {
         rectangle3 entityRect = RectCenterDim
             (
-                _entity->pos,
-                _entity->dim
+                _entity->pos + _entity->collision->totalVolume.offsetPos,
+                _entity->collision->totalVolume.dim
             );
         for(ui32 highEntityIndex = 0;
             highEntityIndex < simRegion->entityCount;
@@ -740,8 +759,8 @@ MoveEntity
             {
                 rectangle3 testEntityRect = RectCenterDim
                     (
-                        testEntity->pos,
-                        testEntity->dim
+                        testEntity->pos + testEntity->collision->totalVolume.offsetPos,
+                        testEntity->collision->totalVolume.dim
                     );
                 if(RectanglesIntersect(entityRect,
                                        testEntityRect))
@@ -756,7 +775,7 @@ MoveEntity
             }
         }
     }
-
+    
     ground += _entity->pos.z - GetEntityGroundPoint(_entity).z;
     if(_entity->pos.z <= ground ||
        (IsSet(_entity, EntityFlag_ZSupported) &&

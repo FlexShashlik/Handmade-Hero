@@ -138,6 +138,14 @@ struct game_state
     // NOTE: Must be power of two
     pairwise_collision_rule *collisionRuleHash[256];
     pairwise_collision_rule *firstFreeCollisionRule;
+
+    sim_entity_collision_volume_group *nullCollision;
+    sim_entity_collision_volume_group *swordCollision;
+    sim_entity_collision_volume_group *stairCollision;
+    sim_entity_collision_volume_group *playerCollision;
+    sim_entity_collision_volume_group *monsterCollision;
+    sim_entity_collision_volume_group *familiarCollision;
+    sim_entity_collision_volume_group *wallCollision;
 };
 
 struct entity_visible_piece_group

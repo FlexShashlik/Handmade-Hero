@@ -207,6 +207,17 @@ Length(v2 a)
     return result;
 }
 
+inline v2
+Clamp01(v2 value)
+{
+    v2 result;
+
+    result.x = Clamp01(value.x);
+    result.y = Clamp01(value.y);
+
+    return result;
+}
+
 //
 // NOTE: v3 operations
 //
@@ -320,6 +331,33 @@ Clamp01(v3 value)
     return result;
 }
 
+inline r32
+SafeRatioN(r32 numerator, r32 divisor, r32 n)
+{
+    r32 result = n;
+
+    if(divisor != 0.0f)
+    {
+        result = numerator / divisor;
+    }
+
+    return result;
+}
+
+inline r32
+SafeRatio0(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 0.0f);
+    return result;
+}
+
+inline r32
+SafeRatio1(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 1.0f);
+    return result;
+}
+
 //
 // NOTE: Rectangle2
 //
@@ -404,6 +442,17 @@ IsInRectangle(rectangle2 rect, v2 test)
                   test.x < rect.max.x &&
                   test.y < rect.max.y);
 
+    return result;
+}
+
+inline v2
+GetBarycentric(rectangle2 a, v2 pos)
+{
+    v2 result;
+
+    result.x = SafeRatio0(pos.x - a.min.x, a.max.x - a.min.x);
+    result.y = SafeRatio0(pos.y - a.min.y, a.max.y - a.min.y);
+    
     return result;
 }
 
@@ -509,33 +558,6 @@ RectanglesIntersect(rectangle3 a, rectangle3 b)
     return result;
 }
 
-inline r32
-SafeRatioN(r32 numerator, r32 divisor, r32 n)
-{
-    r32 result = n;
-
-    if(divisor != 0.0f)
-    {
-        result = numerator / divisor;
-    }
-
-    return result;
-}
-
-inline r32
-SafeRatio0(r32 numerator, r32 divisor)
-{
-    r32 result = SafeRatioN(numerator, divisor, 0.0f);
-    return result;
-}
-
-inline r32
-SafeRatio1(r32 numerator, r32 divisor)
-{
-    r32 result = SafeRatioN(numerator, divisor, 1.0f);
-    return result;
-}
-
 inline v3
 GetBarycentric(rectangle3 a, v3 pos)
 {
@@ -545,5 +567,16 @@ GetBarycentric(rectangle3 a, v3 pos)
     result.y = SafeRatio0(pos.y - a.min.y, a.max.y - a.min.y);
     result.z = SafeRatio0(pos.z - a.min.z, a.max.z - a.min.z);
 
+    return result;
+}
+
+inline rectangle2
+ToRectangleXY(rectangle3 a)
+{
+    rectangle2 result;
+
+    result.min = a.min.xy;
+    result.max = a.max.xy;
+    
     return result;
 }
