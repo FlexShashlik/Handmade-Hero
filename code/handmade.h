@@ -146,6 +146,7 @@ struct game_state
     sim_entity_collision_volume_group *monsterCollision;
     sim_entity_collision_volume_group *familiarCollision;
     sim_entity_collision_volume_group *wallCollision;
+    sim_entity_collision_volume_group *standardRoomCollision;
 };
 
 struct entity_visible_piece_group

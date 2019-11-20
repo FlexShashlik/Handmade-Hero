@@ -427,24 +427,28 @@ CanCollide
             a = b;
             b = temp;
         }
-    
-        if(!IsSet(a, EntityFlag_Nonspatial) &&
-           !IsSet(b, EntityFlag_Nonspatial))
-        {
-            result = true;
-        }
 
-        // TODO: BETTER HASH FUNCTION
-        ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
-        for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
-            rule;
-            rule = rule->nextInHash)
+        if(IsSet(a, EntityFlag_Collides) &&
+           IsSet(b, EntityFlag_Collides))
         {
-            if(rule->storageIndexA == a->storageIndex &&
-               rule->storageIndexB == b->storageIndex)
+            if(!IsSet(a, EntityFlag_Nonspatial) &&
+               !IsSet(b, EntityFlag_Nonspatial))
             {
-                result = rule->canCollide;
-                break;
+                result = true;
+            }
+
+            // TODO: BETTER HASH FUNCTION
+            ui32 hashBucket = a->storageIndex & (ArrayCount(gameState->collisionRuleHash) - 1);
+            for(pairwise_collision_rule *rule = gameState->collisionRuleHash[hashBucket];
+                rule;
+                rule = rule->nextInHash)
+            {
+                if(rule->storageIndexA == a->storageIndex &&
+                   rule->storageIndexB == b->storageIndex)
+                {
+                    result = rule->canCollide;
+                    break;
+                }
             }
         }
     }
