@@ -1093,7 +1093,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     
                     if(isWall)
                     {
-                        AddWall(gameState, absTileX, absTileY, absTileZ);
+                        if(screenIndex == 0)
+                        {
+                            AddWall(gameState, absTileX, absTileY, absTileZ);
+                        }
                     }
                     else if(isCreatedZDoor)
                     {
