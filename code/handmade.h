@@ -125,6 +125,10 @@ struct game_state
 
     ui32 lowEntityCount;
     low_entity lowEntities[100000];
+
+    loaded_bitmap grass[2];
+    loaded_bitmap stone[4];
+    loaded_bitmap tuft[3];
     
     loaded_bitmap bmp;
     loaded_bitmap shadow;

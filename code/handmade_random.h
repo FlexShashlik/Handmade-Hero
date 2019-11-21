@@ -1,4 +1,8 @@
 // NOTE: DON'T REPEAT THIS STUPID SHIT AHAHAHHAHAHAHAHHAHA
+
+#define MaxRandomNumber 0x05f5c21f
+#define MinRandomNumber 0x000025a0
+
 global_variable ui32 randomNumberTable[] =
 {
 	0x4f0143b, 0x3402005, 0x26f2b01, 0x22796b6, 0x57343bb, 0x2d9954e, 0x06f9425, 0x1789180,

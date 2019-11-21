@@ -43,6 +43,31 @@ union v4
     r32 e[4];
 };
 
+inline v2
+V2i(i32 x, i32 y)
+{
+    v2 result = {(r32)x, (r32)y};
+    return result;
+}
+
+inline v2
+V2i(ui32 x, ui32 y)
+{
+    v2 result = {(r32)x, (r32)y};
+    return result;
+}
+
+inline v3
+V3(v2 xy, r32 z)
+{
+    v3 result;
+
+    result.x = xy.x;
+    result.y = xy.y;
+    result.z = z;
+
+    return result;
+}
 
 struct rectangle2
 {
@@ -101,18 +126,6 @@ Clamp01(r32 value)
 //
 // NOTE: v2 operations
 //
-
-inline v3
-V3(v2 xy, r32 z)
-{
-    v3 result;
-
-    result.x = xy.x;
-    result.y = xy.y;
-    result.z = z;
-
-    return result;
-}
 
 inline v2
 operator*(r32 a, v2 b)

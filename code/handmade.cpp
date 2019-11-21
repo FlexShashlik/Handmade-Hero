@@ -779,6 +779,75 @@ MakeNullCollision(game_state *gameState)
     return group;
 }
 
+internal void
+DrawTestGround(game_state *gameState, game_offscreen_buffer *buffer)
+{
+    ui32 randomNumberIndex = 0;
+
+    v2 center = 0.5f * V2i(buffer->width, buffer->height);
+    for(ui32 grassIndex = 0;
+        grassIndex < 100;
+        grassIndex++)
+    {
+        Assert(randomNumberIndex < ArrayCount(randomNumberTable));
+
+        loaded_bitmap *stamp;
+        if(randomNumberTable[randomNumberIndex++] % 2)
+        {
+            stamp = gameState->grass + (randomNumberTable[randomNumberIndex++] % ArrayCount(gameState->grass));
+        }
+        else
+        {
+            stamp = gameState->stone + (randomNumberTable[randomNumberIndex++] % ArrayCount(gameState->stone));
+        }
+        
+        r32 radius = 5.0f;
+        v2 bitmapCenter = 0.5f * V2i(stamp->width,
+                                     stamp->height);
+        // NOTE: Generate from [-1; -1] to [1; 1]
+        v2 offset =
+            {
+                2.0f * (r32)randomNumberTable[randomNumberIndex++] / (r32)MaxRandomNumber - 1,
+                2.0f * (r32)randomNumberTable[randomNumberIndex++] / (r32)MaxRandomNumber - 1 
+            };
+
+        v2 pos = center + gameState->metersToPixels * radius * offset - bitmapCenter;
+        
+        DrawBitmap
+            (
+                buffer, stamp,
+                pos.x, pos.y
+            );
+    }
+
+    for(ui32 grassIndex = 0;
+        grassIndex < 100;
+        grassIndex++)
+    {
+        Assert(randomNumberIndex < ArrayCount(randomNumberTable));
+
+        loaded_bitmap *stamp = gameState->tuft + (randomNumberTable[randomNumberIndex++] % ArrayCount(gameState->tuft));;
+        
+        r32 radius = 5.0f;
+        v2 bitmapCenter = 0.5f * V2i(stamp->width,
+                                     stamp->height);
+        // NOTE: Generate from [-1; -1] to [1; 1]
+        v2 offset =
+            {
+                2.0f * (r32)randomNumberTable[randomNumberIndex++] / (r32)MaxRandomNumber - 1,
+                2.0f * (r32)randomNumberTable[randomNumberIndex++] / (r32)MaxRandomNumber - 1 
+            };
+
+        v2 pos = center + gameState->metersToPixels * radius * offset - bitmapCenter;
+        
+        DrawBitmap
+            (
+                buffer, stamp,
+                pos.x, pos.y
+            );
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
@@ -850,7 +919,70 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 tilesPerHeight * gameState->_world->tileSideInMeters,
                 0.9f * gameState->_world->tileDepthInMeters
             );
+
+        gameState->grass[0] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/grass00.bmp"
+            );
+
+        gameState->grass[1] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/grass01.bmp"
+            );
+
+        gameState->tuft[0] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/tuft00.bmp"
+            );
         
+        gameState->tuft[1] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/tuft01.bmp"
+            );
+        
+        gameState->tuft[2] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/tuft02.bmp"
+            );
+
+        gameState->stone[0] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/ground00.bmp"
+            );
+
+        gameState->stone[1] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/ground01.bmp"
+            );
+
+        gameState->stone[2] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/ground02.bmp"
+            );
+
+        gameState->stone[3] = DEBUGLoadBMP
+            (
+                thread,
+                memory->DEBUGPlatformReadEntireFile,
+                "test2/ground03.bmp"
+            );
+                
         gameState->bmp = DEBUGLoadBMP
             (
                 thread,
@@ -1309,6 +1441,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v2{(r32)buffer->width, (r32)buffer->height},
             0.5f, 0.5f, 0.5f
         );
+
+    DrawTestGround(gameState, buffer);
     
     r32 screenCenterX = 0.5f * (r32)buffer->width;
     r32 screenCenterY = 0.5f * (r32)buffer->height;
