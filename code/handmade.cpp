@@ -787,7 +787,7 @@ MakeNullCollision(game_state *gameState)
 internal void
 DrawTestGround(game_state *gameState, loaded_bitmap *buffer)
 {
-    random_series series = Seed(1234);
+    random_series series = RandomSeed(1234);
 
     v2 center = 0.5f * V2i(buffer->width, buffer->height);
     for(ui32 grassIndex = 0;
@@ -1135,7 +1135,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         heroBMP++;
 
-        random_series series = Seed(1234);
+        random_series series = RandomSeed(1234);
         
         ui32 screenBaseX = 0;
         ui32 screenBaseY = 0;
