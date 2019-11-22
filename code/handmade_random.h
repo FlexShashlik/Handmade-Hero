@@ -3,7 +3,7 @@
 #define MaxRandomNumber 0x05f5c21f
 #define MinRandomNumber 0x000025a0
 
-global_variable ui32 randomNumberTable[] =
+global_variable ui32 RandomNumberTable[] =
 {
 	0x4f0143b, 0x3402005, 0x26f2b01, 0x22796b6, 0x57343bb, 0x2d9954e, 0x06f9425, 0x1789180,
 	0x57d8fab, 0x5365d9c, 0x0e9ec55, 0x2a623e0, 0x366e05d, 0x3759f45, 0x1b4d151, 0x35a5411,
@@ -518,3 +518,64 @@ global_variable ui32 randomNumberTable[] =
 	0x1d46fff, 0x146703c, 0x07dc71f, 0x05a6b46, 0x53660a3, 0x3b4b5c9, 0x4ec4cbb, 0x248ae53,
 	0x0d5d155, 0x4363005, 0x2cbd064, 0x5c18f03, 0x214bedd, 0x42ef202, 0x41827cd, 0x27a8fe9,
 };            
+
+struct random_series
+{
+    ui32 index;
+};
+
+inline random_series
+Seed(ui32 value)
+{
+    random_series series;
+    series.index = value % ArrayCount(RandomNumberTable);
+    return series;
+}
+
+inline ui32
+NextRandomUI32(random_series *series)
+{
+    ui32 result = RandomNumberTable[series->index++];
+    if(series->index >= ArrayCount(RandomNumberTable))
+    {
+        series->index = 0;
+    }
+
+    return result;
+}
+
+inline ui32
+RandomChoice(random_series *series, ui32 choiceCount)
+{
+    ui32 result = NextRandomUI32(series) % choiceCount;
+    return result;
+}
+
+inline r32
+RandomUnilateral(random_series *series)
+{
+    r32 divisor = 1.0f / (r32)MaxRandomNumber;
+    r32 result = divisor * (r32)NextRandomUI32(series);
+    return result;
+}
+
+inline r32
+RandomBilateral(random_series *series)
+{
+    r32 result = 2.0f * RandomUnilateral(series) - 1;
+    return result;
+}
+
+inline r32
+RandomBetween(random_series *series, r32 min, r32 max)
+{
+    r32 result = Lerp(min, RandomUnilateral(series), max);
+    return result;
+}
+
+inline i32
+RandomBetween(random_series *series, i32 min, i32 max)
+{
+    i32 result = min + (i32)(NextRandomUI32(series) % ((max + 1) - min));
+    return result;
+}

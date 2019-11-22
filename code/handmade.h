@@ -57,7 +57,8 @@ struct loaded_bitmap
 {
     i32 width;
     i32 height;
-    ui32 *pixels;
+    i32 pitch;
+    void *memory;
 };
 
 struct hero_bitmaps
@@ -151,6 +152,8 @@ struct game_state
     sim_entity_collision_volume_group *familiarCollision;
     sim_entity_collision_volume_group *wallCollision;
     sim_entity_collision_volume_group *standardRoomCollision;
+
+    loaded_bitmap groundBuffer;
 };
 
 struct entity_visible_piece_group

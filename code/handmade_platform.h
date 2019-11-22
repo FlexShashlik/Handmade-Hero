@@ -116,13 +116,14 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #endif
 
+#define BITMAP_BYTES_PER_PIXEL 4
 typedef struct game_offscreen_buffer
 {
+    // NOTE: Pixels are always 32-bits wide
     void *memory;
     i32 width;
     i32 height;
     i32 pitch;
-    i32 bytesPerPixel;
 } game_offscreen_buffer;
 
 typedef struct game_sound_output_buffer

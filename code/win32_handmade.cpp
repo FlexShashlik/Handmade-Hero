@@ -1729,8 +1729,7 @@ CALLBACK WinMain
                         buffer.width = GlobalBackbuffer.width;
                         buffer.height = GlobalBackbuffer.height;
                         buffer.pitch = GlobalBackbuffer.pitch;
-                        buffer.bytesPerPixel = GlobalBackbuffer.bytesPerPixel;
-
+                        
                         if(win32State.inputRecordingIndex)
                         {
                             Win32RecordInput(&win32State, newInput);
