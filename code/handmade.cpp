@@ -138,22 +138,23 @@ DrawBitmap
 
         for(i32 x = minX; x < maxX; x++)
         {
-            r32 sa = (r32)((*source >> 24) & 0xFF) / 255.0f;
-            sa *= cAlpha;
+            r32 sa = (r32)((*source >> 24) & 0xFF);
+            r32 rsa = (sa / 255.0f) * cAlpha;
+            r32 sr = (r32)((*source >> 16) & 0xFF) * cAlpha;
+            r32 sg = (r32)((*source >> 8) & 0xFF) * cAlpha;
+            r32 sb = (r32)((*source >> 0) & 0xFF) * cAlpha;
             
-            r32 sr = (r32)((*source >> 16) & 0xFF);
-            r32 sg = (r32)((*source >> 8) & 0xFF);
-            r32 sb = (r32)((*source >> 0) & 0xFF);
-
             r32 da = (r32)((*dest >> 24) & 0xFF);
             r32 dr = (r32)((*dest >> 16) & 0xFF);
             r32 dg = (r32)((*dest >> 8) & 0xFF);
             r32 db = (r32)((*dest >> 0) & 0xFF);
-
-            r32 a = Maximum(da, 255.0f * sa);
-            r32 r = (1.0f - sa) * dr + sa * sr;
-            r32 g = (1.0f - sa) * dg + sa * sg;
-            r32 b = (1.0f - sa) * db + sa * sb;
+            r32 rda = (da / 255.0f);
+                            
+            r32 invRSA = (1.0f - rsa);            
+            r32 a = 255.0f * (rsa + rda - rsa * rda);
+            r32 r = invRSA * dr + sr;
+            r32 g = invRSA * dg + sg;
+            r32 b = invRSA * db + sb;
 
             *dest = ((ui32)(a + 0.5f) << 24|
                      (ui32)(r + 0.5f) << 16|
@@ -237,10 +238,10 @@ DEBUGLoadBMP
         Assert(blueScan.isFound);
         Assert(alphaScan.isFound);
 
-        i32 redShift = 16 - (i32)redScan.index;
-        i32 greenShift = 8 - (i32)greenScan.index;
-        i32 blueShift = 0 - (i32)blueScan.index;
-        i32 alphaShift = 24 - (i32)alphaScan.index;
+        i32 redShiftDown = (i32)redScan.index;
+        i32 greenShiftDown = (i32)greenScan.index;
+        i32 blueShiftDown = (i32)blueScan.index;
+        i32 alphaShiftDown = (i32)alphaScan.index;
         
         ui32 *sourceDest = pixels;
         for(i32 y = 0; y < header->height; y++)
@@ -248,10 +249,21 @@ DEBUGLoadBMP
             for(i32 x = 0; x < header->width; x++)
             {
                 ui32 c = *sourceDest;
-                *sourceDest++ = (RotateLeft(c & redMask, redShift) |
-                                 RotateLeft(c & greenMask, greenShift) |
-                                 RotateLeft(c & blueMask, blueShift) |
-                                 RotateLeft(c & alphaMask, alphaShift));
+
+                r32 r = (r32)((c & redMask) >> redShiftDown);
+                r32 g = (r32)((c & greenMask) >> greenShiftDown);
+                r32 b = (r32)((c & blueMask) >> blueShiftDown);
+                r32 a = (r32)((c & alphaMask) >> alphaShiftDown);
+                r32 an = (a / 255.0f);
+
+                r *= an;
+                g *= an;
+                b *= an;
+
+                *sourceDest++ = ((ui32)(a + 0.5f) << 24|
+                                 (ui32)(r + 0.5f) << 16|
+                                 (ui32)(g + 0.5f) << 8 |
+                                 (ui32)(b + 0.5f) << 0);
             }
         }
     }
@@ -795,6 +807,7 @@ DrawTestGround(game_state *gameState, loaded_bitmap *buffer)
         grassIndex++)
     {
         loaded_bitmap *stamp;
+        
         if(RandomChoice(&series, 2))
         {
             stamp = gameState->grass + RandomChoice(&series, ArrayCount(gameState->grass));
