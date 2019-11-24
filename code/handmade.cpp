@@ -797,13 +797,22 @@ MakeNullCollision(game_state *gameState)
 }
 
 internal void
-DrawTestGround(game_state *gameState, loaded_bitmap *buffer)
+DrawGroundChunk
+(
+    game_state *gameState,
+    loaded_bitmap *buffer, world_position *chunkPos
+)
 {
-    random_series series = RandomSeed(1234);
+    random_series series = RandomSeed
+        (139 * chunkPos->chunkX +
+         593 * chunkPos->chunkY +
+         329 * chunkPos->chunkZ);
 
-    v2 center = 0.5f * V2i(buffer->width, buffer->height);
+    r32 width = (r32)buffer->width;
+    r32 height = (r32)buffer->height;
+    v2 center = 0.5f * v2{width, height};
     for(ui32 grassIndex = 0;
-        grassIndex < 100;
+        grassIndex < 1000;
         grassIndex++)
     {
         loaded_bitmap *stamp;
@@ -817,17 +826,16 @@ DrawTestGround(game_state *gameState, loaded_bitmap *buffer)
             stamp = gameState->stone + RandomChoice(&series, ArrayCount(gameState->stone));
         }
         
-        r32 radius = 5.0f;
         v2 bitmapCenter = 0.5f * V2i(stamp->width,
                                      stamp->height);
         // NOTE: Generate from [-1; -1] to [1; 1]
         v2 offset =
             {
-                RandomBilateral(&series),
-                RandomBilateral(&series) 
+                width * RandomUnilateral(&series),
+                height * RandomUnilateral(&series) 
             };
 
-        v2 pos = center + gameState->metersToPixels * radius * offset - bitmapCenter;
+        v2 pos = offset - bitmapCenter;
         
         DrawBitmap
             (
@@ -837,22 +845,21 @@ DrawTestGround(game_state *gameState, loaded_bitmap *buffer)
     }
 
     for(ui32 grassIndex = 0;
-        grassIndex < 100;
+        grassIndex < 1000;
         grassIndex++)
     {
         loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
         
-        r32 radius = 5.0f;
         v2 bitmapCenter = 0.5f * V2i(stamp->width,
                                      stamp->height);
         // NOTE: Generate from [-1; -1] to [1; 1]
         v2 offset =
             {
-                RandomBilateral(&series),
-                RandomBilateral(&series) 
+                width * RandomUnilateral(&series),
+                height * RandomUnilateral(&series) 
             };
 
-        v2 pos = center + gameState->metersToPixels * radius * offset - bitmapCenter;
+        v2 pos = offset - bitmapCenter;
         
         DrawBitmap
             (
@@ -1169,7 +1176,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             screenIndex++)
         {
             ui32 doorDirection =
-                RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
+                RandomChoice(&series, 2);
+                //RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
             
             b32 isCreatedZDoor = false;
             if(doorDirection == 2)
@@ -1243,7 +1251,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     
                     if(isWall)
                     {
-                        if(screenIndex == 0)
+                        //if(screenIndex == 0)
                         {
                             AddWall(gameState, absTileX, absTileY, absTileZ);
                         }
@@ -1320,7 +1328,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             );
 
         for(i32 familiarIndex = 0;
-            familiarIndex < 10;
+            familiarIndex < 1;
             familiarIndex++)
         {
             i32 familiarOffsetX = RandomBetween(&series, -7, 7);
@@ -1338,12 +1346,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
 
+        r32 screenWidth = (r32)buffer->width;
+        r32 screenHeight = (r32)buffer->height;
+        r32 maximumZScale = 0.5f;
+        r32 groundOverscan = 1.5f;
+        ui32 groundBufferWidth = RoundR32ToI32(groundOverscan * screenWidth);
+        ui32 groundBufferHeight = RoundR32ToI32(groundOverscan * screenHeight);
+        
         gameState->groundBuffer = MakeEmptyBitmap
             (
-                &gameState->worldArena, 512, 512
+                &gameState->worldArena, groundBufferWidth, groundBufferHeight
             );
+        gameState->groundBufferPos = gameState->cameraPos;
         
-        DrawTestGround(gameState, &gameState->groundBuffer);
+        DrawGroundChunk
+            (
+                gameState,
+                &gameState->groundBuffer,
+                &gameState->groundBufferPos
+            );
         
         memory->isInitialized = true;
     }
@@ -1474,12 +1495,31 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v2{(r32)drawBuffer->width, (r32)drawBuffer->height},
             0.5f, 0.5f, 0.5f
         );
-    // TODO: Draw at center
-    DrawBitmap(drawBuffer, &gameState->groundBuffer, 0, 0);
     
     r32 screenCenterX = 0.5f * (r32)drawBuffer->width;
     r32 screenCenterY = 0.5f * (r32)drawBuffer->height;
 
+    v2 ground =
+        {
+            screenCenterX - 0.5f * (r32)gameState->groundBuffer.width,
+            screenCenterY - 0.5f * (r32)gameState->groundBuffer.height
+        };
+
+    v3 delta = Subtract
+        (
+            gameState->_world,
+            &gameState->groundBufferPos, &gameState->cameraPos
+        );
+    
+    delta.y = -delta.y;
+    ground += metersToPixels * delta.xy;
+    
+    DrawBitmap
+        (
+            drawBuffer, &gameState->groundBuffer,
+            ground.x, ground.y
+        );
+    
     // TODO: Move this out into handmade.cpp
     entity_visible_piece_group pieceGroup = {};
     pieceGroup.gameState = gameState;
