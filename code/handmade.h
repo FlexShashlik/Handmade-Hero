@@ -8,6 +8,14 @@ struct memory_arena
     memory_index size;
     ui8 *base;
     memory_index used;
+
+    ui32 tempCount;
+};
+
+struct temporary_memory
+{
+    memory_arena *arena;
+    memory_index used;
 };
 
 inline void
@@ -21,6 +29,7 @@ InitializeArena
     arena->size = size;
     arena->base = (ui8 *)base;
     arena->used = 0;
+    arena->tempCount = 0;
 }
 
 #define PushStruct(arena, type) (type *)PushSize_(arena, sizeof(type))
@@ -34,6 +43,35 @@ PushSize_(memory_arena *arena, memory_index size)
     arena->used += size;
 
     return result;
+}
+
+inline temporary_memory
+BeginTemporaryMemory(memory_arena *arena)
+{
+    temporary_memory result;
+
+    result.arena = arena;
+    result.used = arena->used;
+
+    arena->tempCount++;
+
+    return result;
+}
+
+inline void
+EndTemporaryMemory(temporary_memory tempMem)
+{
+    memory_arena *arena = tempMem.arena;
+    Assert(arena->used >= tempMem.used);
+    arena->used = tempMem.used;
+    Assert(arena->tempCount > 0);
+    arena->tempCount--;
+}
+
+inline void
+CheckArena(memory_arena *arena)
+{
+    Assert(arena->tempCount == 0);
 }
 
 #define ZeroStruct(instance) ZeroSize(sizeof(instance), &(instance))
@@ -114,6 +152,13 @@ AddCollisionRule
 internal void
 ClearCollisionRulesFor(game_state *gameState, ui32 storageIndex);
 
+struct ground_buffer
+{
+    // NOTE: If pos is invalid then ground_buffer has not been filled
+    world_position pos; // NOTE: This is the center of the bmp
+    void *memory;
+};
+
 struct game_state
 {
     memory_arena worldArena;
@@ -152,9 +197,15 @@ struct game_state
     sim_entity_collision_volume_group *familiarCollision;
     sim_entity_collision_volume_group *wallCollision;
     sim_entity_collision_volume_group *standardRoomCollision;
+};
 
-    world_position groundBufferPos;
-    loaded_bitmap groundBuffer;
+struct transient_state
+{
+    b32 isInitialized;
+    memory_arena tranArena;
+    ui32 groundBufferCount;
+    loaded_bitmap groundBitmapTemplate;
+    ground_buffer *groundBuffers;
 };
 
 struct entity_visible_piece_group

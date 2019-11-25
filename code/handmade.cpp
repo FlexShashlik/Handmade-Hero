@@ -797,22 +797,27 @@ MakeNullCollision(game_state *gameState)
 }
 
 internal void
-DrawGroundChunk
+FillGroundChunk
 (
-    game_state *gameState,
-    loaded_bitmap *buffer, world_position *chunkPos
+    transient_state *tranState, game_state *gameState,
+    ground_buffer *groundBuffer, world_position *chunkPos
 )
 {
+    loaded_bitmap buffer = tranState->groundBitmapTemplate;
+    buffer.memory = groundBuffer->memory;
+
+    groundBuffer->pos = *chunkPos;
+    
     random_series series = RandomSeed
         (139 * chunkPos->chunkX +
          593 * chunkPos->chunkY +
          329 * chunkPos->chunkZ);
 
-    r32 width = (r32)buffer->width;
-    r32 height = (r32)buffer->height;
+    r32 width = (r32)buffer.width;
+    r32 height = (r32)buffer.height;
     v2 center = 0.5f * v2{width, height};
     for(ui32 grassIndex = 0;
-        grassIndex < 1000;
+        grassIndex < 100;
         grassIndex++)
     {
         loaded_bitmap *stamp;
@@ -839,13 +844,13 @@ DrawGroundChunk
         
         DrawBitmap
             (
-                buffer, stamp,
+                &buffer, stamp,
                 pos.x, pos.y
             );
     }
 
     for(ui32 grassIndex = 0;
-        grassIndex < 1000;
+        grassIndex < 100;
         grassIndex++)
     {
         loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
@@ -863,14 +868,28 @@ DrawGroundChunk
         
         DrawBitmap
             (
-                buffer, stamp,
+                &buffer, stamp,
                 pos.x, pos.y
             );
     }
 }
 
-loaded_bitmap
-MakeEmptyBitmap(memory_arena *arena, i32 width, i32 height)
+internal void
+ClearBitmap(loaded_bitmap *bitmap)
+{
+    if(bitmap->memory)
+    {
+        i32 totalBitmapSize = bitmap->width * bitmap->height * BITMAP_BYTES_PER_PIXEL;
+        ZeroSize(totalBitmapSize, bitmap->memory);
+    }
+}
+
+internal loaded_bitmap
+MakeEmptyBitmap
+(
+    memory_arena *arena,
+    i32 width, i32 height, b32 clearToZero = true
+)
 {
     loaded_bitmap result = {};
     result.width = width;
@@ -878,8 +897,11 @@ MakeEmptyBitmap(memory_arena *arena, i32 width, i32 height)
     result.pitch = result.width * BITMAP_BYTES_PER_PIXEL;
     i32 totalBitmapSize = width * height * BITMAP_BYTES_PER_PIXEL;
     result.memory = PushSize_(arena, totalBitmapSize);
-    ZeroSize(totalBitmapSize, result.memory);
-
+    if(clearToZero)
+    {
+        ClearBitmap(&result);
+    }
+    
     return result;
 }
 
@@ -900,7 +922,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 memory->permanentStorageSize - sizeof(game_state),
                 (ui8 *)memory->permanentStorage + sizeof(game_state)
             );
-
+        
         // NOTE: Reserve the null entity slot
         AddLowEntity(gameState, EntityType_Null, NullPosition());
 
@@ -1345,28 +1367,58 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     );
             }
         }
-
-        r32 screenWidth = (r32)buffer->width;
-        r32 screenHeight = (r32)buffer->height;
-        r32 maximumZScale = 0.5f;
-        r32 groundOverscan = 1.5f;
-        ui32 groundBufferWidth = RoundR32ToI32(groundOverscan * screenWidth);
-        ui32 groundBufferHeight = RoundR32ToI32(groundOverscan * screenHeight);
-        
-        gameState->groundBuffer = MakeEmptyBitmap
-            (
-                &gameState->worldArena, groundBufferWidth, groundBufferHeight
-            );
-        gameState->groundBufferPos = gameState->cameraPos;
-        
-        DrawGroundChunk
-            (
-                gameState,
-                &gameState->groundBuffer,
-                &gameState->groundBufferPos
-            );
         
         memory->isInitialized = true;
+    }
+
+    // NOTE: Transient initialization
+    Assert(sizeof(transient_state) <= memory->transientStorageSize);
+    transient_state *tranState = (transient_state *)memory->transientStorage;
+    if(!tranState->isInitialized)
+    {
+        InitializeArena
+            (
+                &tranState->tranArena,
+                memory->transientStorageSize - sizeof(transient_state),
+                (ui8 *)memory->transientStorage + sizeof(transient_state)
+            );
+
+        ui32 groundBufferWidth = 256;
+        ui32 groundBufferHeight = 256;
+        tranState->groundBufferCount = 128;
+        tranState->groundBuffers = PushArray
+            (
+                &tranState->tranArena,
+                tranState->groundBufferCount,
+                ground_buffer
+            );
+
+        for(ui32 groundBufferIndex = 0;
+            groundBufferIndex < tranState->groundBufferCount;
+            groundBufferIndex++)
+        {
+            ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
+            tranState->groundBitmapTemplate = MakeEmptyBitmap
+                (
+                    &tranState->tranArena,
+                    groundBufferWidth,
+                    groundBufferHeight,
+                    false
+                );
+            groundBuffer->memory = tranState->groundBitmapTemplate.memory;
+            groundBuffer->pos = NullPosition();
+        }
+
+        // TODO: Real fill, this is just a test
+        FillGroundChunk
+            (
+                tranState, gameState,
+                tranState->groundBuffers,
+                &gameState->cameraPos
+            );
+        
+        
+        tranState->isInitialized = true;
     }
     
     world *_world = gameState->_world;
@@ -1464,19 +1516,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{(r32)tileSpanX, (r32)tileSpanY, (r32)tileSpanZ}
         );
 
-    memory_arena simArena;
-    InitializeArena
-        (
-            &simArena,
-            memory->transientStorageSize,
-            memory->transientStorage
-        );
+    temporary_memory simMemory = BeginTemporaryMemory(&tranState->tranArena);
     sim_region *simRegion = BeginSim
         (
-            &simArena, gameState, gameState->_world,
+            &tranState->tranArena, gameState, gameState->_world,
             gameState->cameraPos, cameraBounds, input->deltaTime
         );
-    
     //
     // NOTE: Render
     //
@@ -1499,26 +1544,35 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     r32 screenCenterX = 0.5f * (r32)drawBuffer->width;
     r32 screenCenterY = 0.5f * (r32)drawBuffer->height;
 
-    v2 ground =
-        {
-            screenCenterX - 0.5f * (r32)gameState->groundBuffer.width,
-            screenCenterY - 0.5f * (r32)gameState->groundBuffer.height
-        };
+    for(ui32 groundBufferIndex = 0;
+        groundBufferIndex < tranState->groundBufferCount;
+        groundBufferIndex++)
+    {
+        ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
 
-    v3 delta = Subtract
-        (
-            gameState->_world,
-            &gameState->groundBufferPos, &gameState->cameraPos
-        );
+        if(IsValid(groundBuffer->pos))
+        {
+            loaded_bitmap bitmap = tranState->groundBitmapTemplate;
+            bitmap.memory = groundBuffer->memory;
+            v3 delta = gameState->metersToPixels * Subtract
+                (
+                    gameState->_world,
+                    &groundBuffer->pos, &gameState->cameraPos
+                );
+        
+            v2 ground =
+                {
+                    screenCenterX + delta.x - 0.5f * (r32)bitmap.width,
+                    screenCenterY - delta.y - 0.5f * (r32)bitmap.height
+                };
     
-    delta.y = -delta.y;
-    ground += metersToPixels * delta.xy;
-    
-    DrawBitmap
-        (
-            drawBuffer, &gameState->groundBuffer,
-            ground.x, ground.y
-        );
+            DrawBitmap
+                (
+                    drawBuffer, &bitmap,
+                    ground.x, ground.y
+                );
+        }
+    }
     
     // TODO: Move this out into handmade.cpp
     entity_visible_piece_group pieceGroup = {};
@@ -1839,6 +1893,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DrawRectangle(drawBuffer, diff.xy, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);
     
     EndSim(simRegion, gameState);
+    EndTemporaryMemory(simMemory);
+
+    CheckArena(&gameState->worldArena);
+    CheckArena(&tranState->tranArena);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
