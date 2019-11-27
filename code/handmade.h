@@ -164,6 +164,8 @@ struct game_state
     memory_arena worldArena;
     world *_world;
 
+    r32 typicalFloorHeight;
+    
     ui32 cameraFollowingEntityIndex;
     world_position cameraPos;
 
@@ -183,8 +185,10 @@ struct game_state
     loaded_bitmap stairwell;
 
     hero_bitmaps heroBitmaps[4];
+    
     r32 metersToPixels;
-
+    r32 pixelsToMeters;
+    
     // NOTE: Must be power of two
     pairwise_collision_rule *collisionRuleHash[256];
     pairwise_collision_rule *firstFreeCollisionRule;

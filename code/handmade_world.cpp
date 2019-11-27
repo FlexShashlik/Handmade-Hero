@@ -1,7 +1,7 @@
 #define WORLD_CHUNK_SAFE_MARGIN (INT32_MAX / 64)
 #define WORLD_CHUNK_UNINITIALIZED INT32_MAX
 
-#define TILES_PER_CHUNK 16
+#define TILES_PER_CHUNK 8
 
 inline world_position
 NullPosition(void)
@@ -95,40 +95,6 @@ MapIntoChunkSpace
     return result;
 }
 
-inline world_position
-ChunkPosFromTilePos
-(
-    world *_world,
-    i32 absTileX, i32 absTileY, i32 absTileZ,
-    v3 additionalOffset = v3{0, 0, 0}
-)
-{
-    world_position basePos = {};
-
-    v3 tileDim =
-        {
-            _world->tileSideInMeters,
-            _world->tileSideInMeters,
-            _world->tileDepthInMeters
-        };
-        
-    v3 offset = Hadamard
-        (
-            tileDim,
-            v3{(r32)absTileX, (r32)absTileY, (r32)absTileZ}
-        );
-        
-    world_position result = MapIntoChunkSpace
-        (
-            _world,
-            basePos, additionalOffset + offset
-        );
-    
-    Assert(IsCanonical(_world, result._offset));
-    
-    return result;
-}
-
 inline world_chunk *
 GetWorldChunk
 (
@@ -187,17 +153,10 @@ GetWorldChunk
 internal void
 InitializeWorld
 (
-    world *_world, r32 tileSideInMeters, r32 tileDepthInMeters
+    world *_world, v3 chunkDimInMeters
 )
 {
-    _world->tileSideInMeters = tileSideInMeters;
-    _world->chunkDimInMeters =
-        {
-            (r32)TILES_PER_CHUNK * tileSideInMeters,
-            (r32)TILES_PER_CHUNK * tileSideInMeters,
-            tileDepthInMeters
-        };
-    _world->tileDepthInMeters = (r32)tileDepthInMeters;
+    _world->chunkDimInMeters = chunkDimInMeters;
     
     _world->firstFree = 0;
 
@@ -238,6 +197,17 @@ CenteredChunkPoint(ui32 chunkX, ui32 chunkY, ui32 chunkZ)
     result.chunkX = chunkX;
     result.chunkY = chunkY;
     result.chunkZ = chunkZ;
+
+    return result;
+}
+
+inline world_position
+CenteredChunkPoint(world_chunk *chunk)
+{
+    world_position result = CenteredChunkPoint
+        (
+            chunk->chunkX, chunk->chunkY, chunk->chunkZ
+        );
 
     return result;
 }

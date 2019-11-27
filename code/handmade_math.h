@@ -545,6 +545,17 @@ AddRadiusTo(rectangle3 a, v3 radius)
     return result;
 }
 
+inline rectangle3
+Offset(rectangle3 a, v3 offset)
+{
+    rectangle3 result;
+
+    result.min = a.min + offset;
+    result.max = a.max + offset;
+    
+    return result;
+}
+
 inline b32
 IsInRectangle(rectangle3 rect, v3 test)
 {
