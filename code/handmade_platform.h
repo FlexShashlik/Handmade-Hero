@@ -36,9 +36,14 @@ extern "C" {
 #if COMPILER_MSVC
 #include <intrin.h>
 #endif
-    
+
+//
+// NOTE: Types
+//
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
+#include <float.h>
 
 typedef uint8_t ui8;
 typedef uint16_t ui16;
@@ -56,6 +61,8 @@ typedef size_t memory_index;
 
 typedef float r32;
 typedef double r64;
+
+#define R32MAX FLT_MAX;
 
 #define internal static
 #define local_persist static
@@ -181,6 +188,7 @@ typedef struct game_input
     i32 mouseY;
     i32 mouseZ;
 
+    b32 executableReloaded;
     r32 deltaTime;
     
     game_controller_input controllers[5];

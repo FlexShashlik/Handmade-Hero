@@ -1482,6 +1482,7 @@ CALLBACK WinMain
                 while(IsRunning)
                 {
                     newInput->deltaTime = targetSecondsPerFrame;
+                    newInput->executableReloaded = false;
                     
                     FILETIME newDLLWriteTime = Win32GetLastWriteTime(gameCodeDLLFullPath);
                     if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
@@ -1493,6 +1494,8 @@ CALLBACK WinMain
                                 gameCodeTempDLLFullPath,
                                 gameCodeLockFullPath
                             );
+
+                        newInput->executableReloaded = true;
                     }
                     
                     // TODO: Zeroing macro

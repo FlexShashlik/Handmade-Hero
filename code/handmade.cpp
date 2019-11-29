@@ -212,6 +212,90 @@ DrawBitmap
     }
 }
 
+internal void
+DrawMatte
+(
+    loaded_bitmap *buffer,
+    loaded_bitmap *bmp,
+    r32 rX, r32 rY,
+    r32 cAlpha = 1.0f
+)
+{
+    i32 minX = RoundR32ToI32(rX);
+    i32 minY = RoundR32ToI32(rY);
+    i32 maxX = minX + bmp->width;
+    i32 maxY = minY + bmp->height;
+
+    i32 sourceOffsetX = 0;    
+    if(minX < 0)
+    {
+        sourceOffsetX = -minX;
+        minX = 0;
+    }
+
+    i32 sourceOffsetY = 0;
+    if(minY < 0)
+    {
+        sourceOffsetY = -minY;
+        minY = 0;
+    }
+
+    if(maxX > buffer->width)
+    {
+        maxX = buffer->width;
+    }
+
+    if(maxY > buffer->height)
+    {
+        maxY = buffer->height;
+    }
+    
+    ui8 *sourceRow = (ui8 *)bmp->memory +
+        sourceOffsetY * bmp->pitch +
+        BITMAP_BYTES_PER_PIXEL * sourceOffsetX;
+    
+    ui8 *destRow = (ui8 *)buffer->memory +
+        minX * BITMAP_BYTES_PER_PIXEL + minY * buffer->pitch;
+    
+    for(i32 y = minY; y < maxY; y++)
+    {        
+        ui32 *dest = (ui32 *)destRow;
+        ui32 *source = (ui32 *)sourceRow;
+
+        for(i32 x = minX; x < maxX; x++)
+        {
+            r32 sa = (r32)((*source >> 24) & 0xFF);
+            r32 rsa = (sa / 255.0f) * cAlpha;
+            r32 sr = (r32)((*source >> 16) & 0xFF) * cAlpha;
+            r32 sg = (r32)((*source >> 8) & 0xFF) * cAlpha;
+            r32 sb = (r32)((*source >> 0) & 0xFF) * cAlpha;
+            
+            r32 da = (r32)((*dest >> 24) & 0xFF);
+            r32 dr = (r32)((*dest >> 16) & 0xFF);
+            r32 dg = (r32)((*dest >> 8) & 0xFF);
+            r32 db = (r32)((*dest >> 0) & 0xFF);
+            r32 rda = (da / 255.0f);
+                            
+            r32 invRSA = (1.0f - rsa);            
+            r32 a = invRSA * da;
+            r32 r = invRSA * dr;
+            r32 g = invRSA * dg;
+            r32 b = invRSA * db;
+
+            *dest = ((ui32)(a + 0.5f) << 24|
+                     (ui32)(r + 0.5f) << 16|
+                     (ui32)(g + 0.5f) << 8 |
+                     (ui32)(b + 0.5f) << 0);
+            
+            dest++;
+            source++;
+        }
+
+        destRow += buffer->pitch;
+        sourceRow += bmp->pitch;
+    }
+}
+
 #pragma pack(push, 1)
 struct bitmap_header
 {
@@ -886,70 +970,107 @@ FillGroundChunk
     buffer.memory = groundBuffer->memory;
 
     groundBuffer->pos = *chunkPos;
-    
-    random_series series = RandomSeed
-        (139 * chunkPos->chunkX +
-         593 * chunkPos->chunkY +
-         329 * chunkPos->chunkZ);
 
     r32 width = (r32)buffer.width;
     r32 height = (r32)buffer.height;
-    v2 center = 0.5f * v2{width, height};
-    for(ui32 grassIndex = 0;
-        grassIndex < 100;
-        grassIndex++)
-    {
-        loaded_bitmap *stamp;
-        
-        if(RandomChoice(&series, 2))
-        {
-            stamp = gameState->grass + RandomChoice(&series, ArrayCount(gameState->grass));
-        }
-        else
-        {
-            stamp = gameState->stone + RandomChoice(&series, ArrayCount(gameState->stone));
-        }
-        
-        v2 bitmapCenter = 0.5f * V2i(stamp->width,
-                                     stamp->height);
-        // NOTE: Generate from [-1; -1] to [1; 1]
-        v2 offset =
-            {
-                width * RandomUnilateral(&series),
-                height * RandomUnilateral(&series) 
-            };
 
-        v2 pos = offset - bitmapCenter;
+    for(i32 chunkOffsetY = -1;
+        chunkOffsetY <= 1;
+        chunkOffsetY++)
+    {
+        for(i32 chunkOffsetX = -1;
+            chunkOffsetX <= 1;
+            chunkOffsetX++)
+        {
+            i32 chunkX = chunkPos->chunkX + chunkOffsetX;
+            i32 chunkY = chunkPos->chunkY + chunkOffsetY;
+            i32 chunkZ = chunkPos->chunkZ;
+            
+            random_series series = RandomSeed
+                (139 * chunkX +
+                 593 * chunkY +
+                 329 * chunkZ);
+    
+            v2 center = v2{chunkOffsetX * width, -chunkOffsetY * height};
+            
+            for(ui32 grassIndex = 0;
+                grassIndex < 100;
+                grassIndex++)
+            {
+                loaded_bitmap *stamp;
         
-        DrawBitmap
-            (
-                &buffer, stamp,
-                pos.x, pos.y
-            );
+                if(RandomChoice(&series, 2))
+                {
+                    stamp = gameState->grass + RandomChoice(&series, ArrayCount(gameState->grass));
+                }
+                else
+                {
+                    stamp = gameState->stone + RandomChoice(&series, ArrayCount(gameState->stone));
+                }
+        
+                v2 bitmapCenter = 0.5f * V2i(stamp->width,
+                                             stamp->height);
+                // NOTE: Generate from [-1; -1] to [1; 1]
+                v2 offset =
+                    {
+                        width * RandomUnilateral(&series),
+                        height * RandomUnilateral(&series) 
+                    };
+
+                v2 pos = center + offset - bitmapCenter;
+        
+                DrawBitmap
+                    (
+                        &buffer, stamp,
+                        pos.x, pos.y
+                    );
+            }
+        }
     }
-
-    for(ui32 grassIndex = 0;
-        grassIndex < 100;
-        grassIndex++)
+    
+    for(i32 chunkOffsetY = -1;
+        chunkOffsetY <= 1;
+        chunkOffsetY++)
     {
-        loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
-        
-        v2 bitmapCenter = 0.5f * V2i(stamp->width,
-                                     stamp->height);
-        // NOTE: Generate from [-1; -1] to [1; 1]
-        v2 offset =
+        for(i32 chunkOffsetX = -1;
+            chunkOffsetX <= 1;
+            chunkOffsetX++)
+        {
+            i32 chunkX = chunkPos->chunkX + chunkOffsetX;
+            i32 chunkY = chunkPos->chunkY + chunkOffsetY;
+            i32 chunkZ = chunkPos->chunkZ;
+            
+            random_series series = RandomSeed
+                (139 * chunkX +
+                 593 * chunkY +
+                 329 * chunkZ);
+    
+            v2 center = v2{chunkOffsetX * width, -chunkOffsetY * height};
+            
+            for(ui32 grassIndex = 0;
+                grassIndex < 30;
+                grassIndex++)
             {
-                width * RandomUnilateral(&series),
-                height * RandomUnilateral(&series) 
-            };
-
-        v2 pos = offset - bitmapCenter;
+                loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
         
-        DrawBitmap
-            (
-                &buffer, stamp,
-                pos.x, pos.y
-            );
+                v2 bitmapCenter = 0.5f * V2i(stamp->width,
+                                             stamp->height);
+                // NOTE: Generate from [-1; -1] to [1; 1]
+                v2 offset =
+                    {
+                        width * RandomUnilateral(&series),
+                        height * RandomUnilateral(&series) 
+                    };
+
+                v2 pos = center + offset - bitmapCenter;
+        
+                DrawBitmap
+                    (
+                        &buffer, stamp,
+                        pos.x, pos.y
+                    );
+            }
+        }
     }
 }
 
@@ -1500,7 +1621,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
 
-        tranState->groundBufferCount = 128;
+        tranState->groundBufferCount = 32; //128;
         tranState->groundBuffers = PushArray
             (
                 &tranState->tranArena,
@@ -1525,6 +1646,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
                 
         tranState->isInitialized = true;
+    }
+
+    if(input->executableReloaded)
+    {
+        for(ui32 groundBufferIndex = 0;
+            groundBufferIndex < tranState->groundBufferCount;
+            groundBufferIndex++)
+        {
+            ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
+            groundBuffer->pos = NullPosition();
+        }
     }
     
     world *_world = gameState->_world;
@@ -1629,7 +1761,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             drawBuffer,
             v2{0.0f, 0.0f},
             v2{(r32)drawBuffer->width, (r32)drawBuffer->height},
-            0.5f, 0.5f, 0.5f
+            1.0f, 0.0f, 1.0f
         );
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width,
@@ -1642,6 +1774,38 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{0, 0, 0},
             v3{screenWidthInMeters, screenHeightInMeters, 0}
         );
+
+    
+
+    for(ui32 groundBufferIndex = 0;
+        groundBufferIndex < tranState->groundBufferCount;
+        groundBufferIndex++)
+    {
+        ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
+
+        if(IsValid(groundBuffer->pos))
+        {
+            loaded_bitmap bitmap = tranState->groundBitmapTemplate;
+            bitmap.memory = groundBuffer->memory;
+            v3 delta = gameState->metersToPixels * Subtract
+                (
+                    gameState->_world,
+                    &groundBuffer->pos, &gameState->cameraPos
+                );
+        
+            v2 ground =
+                {
+                    screenCenter.x + delta.x - 0.5f * (r32)bitmap.width,
+                    screenCenter.y - delta.y - 0.5f * (r32)bitmap.height
+                };
+    
+            DrawBitmap
+                (
+                    drawBuffer, &bitmap,
+                    ground.x, ground.y
+                );
+        }
+    }
     
     {
         world_position minChunkPos = MapIntoChunkSpace
@@ -1680,8 +1844,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                     screenCenter.y - metersToPixels * relPos.y};
                     v2 screenDim = metersToPixels * _world->chunkDimInMeters.xy;
 
-                    b32 found = false;
-                    ground_buffer *emptyBuffer = 0;
+                    r32 furthestBufferLengthSq = 0.0f;
+                    ground_buffer *furthestBuffer = 0;
                     for(ui32 groundBufferIndex = 0;
                         groundBufferIndex < tranState->groundBufferCount;
                         groundBufferIndex++)
@@ -1691,24 +1855,43 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                           &groundBuffer->pos,
                                           &chunkCenterPos))
                         {
-                            found = true;
+                            furthestBuffer = 0;
                             break;
                         }
-                        else if(!IsValid(groundBuffer->pos))
+                        else if(IsValid(groundBuffer->pos))
                         {
-                            emptyBuffer = groundBuffer;
+                            relPos = Subtract
+                                (
+                                    _world,
+                                    &groundBuffer->pos,
+                                    &gameState->cameraPos
+                                );
+                            
+                            r32 bufferLengthSq = LengthSq(relPos.xy);
+
+                            if(furthestBufferLengthSq < bufferLengthSq)
+                            {
+                                furthestBufferLengthSq = bufferLengthSq;
+                                furthestBuffer = groundBuffer;
+                            }
+                        }
+                        else
+                        {
+                            furthestBufferLengthSq = R32MAX;
+                            furthestBuffer = groundBuffer;
                         }
                     }
 
-                    if(!found && emptyBuffer)
+                    if(furthestBuffer)
                     {
                         FillGroundChunk
                             (
                                 tranState, gameState,
-                                emptyBuffer, &chunkCenterPos
+                                furthestBuffer, &chunkCenterPos
                             );
                     }
-                        
+
+                    #if 0
                     DrawRectangleOutline
                         (
                             drawBuffer,
@@ -1716,6 +1899,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             screenPos + 0.5f * screenDim,
                             v3{1.0f, 1.0f, 0.0f}
                         );
+                    #endif
                 }
             }
         }
@@ -1735,36 +1919,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             &tranState->tranArena, gameState, gameState->_world,
             gameState->cameraPos, simBounds, input->deltaTime
         );
-
-    for(ui32 groundBufferIndex = 0;
-        groundBufferIndex < tranState->groundBufferCount;
-        groundBufferIndex++)
-    {
-        ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
-
-        if(IsValid(groundBuffer->pos))
-        {
-            loaded_bitmap bitmap = tranState->groundBitmapTemplate;
-            bitmap.memory = groundBuffer->memory;
-            v3 delta = gameState->metersToPixels * Subtract
-                (
-                    gameState->_world,
-                    &groundBuffer->pos, &gameState->cameraPos
-                );
-        
-            v2 ground =
-                {
-                    screenCenter.x + delta.x - 0.5f * (r32)bitmap.width,
-                    screenCenter.y - delta.y - 0.5f * (r32)bitmap.height
-                };
-    
-            DrawBitmap
-                (
-                    drawBuffer, &bitmap,
-                    ground.x, ground.y
-                );
-        }
-    }
     
     // TODO: Move this out into handmade.cpp
     entity_visible_piece_group pieceGroup = {};
