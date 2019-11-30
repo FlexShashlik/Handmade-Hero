@@ -34,6 +34,7 @@ InitializeArena
 
 #define PushStruct(arena, type) (type *)PushSize_(arena, sizeof(type))
 #define PushArray(arena, count, type) (type *)PushSize_(arena, (count) * sizeof(type))
+#define PushSize(arena, size) PushSize_(arena, size)
 inline void *
 PushSize_(memory_arena *arena, memory_index size)
 {
@@ -113,17 +114,6 @@ struct low_entity
     sim_entity sim;
 };
 
-struct entity_visible_piece
-{
-    loaded_bitmap *bitmap;
-    v2 offset;
-    r32 offsetZ;
-    r32 entityZC;
-
-    r32 r, g, b, a;
-    v2 dim;
-};
-
 struct controlled_hero
 {
     ui32 entityIndex;
@@ -156,7 +146,7 @@ struct ground_buffer
 {
     // NOTE: If pos is invalid then ground_buffer has not been filled
     world_position pos; // NOTE: This is the center of the bmp
-    void *memory;
+    loaded_bitmap bitmap;
 };
 
 struct game_state
@@ -208,15 +198,7 @@ struct transient_state
     b32 isInitialized;
     memory_arena tranArena;
     ui32 groundBufferCount;
-    loaded_bitmap groundBitmapTemplate;
     ground_buffer *groundBuffers;
-};
-
-struct entity_visible_piece_group
-{
-    game_state *gameState;
-    ui32 pieceCount;
-    entity_visible_piece pieces[32];
 };
 
 inline low_entity *

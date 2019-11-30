@@ -551,7 +551,7 @@ HandleOverlap
 }
 
 internal b32
-SpeculativeCollide(sim_entity *mover, sim_entity *region)
+SpeculativeCollide(sim_entity *mover, sim_entity *region, v3 testPos)
 {
     b32 result = true;
     
@@ -562,7 +562,7 @@ SpeculativeCollide(sim_entity *mover, sim_entity *region)
         result = (AbsoluteValue(GetEntityGroundPoint(mover).z - ground) > stepHeight ||
                   (bary.y > 0.1f && bary.y < 0.9f));
 #endif
-        v3 moverGroundPoint = GetEntityGroundPoint(mover);
+        v3 moverGroundPoint = GetEntityGroundPoint(mover, testPos);
         r32 ground = GetStairGround(region, moverGroundPoint);
         result = (AbsoluteValue(GetEntityGroundPoint(mover).z - ground) > stepHeight);
     }
@@ -820,7 +820,7 @@ MoveEntity
                                         if(hitThis)
                                         {
                                             v3 testPos = _entity->pos + tMinTest * deltaPlayerPos;
-                                            if(SpeculativeCollide(_entity, testEntity))
+                                            if(SpeculativeCollide(_entity, testEntity, testPos))
                                             {
                                                 tMin = tMinTest;
                                                 wallNormalMin = testWallNormal;

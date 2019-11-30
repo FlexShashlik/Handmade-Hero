@@ -1,4 +1,6 @@
 #include "handmade.h"
+#include "handmade_render_group.h"
+#include "handmade_render_group.cpp"
 #include "handmade_world.cpp"
 #include "handmade_random.h"
 #include "handmade_sim_region.cpp"
@@ -681,124 +683,11 @@ AddStair
     return _entity;
 }
 
-inline void
-PushPiece
-(
-    entity_visible_piece_group *group,
-    loaded_bitmap *bitmap,
-    v2 offset, r32 offsetZ,
-    v2 align, v2 dim,
-    v4 color,
-    r32 entityZC = 1.0f
-)
-{
-    Assert(group->pieceCount < ArrayCount(group->pieces));
-    entity_visible_piece *piece = group->pieces + group->pieceCount++;
-    piece->bitmap = bitmap;
-    piece->offset = group->gameState->metersToPixels * v2{offset.x, -offset.y} - align;
-    piece->offsetZ = offsetZ;
-    piece->r = color.r;
-    piece->g = color.g;
-    piece->b = color.b;
-    piece->a = color.a;
-    piece->entityZC = entityZC;
-    piece->dim = dim;
-}
-
-inline void
-PushBitmap
-(
-    entity_visible_piece_group *group,
-    loaded_bitmap *bitmap,
-    v2 offset, r32 offsetZ,
-    v2 align, r32 alpha = 1.0f,
-    r32 entityZC = 1.0f
-)
-{
-    PushPiece
-        (
-            group, bitmap,
-            offset, offsetZ,
-            align, v2{0, 0},
-            v4{1.0f, 1.0f, 1.0f, alpha},
-            entityZC
-        );
-}
-
-inline void
-PushRect
-(
-    entity_visible_piece_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim,
-    v4 color,
-    r32 entityZC = 1.0f
-)
-{
-    PushPiece
-        (
-            group, 0,
-            offset, offsetZ,
-            v2{0, 0}, dim,
-            color,
-            entityZC
-        );
-}
-
-inline void
-PushRectOutline
-(
-    entity_visible_piece_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim,
-    v4 color,
-    r32 entityZC = 1.0f
-)
-{
-    r32 thickness = 0.1f;
-    
-    // NOTE: Top and bottom
-    PushPiece
-        (
-            group, 0,
-            offset - v2{0, 0.5f * dim.y}, offsetZ,
-            v2{0, 0}, v2{dim.x, thickness},
-            color,
-            entityZC
-        );
-    PushPiece
-        (
-            group, 0,
-            offset + v2{0, 0.5f * dim.y}, offsetZ,
-            v2{0, 0}, v2{dim.x, thickness},
-            color,
-            entityZC
-        );
-    
-    // NOTE: Left and right
-    PushPiece
-        (
-            group, 0,
-            offset - v2{0.5f * dim.x, 0}, offsetZ,
-            v2{0, 0}, v2{thickness, dim.y},
-            color,
-            entityZC
-        );
-    PushPiece
-        (
-            group, 0,
-            offset + v2{0.5f * dim.x, 0}, offsetZ,
-            v2{0, 0}, v2{thickness, dim.y},
-            color,
-            entityZC
-        );
-}
-
 internal void
 DrawHitPoints
 (
     sim_entity *entity,
-    entity_visible_piece_group *pieceGroup
+    render_group *pieceGroup
 )
 {
     if(entity->hitPointMax >= 1)
@@ -966,13 +855,12 @@ FillGroundChunk
     ground_buffer *groundBuffer, world_position *chunkPos
 )
 {
-    loaded_bitmap buffer = tranState->groundBitmapTemplate;
-    buffer.memory = groundBuffer->memory;
+    loaded_bitmap *buffer = &groundBuffer->bitmap;
 
     groundBuffer->pos = *chunkPos;
 
-    r32 width = (r32)buffer.width;
-    r32 height = (r32)buffer.height;
+    r32 width = (r32)buffer->width;
+    r32 height = (r32)buffer->height;
 
     for(i32 chunkOffsetY = -1;
         chunkOffsetY <= 1;
@@ -1021,7 +909,7 @@ FillGroundChunk
         
                 DrawBitmap
                     (
-                        &buffer, stamp,
+                        buffer, stamp,
                         pos.x, pos.y
                     );
             }
@@ -1066,7 +954,7 @@ FillGroundChunk
         
                 DrawBitmap
                     (
-                        &buffer, stamp,
+                        buffer, stamp,
                         pos.x, pos.y
                     );
             }
@@ -1437,7 +1325,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             ui32 doorDirection =
                 RandomChoice(&series, 2);
-                //RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
+            //RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
             
             b32 isCreatedZDoor = false;
             if(doorDirection == 2)
@@ -1621,7 +1509,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
 
-        tranState->groundBufferCount = 32; //128;
+        tranState->groundBufferCount = 64;
         tranState->groundBuffers = PushArray
             (
                 &tranState->tranArena,
@@ -1634,14 +1522,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             groundBufferIndex++)
         {
             ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
-            tranState->groundBitmapTemplate = MakeEmptyBitmap
+            groundBuffer->bitmap = MakeEmptyBitmap
                 (
                     &tranState->tranArena,
                     groundBufferWidth,
                     groundBufferHeight,
                     false
                 );
-            groundBuffer->memory = tranState->groundBitmapTemplate.memory;
             groundBuffer->pos = NullPosition();
         }
                 
@@ -1749,6 +1636,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // NOTE: Render
     //
     
+    temporary_memory renderMemory = BeginTemporaryMemory(&tranState->tranArena);
+    // TODO: Decide what pushbuffer size is
+    render_group *renderGroup = AllocateRenderGroup
+        (
+            &tranState->tranArena,
+            Megabytes(4),
+            gameState->metersToPixels
+        );
+    
     loaded_bitmap drawBuffer_ = {};
     loaded_bitmap *drawBuffer = &drawBuffer_;
     drawBuffer->width = buffer->width;
@@ -1775,8 +1671,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{screenWidthInMeters, screenHeightInMeters, 0}
         );
 
-    
-
     for(ui32 groundBufferIndex = 0;
         groundBufferIndex < tranState->groundBufferCount;
         groundBufferIndex++)
@@ -1785,24 +1679,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if(IsValid(groundBuffer->pos))
         {
-            loaded_bitmap bitmap = tranState->groundBitmapTemplate;
-            bitmap.memory = groundBuffer->memory;
-            v3 delta = gameState->metersToPixels * Subtract
+            loaded_bitmap *bitmap = &groundBuffer->bitmap;
+            v3 delta = Subtract
                 (
                     gameState->_world,
                     &groundBuffer->pos, &gameState->cameraPos
                 );
-        
-            v2 ground =
-                {
-                    screenCenter.x + delta.x - 0.5f * (r32)bitmap.width,
-                    screenCenter.y - delta.y - 0.5f * (r32)bitmap.height
-                };
     
-            DrawBitmap
+            PushBitmap
                 (
-                    drawBuffer, &bitmap,
-                    ground.x, ground.y
+                    renderGroup,
+                    bitmap, delta.xy, delta.z,
+                    0.5f * V2i(bitmap->width, bitmap->height)
                 );
         }
     }
@@ -1921,17 +1809,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         );
     
     // TODO: Move this out into handmade.cpp
-    entity_visible_piece_group pieceGroup = {};
-    pieceGroup.gameState = gameState;
-    sim_entity *_entity = simRegion->entities;
     for(ui32 entityIndex = 0;
         entityIndex < simRegion->entityCount;
-        entityIndex++, _entity++)
+        entityIndex++)
     {
+        sim_entity *_entity = simRegion->entities + entityIndex;
         if(_entity->isUpdatable)
         {
-            pieceGroup.pieceCount = 0;
             r32 deltaTime = input->deltaTime;
+            
             // TODO: Should be computed after update
             r32 shadowAlpha = 1.0f - 0.5f * _entity->pos.z;
             if(shadowAlpha < 0.0f)
@@ -1941,6 +1827,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             move_spec moveSpec = DefaultMoveSpec();
             v3 ddPos = {};
+
+            render_basis *basis = PushStruct(&tranState->tranArena, render_basis);
+            renderGroup->defaultBasis = basis;
             
             hero_bitmaps *heroBitmaps = &gameState->
                 heroBitmaps[_entity->facingDirection];
@@ -1989,7 +1878,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->shadow,
+                            renderGroup, &gameState->shadow,
                             v2{0, 0}, 0,
                             heroBitmaps->align,
                             shadowAlpha, 0.0f
@@ -1997,33 +1886,33 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
                     PushBitmap
                         (
-                            &pieceGroup, &heroBitmaps->torso,
+                            renderGroup, &heroBitmaps->torso,
                             v2{0, 0}, 0,
                             heroBitmaps->align
                         );
 
                     PushBitmap
                         (
-                            &pieceGroup, &heroBitmaps->cape,
+                            renderGroup, &heroBitmaps->cape,
                             v2{0, 0}, 0,
                             heroBitmaps->align
                         );
     
                     PushBitmap
                         (
-                            &pieceGroup, &heroBitmaps->head,
+                            renderGroup, &heroBitmaps->head,
                             v2{0, 0}, 0,
                             heroBitmaps->align
                         );
 
-                    DrawHitPoints(_entity, &pieceGroup);
+                    DrawHitPoints(_entity, renderGroup);
                 } break;
             
                 case EntityType_Wall:
                 {
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->tree,
+                            renderGroup, &gameState->tree,
                             v2{0, 0}, 0,
                             v2{40, 80}
                         );
@@ -2033,14 +1922,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     PushRect
                         (
-                            &pieceGroup, v2{0, 0}, 0,
+                            renderGroup, v2{0, 0}, 0,
                             _entity->walkableDim,
                             v4{1, 0.5f, 0, 1},
                             0.0f
                         );
                     PushRect
                         (
-                            &pieceGroup, v2{0, 0},
+                            renderGroup, v2{0, 0},
                             _entity->walkableHeight,
                             _entity->walkableDim,
                             v4{1, 1, 0, 1},
@@ -2066,14 +1955,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->shadow,
+                            renderGroup, &gameState->shadow,
                             v2{0, 0}, 0,
                             heroBitmaps->align,
                             shadowAlpha, 0.0f
                         );
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->sword,
+                            renderGroup, &gameState->sword,
                             v2{0, 0}, 0,
                             v2{29, 10}
                         );
@@ -2120,14 +2009,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->shadow,
+                            renderGroup, &gameState->shadow,
                             v2{0, 0}, 0,
                             heroBitmaps->align,
                             0.5f * shadowAlpha + 0.2f * bobSin, 0.0f
                         );
                     PushBitmap
                         (
-                            &pieceGroup, &heroBitmaps->head,
+                            renderGroup, &heroBitmaps->head,
                             v2{0, 0},
                             0.25f * bobSin,
                             heroBitmaps->align
@@ -2138,19 +2027,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     PushBitmap
                         (
-                            &pieceGroup, &gameState->shadow,
+                            renderGroup, &gameState->shadow,
                             v2{0, 0}, 0,
                             heroBitmaps->align,
                             shadowAlpha, 0.0f
                         );
                     PushBitmap
                         (
-                            &pieceGroup, &heroBitmaps->torso,
+                            renderGroup, &heroBitmaps->torso,
                             v2{0, 0}, 0,
                             heroBitmaps->align
                         );
                 
-                    DrawHitPoints(_entity, &pieceGroup);
+                    DrawHitPoints(_entity, renderGroup);
                 } break;
 
                 case EntityType_Space:
@@ -2164,7 +2053,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             _entity->collision->volumes + volumeIndex;
                         PushRectOutline
                             (
-                                &pieceGroup, volume->offsetPos.xy, 0,
+                                renderGroup, volume->offsetPos.xy, 0,
                                 volume->dim.xy,
                                 v4{0, 0.5f, 1.0f, 1},
                                 0.0f
@@ -2189,58 +2078,58 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         &moveSpec, ddPos
                     );
             }
+
+            basis->p = GetEntityGroundPoint(_entity);
+        }
+    }
         
-            for(ui32 pieceIndex = 0;
-                pieceIndex < pieceGroup.pieceCount;
-                pieceIndex++)
-            {
-                entity_visible_piece *piece = pieceGroup.pieces + pieceIndex;
-
-                v3 entityBasePos = GetEntityGroundPoint(_entity); 
-                r32 zFudge = 1.0f + 0.1f * (entityBasePos.z + piece->offsetZ);
+    for(ui32 baseAddress = 0;
+        baseAddress < renderGroup->pushBufferSize;
+        )
+    {
+        entity_visible_piece *piece = (entity_visible_piece *)(renderGroup->pushBufferBase + baseAddress);
+        baseAddress += sizeof(entity_visible_piece);
             
-                r32 entityGroundX = screenCenter.x + metersToPixels *
-                    zFudge * entityBasePos.x;
-                r32 entityGroundY = screenCenter.y - metersToPixels *
-                    zFudge * entityBasePos.y;
+        v3 entityBaseP = piece->basis->p; 
+        r32 zFudge = 1.0f + 0.1f * (entityBaseP.z + piece->offsetZ);
+            
+        r32 entityGroundX = screenCenter.x + metersToPixels *
+            zFudge * entityBaseP.x;
+        r32 entityGroundY = screenCenter.y - metersToPixels *
+            zFudge * entityBaseP.y;
 
-                r32 entityZ = -metersToPixels * entityBasePos.z;
+        r32 entityZ = -metersToPixels * entityBaseP.z;
 
-                v2 center =
-                    {
-                        entityGroundX + piece->offset.x,
-                        entityGroundY + piece->offset.y + piece->entityZC * entityZ
-                    };
+        v2 center =
+            {
+                entityGroundX + piece->offset.x,
+                entityGroundY + piece->offset.y + piece->entityZC * entityZ
+            };
                 
-                if(piece->bitmap)
-                {
-                    DrawBitmap
-                        (
-                            drawBuffer, piece->bitmap,
-                            center.x, center.y,
-                            piece->a
-                        );
-                }
-                else
-                {
-                    v2 halfDim = 0.5f * metersToPixels * piece->dim;
-                    DrawRectangle
-                        (
-                            drawBuffer,
-                            center - halfDim, center + halfDim,
-                            piece->r, piece->g, piece->b
-                        );
-                }
-            }
+        if(piece->bitmap)
+        {
+            DrawBitmap
+                (
+                    drawBuffer, piece->bitmap,
+                    center.x, center.y,
+                    piece->a
+                 );
+        }
+        else
+        {
+            v2 halfDim = 0.5f * metersToPixels * piece->dim;
+            DrawRectangle
+                (
+                    drawBuffer,
+                    center - halfDim, center + halfDim,
+                    piece->r, piece->g, piece->b
+                );
         }
     }
     
-    world_position worldOrigin = {};
-    v3 diff = Subtract(simRegion->_world, &worldOrigin, &simRegion->origin);
-    DrawRectangle(drawBuffer, diff.xy, v2{10.0f, 10.0f}, 1.0f, 1.0f, 0.0f);
-    
     EndSim(simRegion, gameState);
     EndTemporaryMemory(simMemory);
+    EndTemporaryMemory(renderMemory);
 
     CheckArena(&gameState->worldArena);
     CheckArena(&tranState->tranArena);
