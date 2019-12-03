@@ -3,7 +3,26 @@ struct render_basis
     v3 p;
 };
 
-struct entity_visible_piece
+// NOTE: render_group_entry is a "memory-efficient/compact discriminated union"
+enum render_group_entry_type
+{
+    RenderGroupEntryType_render_entry_clear,
+    RenderGroupEntryType_render_entry_bitmap,
+    RenderGroupEntryType_render_entry_rectangle
+};
+
+struct render_group_entry_header
+{
+    render_group_entry_type type;
+};
+
+struct render_entry_clear
+{
+    render_group_entry_header header;
+    r32 r, g, b, a;
+};
+
+struct render_entry_rectangle
 {
     render_basis *basis;
     loaded_bitmap *bitmap;
@@ -19,20 +38,21 @@ struct render_group
 {
     render_basis *defaultBasis;
     r32 metersToPixels;
-    ui32 pieceCount;
 
     ui32 pushBufferSize;
     ui32 maxPushBufferSize;
     ui8 *pushBufferBase;
 };
 
-inline void *
-PushRenderElement(render_group *group, ui32 size)
+#define PushRenderElement(group, type) (type *)PushRenderElement_(group, sizeof(type), RenderGroupEntryType_##type)
+inline render_group_entry_header *
+PushRenderElement_(render_group *group, ui32 size, render_group_entry_type type)
 {
-    void *result = 0;
+    render_group_entry_header *result = 0;
     if(group->pushBufferSize + size < group->maxPushBufferSize)
     {
-        result = group->pushBufferBase + group->pushBufferSize;
+        result = (render_group_entry_header *)(group->pushBufferBase + group->pushBufferSize);
+        result->type = type;
         group->pushBufferSize += size;
     }
     else
@@ -54,17 +74,20 @@ PushPiece
     r32 entityZC = 1.0f
 )
 {
-    entity_visible_piece *piece = (entity_visible_piece *)PushRenderElement(group, sizeof(entity_visible_piece));
-    piece->basis = group->defaultBasis;
-    piece->bitmap = bitmap;
-    piece->offset = group->metersToPixels * v2{offset.x, -offset.y} - align;
-    piece->offsetZ = offsetZ;
-    piece->r = color.r;
-    piece->g = color.g;
-    piece->b = color.b;
-    piece->a = color.a;
-    piece->entityZC = entityZC;
-    piece->dim = dim;
+    render_entry_rectangle *piece = PushRenderElement(group, render_entry_rectangle);
+    if(piece)
+    {
+        piece->basis = group->defaultBasis;
+        piece->bitmap = bitmap;
+        piece->offset = group->metersToPixels * v2{offset.x, -offset.y} - align;
+        piece->offsetZ = offsetZ;
+        piece->r = color.r;
+        piece->g = color.g;
+        piece->b = color.b;
+        piece->a = color.a;
+        piece->entityZC = entityZC;
+        piece->dim = dim;
+    }
 }
 
 inline void
