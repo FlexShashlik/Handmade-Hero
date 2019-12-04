@@ -263,6 +263,32 @@ DrawMatte
     }
 }
 
+inline v2
+GetRenderEntityBasisPos
+(
+    render_group *renderGroup,
+    render_entity_basis *entityBasis, v2 screenCenter
+)
+{
+    v3 entityBaseP = entityBasis->basis->p; 
+    r32 zFudge = 1.0f + 0.1f * (entityBaseP.z + entityBasis->offsetZ);
+            
+    r32 entityGroundX = screenCenter.x + renderGroup->metersToPixels *
+        zFudge * entityBaseP.x;
+    r32 entityGroundY = screenCenter.y - renderGroup->metersToPixels *
+        zFudge * entityBaseP.y;
+
+    r32 entityZ = -renderGroup->metersToPixels * entityBaseP.z;
+
+    v2 center =
+        {
+            entityGroundX + entityBasis->offset.x,
+            entityGroundY + entityBasis->offset.y + entityBasis->entityZC * entityZ
+        };
+
+    return center;
+}
+
 internal void
 RenderGroupToOutput
 (
@@ -288,45 +314,43 @@ RenderGroupToOutput
                 baseAddress += sizeof(*entry);
             } break;
 
+            case RenderGroupEntryType_render_entry_bitmap:
+            {
+                render_entry_bitmap *entry = (render_entry_bitmap *)header;
+                v2 pos = GetRenderEntityBasisPos
+                    (
+                        renderGroup,
+                        &entry->entityBasis,
+                        screenCenter
+                    );
+                                
+                Assert(entry->bitmap);
+                DrawBitmap
+                    (
+                        outputTarget, entry->bitmap,
+                        pos.x, pos.y,
+                        entry->a
+                    );
+                
+                baseAddress += sizeof(*entry);
+            } break;
+            
             case RenderGroupEntryType_render_entry_rectangle:
             {
                 render_entry_rectangle *entry = (render_entry_rectangle *)header;
-                    
-                v3 entityBaseP = entry->basis->p; 
-                r32 zFudge = 1.0f + 0.1f * (entityBaseP.z + entry->offsetZ);
-            
-                r32 entityGroundX = screenCenter.x + renderGroup->metersToPixels *
-                    zFudge * entityBaseP.x;
-                r32 entityGroundY = screenCenter.y - renderGroup->metersToPixels *
-                    zFudge * entityBaseP.y;
-
-                r32 entityZ = -renderGroup->metersToPixels * entityBaseP.z;
-
-                v2 center =
-                    {
-                        entityGroundX + entry->offset.x,
-                        entityGroundY + entry->offset.y + entry->entityZC * entityZ
-                    };
+                v2 pos = GetRenderEntityBasisPos
+                    (
+                        renderGroup,
+                        &entry->entityBasis,
+                        screenCenter
+                    );
                 
-                if(entry->bitmap)
-                {
-                    DrawBitmap
-                        (
-                            outputTarget, entry->bitmap,
-                            center.x, center.y,
-                            entry->a
-                        );
-                }
-                else
-                {
-                    v2 halfDim = 0.5f * renderGroup->metersToPixels * entry->dim;
-                    DrawRectangle
-                        (
-                            outputTarget,
-                            center - halfDim, center + halfDim,
-                            entry->r, entry->g, entry->b
-                        );
-                }
+                DrawRectangle
+                    (
+                        outputTarget,
+                        pos, pos + entry->dim,
+                        entry->r, entry->g, entry->b
+                    );
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -354,4 +378,145 @@ AllocateRenderGroup
     result->pushBufferSize = 0;
     
     return result;
+}
+
+#define PushRenderElement(group, type) (type *)PushRenderElement_(group, sizeof(type), RenderGroupEntryType_##type)
+inline render_group_entry_header *
+PushRenderElement_(render_group *group, ui32 size, render_group_entry_type type)
+{
+    render_group_entry_header *result = 0;
+    if(group->pushBufferSize + size < group->maxPushBufferSize)
+    {
+        result = (render_group_entry_header *)(group->pushBufferBase + group->pushBufferSize);
+        result->type = type;
+        group->pushBufferSize += size;
+    }
+    else
+    {
+        InvalidCodePath;
+    }
+
+    return result;
+}
+
+inline void
+PushPiece
+(
+    render_group *group,
+    loaded_bitmap *bitmap,
+    v2 offset, r32 offsetZ,
+    v2 align, v2 dim,
+    v4 color,
+    r32 entityZC = 1.0f
+)
+{
+    render_entry_bitmap *piece = PushRenderElement(group, render_entry_bitmap);
+    if(piece)
+    {
+        piece->entityBasis.basis = group->defaultBasis;
+        piece->bitmap = bitmap;
+        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - align;
+        piece->entityBasis.offsetZ = offsetZ;
+        piece->r = color.r;
+        piece->g = color.g;
+        piece->b = color.b;
+        piece->a = color.a;
+        piece->entityBasis.entityZC = entityZC;
+    }
+}
+
+inline void
+PushBitmap
+(
+    render_group *group,
+    loaded_bitmap *bitmap,
+    v2 offset, r32 offsetZ,
+    v2 align, r32 alpha = 1.0f,
+    r32 entityZC = 1.0f
+)
+{
+    PushPiece
+        (
+            group, bitmap,
+            offset, offsetZ,
+            align, v2{0, 0},
+            v4{1.0f, 1.0f, 1.0f, alpha},
+            entityZC
+        );
+}
+
+inline void
+PushRect
+(
+    render_group *group,
+    v2 offset, r32 offsetZ,
+    v2 dim,
+    v4 color,
+    r32 entityZC = 1.0f
+)
+{
+    render_entry_rectangle *piece = PushRenderElement(group, render_entry_rectangle);
+    if(piece)
+    {
+        v2 halfDim = 0.5f * group->metersToPixels * dim;
+        
+        piece->entityBasis.basis = group->defaultBasis;
+        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - halfDim;
+        piece->entityBasis.offsetZ = offsetZ;
+        piece->r = color.r;
+        piece->g = color.g;
+        piece->b = color.b;
+        piece->a = color.a;
+        piece->entityBasis.entityZC = entityZC;
+        piece->dim = group->metersToPixels * dim;
+    }
+}
+
+inline void
+PushRectOutline
+(
+    render_group *group,
+    v2 offset, r32 offsetZ,
+    v2 dim,
+    v4 color,
+    r32 entityZC = 1.0f
+)
+{
+    r32 thickness = 0.1f;
+    
+    // NOTE: Top and bottom
+    PushPiece
+        (
+            group, 0,
+            offset - v2{0, 0.5f * dim.y}, offsetZ,
+            v2{0, 0}, v2{dim.x, thickness},
+            color,
+            entityZC
+        );
+    PushPiece
+        (
+            group, 0,
+            offset + v2{0, 0.5f * dim.y}, offsetZ,
+            v2{0, 0}, v2{dim.x, thickness},
+            color,
+            entityZC
+        );
+    
+    // NOTE: Left and right
+    PushPiece
+        (
+            group, 0,
+            offset - v2{0.5f * dim.x, 0}, offsetZ,
+            v2{0, 0}, v2{thickness, dim.y},
+            color,
+            entityZC
+        );
+    PushPiece
+        (
+            group, 0,
+            offset + v2{0.5f * dim.x, 0}, offsetZ,
+            v2{0, 0}, v2{thickness, dim.y},
+            color,
+            entityZC
+        );
 }
