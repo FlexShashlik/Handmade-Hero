@@ -3,7 +3,7 @@ DrawRectangle
 (
     loaded_bitmap *buffer,
     v2 vMin, v2 vMax,
-    r32 r, r32 g, r32 b
+    r32 r, r32 g, r32 b, r32 a = 1.0f
 )
 {
     i32 minX = RoundR32ToI32(vMin.x);
@@ -35,6 +35,7 @@ DrawRectangle
     
     ui32 color =
         (
+            RoundR32ToUI32(a * 255.0f) << 24 |
             RoundR32ToUI32(r * 255.0f) << 16 |
             RoundR32ToUI32(g * 255.0f) << 8 |
             RoundR32ToUI32(b * 255.0f) << 0
@@ -310,6 +311,15 @@ RenderGroupToOutput
             case RenderGroupEntryType_render_entry_clear:
             {
                 render_entry_clear *entry = (render_entry_clear *)header;
+
+                DrawRectangle
+                    (
+                        outputTarget,
+                        v2{0.0f, 0.0f},
+                        v2{(r32)outputTarget->width, (r32)outputTarget->height},
+                        entry->color.r, entry->color.g, entry->color.b,
+                        entry->color.a
+                    );
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -485,38 +495,48 @@ PushRectOutline
     r32 thickness = 0.1f;
     
     // NOTE: Top and bottom
-    PushPiece
+    PushRect
         (
-            group, 0,
+            group,
             offset - v2{0, 0.5f * dim.y}, offsetZ,
-            v2{0, 0}, v2{dim.x, thickness},
+            v2{dim.x, thickness},
             color,
             entityZC
         );
-    PushPiece
+    PushRect
         (
-            group, 0,
+            group,
             offset + v2{0, 0.5f * dim.y}, offsetZ,
-            v2{0, 0}, v2{dim.x, thickness},
+            v2{dim.x, thickness},
             color,
             entityZC
         );
     
     // NOTE: Left and right
-    PushPiece
+    PushRect
         (
-            group, 0,
+            group,
             offset - v2{0.5f * dim.x, 0}, offsetZ,
-            v2{0, 0}, v2{thickness, dim.y},
+            v2{thickness, dim.y},
             color,
             entityZC
         );
-    PushPiece
+    PushRect
         (
-            group, 0,
+            group,
             offset + v2{0.5f * dim.x, 0}, offsetZ,
-            v2{0, 0}, v2{thickness, dim.y},
+            v2{thickness, dim.y},
             color,
             entityZC
         );
+}
+
+inline void
+Clear(render_group *group, v4 color)
+{
+    render_entry_clear *entry = PushRenderElement(group, render_entry_clear);
+    if(entry)
+    {
+        entry->color = color;
+    }
 }

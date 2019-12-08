@@ -589,7 +589,17 @@ FillGroundChunk
     transient_state *tranState, game_state *gameState,
     ground_buffer *groundBuffer, world_position *chunkPos
 )
-{
+{    
+    temporary_memory groundMemory = BeginTemporaryMemory(&tranState->tranArena);
+    render_group *renderGroup = AllocateRenderGroup
+        (
+            &tranState->tranArena,
+            Megabytes(4),
+            1.0f
+        );
+
+    Clear(renderGroup, v4{1.0f, 1.0f, 0.0f, 1.0f});
+    
     loaded_bitmap *buffer = &groundBuffer->bitmap;
 
     groundBuffer->pos = *chunkPos;
@@ -642,10 +652,10 @@ FillGroundChunk
 
                 v2 pos = center + offset - bitmapCenter;
         
-                DrawBitmap
+                PushBitmap
                     (
-                        buffer, stamp,
-                        pos.x, pos.y
+                        renderGroup, stamp,
+                        pos, 0.0f, v2{0, 0}
                     );
             }
         }
@@ -686,15 +696,19 @@ FillGroundChunk
                     };
 
                 v2 pos = center + offset - bitmapCenter;
-        
-                DrawBitmap
+  
+                PushBitmap
                     (
-                        buffer, stamp,
-                        pos.x, pos.y
+                        renderGroup, stamp,
+                        pos, 0.0f, v2{0, 0}
                     );
             }
         }
     }
+
+    RenderGroupToOutput(renderGroup, buffer);
+    
+    EndTemporaryMemory(groundMemory);
 }
 
 internal void
@@ -1386,14 +1400,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     drawBuffer->height = buffer->height;
     drawBuffer->pitch = buffer->pitch;
     drawBuffer->memory = buffer->memory;
-    
-    DrawRectangle
-        (
-            drawBuffer,
-            v2{0.0f, 0.0f},
-            v2{(r32)drawBuffer->width, (r32)drawBuffer->height},
-            1.0f, 0.0f, 1.0f
-        );
+
+    Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 0.0f});
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width,
                        0.5f * (r32)drawBuffer->height};
@@ -1411,7 +1419,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         groundBufferIndex++)
     {
         ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
-
         if(IsValid(groundBuffer->pos))
         {
             loaded_bitmap *bitmap = &groundBuffer->bitmap;
@@ -1430,7 +1437,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
-    {
+    {        
         world_position minChunkPos = MapIntoChunkSpace
             (
                 _world,
@@ -1463,10 +1470,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             &chunkCenterPos,
                             &gameState->cameraPos
                         );
-                    v2 screenPos = {screenCenter.x + metersToPixels * relPos.x,
-                                    screenCenter.y - metersToPixels * relPos.y};
-                    v2 screenDim = metersToPixels * _world->chunkDimInMeters.xy;
-
+                    
                     r32 furthestBufferLengthSq = 0.0f;
                     ground_buffer *furthestBuffer = 0;
                     for(ui32 groundBufferIndex = 0;
@@ -1513,16 +1517,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                 furthestBuffer, &chunkCenterPos
                             );
                     }
-
-                    #if 0
-                    DrawRectangleOutline
+                    
+                    PushRectOutline
                         (
-                            drawBuffer,
-                            screenPos - 0.5f * screenDim,
-                            screenPos + 0.5f * screenDim,
-                            v3{1.0f, 1.0f, 0.0f}
+                            renderGroup,
+                            relPos.xy,
+                            0.0f,
+                            _world->chunkDimInMeters.xy,
+                            v4{1.0f, 1.0f, 0.0f, 1.0f}
                         );
-                    #endif
                 }
             }
         }
@@ -1779,7 +1782,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Space:
                 {
-#if 0
                     for(ui32 volumeIndex = 0;
                         volumeIndex < _entity->collision->volumeCount;
                         volumeIndex++)
@@ -1794,7 +1796,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                 0.0f
                             );
                     }
-#endif
                 } break;
 
                 default:
