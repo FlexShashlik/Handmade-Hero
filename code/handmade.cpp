@@ -1284,6 +1284,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         tranState->isInitialized = true;
     }
 
+#if 0
     if(input->executableReloaded)
     {
         for(ui32 groundBufferIndex = 0;
@@ -1294,6 +1295,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             groundBuffer->pos = NullPosition();
         }
     }
+#endif
     
     world *_world = gameState->_world;
     
@@ -1818,7 +1820,32 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             basis->p = GetEntityGroundPoint(_entity);
         }
     }
+    
+    gameState->time += input->deltaTime;
+    r32 angle = gameState->time;
 
+    // TODO: Perp operator
+    v2 origin = screenCenter + 20.0f * v2{Sin(angle), 0};
+    v2 xAxis = 100.0f * v2{Cos(angle), Sin(angle)};
+    v2 yAxis = 1.0f * v2{-xAxis.y, xAxis.x};
+
+    ui32 pIndex = 0;
+    render_entry_coordinate_system *c = CoordinateSystem
+        (
+            renderGroup, origin, xAxis, yAxis, v4{1, 1, 0, 1}
+        );
+    for(r32 y = 0;
+        y < 1.0f;
+        y += 0.25f)
+    {
+        for(r32 x = 0;
+            x < 1.0f;
+            x += 0.25f)
+        {
+            c->points[pIndex++] = {x, y};
+        }
+    }
+    
     RenderGroupToOutput(renderGroup, drawBuffer);
     
     EndSim(simRegion, gameState);

@@ -12,9 +12,11 @@ struct render_entity_basis
 };
 
 // NOTE: render_group_entry is a "memory-efficient/compact discriminated union"
+// TODO: Remove the header!
 enum render_group_entry_type
 {
     RenderGroupEntryType_render_entry_clear,
+    RenderGroupEntryType_render_entry_coordinate_system,
     RenderGroupEntryType_render_entry_bitmap,
     RenderGroupEntryType_render_entry_rectangle
 };
@@ -28,6 +30,17 @@ struct render_entry_clear
 {
     render_group_entry_header header;
     v4 color;
+};
+
+struct render_entry_coordinate_system
+{
+    render_group_entry_header header;
+    v2 origin;
+    v2 xAxis;
+    v2 yAxis;
+    v4 color;
+
+    v2 points[16];
 };
 
 struct render_entry_bitmap

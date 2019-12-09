@@ -296,7 +296,6 @@ RenderGroupToOutput
     render_group *renderGroup, loaded_bitmap *outputTarget
 )
 {
-     
     v2 screenCenter = {0.5f * (r32)outputTarget->width,
                        0.5f * (r32)outputTarget->height};
    
@@ -361,6 +360,52 @@ RenderGroupToOutput
                         pos, pos + entry->dim,
                         entry->r, entry->g, entry->b
                     );
+                
+                baseAddress += sizeof(*entry);
+            } break;
+            
+            case RenderGroupEntryType_render_entry_coordinate_system:
+            {
+                render_entry_coordinate_system *entry = (render_entry_coordinate_system *)header;
+
+                v2 dim = {2, 2};
+                v2 pos = entry->origin;
+                DrawRectangle
+                    (
+                        outputTarget,
+                        pos - dim, pos + dim,
+                        entry->color.r, entry->color.g, entry->color.b
+                    );
+
+                pos = entry->origin + entry->xAxis;
+                DrawRectangle
+                    (
+                        outputTarget,
+                        pos - dim, pos + dim,
+                        entry->color.r, entry->color.g, entry->color.b
+                    );
+
+                pos = entry->origin + entry->yAxis;
+                DrawRectangle
+                    (
+                        outputTarget,
+                        pos - dim, pos + dim,
+                        entry->color.r, entry->color.g, entry->color.b
+                    );
+
+                for(ui32 pIndex = 0;
+                    pIndex < ArrayCount(entry->points);
+                    pIndex++)
+                {
+                    pos = entry->points[pIndex];
+                    pos = entry->origin + pos.x * entry->xAxis + pos.y * entry->yAxis;
+                    DrawRectangle
+                    (
+                        outputTarget,
+                        pos - dim, pos + dim,
+                        entry->color.r, entry->color.g, entry->color.b
+                    );
+                }
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -539,4 +584,19 @@ Clear(render_group *group, v4 color)
     {
         entry->color = color;
     }
+}
+
+inline render_entry_coordinate_system *
+CoordinateSystem(render_group *group, v2 origin, v2 xAxis, v2 yAxis, v4 color)
+{
+    render_entry_coordinate_system *entry = PushRenderElement(group, render_entry_coordinate_system);
+    if(entry)
+    {
+        entry->origin = origin;
+        entry->xAxis = xAxis;
+        entry->yAxis = yAxis;
+        entry->color = color;
+    }
+
+    return entry;
 }

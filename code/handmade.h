@@ -191,6 +191,8 @@ struct game_state
     sim_entity_collision_volume_group *familiarCollision;
     sim_entity_collision_volume_group *wallCollision;
     sim_entity_collision_volume_group *standardRoomCollision;
+
+    r32 time;
 };
 
 struct transient_state
