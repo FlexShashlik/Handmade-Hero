@@ -651,7 +651,7 @@ FillGroundChunk
                     };
 
                 v2 pos = center + offset - bitmapCenter;
-        
+                
                 PushBitmap
                     (
                         renderGroup, stamp,
@@ -681,7 +681,7 @@ FillGroundChunk
             v2 center = v2{chunkOffsetX * width, -chunkOffsetY * height};
             
             for(ui32 grassIndex = 0;
-                grassIndex < 30;
+                grassIndex < 50;
                 grassIndex++)
             {
                 loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
@@ -706,8 +706,7 @@ FillGroundChunk
         }
     }
 
-    RenderGroupToOutput(renderGroup, buffer);
-    
+    RenderGroupToOutput(renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
 }
 
@@ -1467,38 +1466,38 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     world_position chunkCenterPos = CenteredChunkPoint(chunkX, chunkY, chunkZ);
                     v3 relPos = Subtract
-                        (
-                            _world,
-                            &chunkCenterPos,
-                            &gameState->cameraPos
+						(
+							_world,
+							&chunkCenterPos,
+							&gameState->cameraPos
                         );
-                    
+
                     r32 furthestBufferLengthSq = 0.0f;
                     ground_buffer *furthestBuffer = 0;
-                    for(ui32 groundBufferIndex = 0;
-                        groundBufferIndex < tranState->groundBufferCount;
-                        groundBufferIndex++)
+                    for (ui32 groundBufferIndex = 0;
+                         groundBufferIndex < tranState->groundBufferCount;
+                         groundBufferIndex++)
                     {
                         ground_buffer *groundBuffer = tranState->groundBuffers + groundBufferIndex;
-                        if(AreInSameChunk(_world,
-                                          &groundBuffer->pos,
-                                          &chunkCenterPos))
+                        if (AreInSameChunk(_world,
+                                           &groundBuffer->pos,
+                                           &chunkCenterPos))
                         {
                             furthestBuffer = 0;
                             break;
                         }
-                        else if(IsValid(groundBuffer->pos))
+                        else if (IsValid(groundBuffer->pos))
                         {
-                            relPos = Subtract
-                                (
-                                    _world,
-                                    &groundBuffer->pos,
-                                    &gameState->cameraPos
+                            v3 relPos = Subtract
+								(
+									_world,
+									&groundBuffer->pos,
+									&gameState->cameraPos
                                 );
-                            
+
                             r32 bufferLengthSq = LengthSq(relPos.xy);
 
-                            if(furthestBufferLengthSq < bufferLengthSq)
+                            if (furthestBufferLengthSq < bufferLengthSq)
                             {
                                 furthestBufferLengthSq = bufferLengthSq;
                                 furthestBuffer = groundBuffer;
@@ -1511,23 +1510,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         }
                     }
 
-                    if(furthestBuffer)
+                    if (furthestBuffer)
                     {
                         FillGroundChunk
-                            (
-                                tranState, gameState,
-                                furthestBuffer, &chunkCenterPos
+							(
+								tranState, gameState,
+								furthestBuffer, &chunkCenterPos
                             );
                     }
-                    
+
                     PushRectOutline
-                        (
-                            renderGroup,
-                            relPos.xy,
-                            0.0f,
-                            _world->chunkDimInMeters.xy,
-                            v4{1.0f, 1.0f, 0.0f, 1.0f}
-                        );
+						(
+							renderGroup,
+							relPos.xy,
+							0.0f,
+							_world->chunkDimInMeters.xy,
+							v4{ 1.0f, 1.0f, 0.0f, 1.0f }
+						);
                 }
             }
         }
@@ -1825,14 +1824,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     r32 angle = gameState->time;
 
     // TODO: Perp operator
-    v2 origin = screenCenter + 20.0f * v2{Sin(angle), 0};
+    v2 origin = screenCenter + 200.0f * v2{Sin(angle), 0};
     v2 xAxis = 100.0f * v2{Cos(angle), Sin(angle)};
-    v2 yAxis = 1.0f * v2{-xAxis.y, xAxis.x};
+    v2 yAxis = 100.0f * v2{Cos(angle + 10.0f), Sin(angle + 10.0f)};//1.0f * v2{-xAxis.y, xAxis.x};
 
     ui32 pIndex = 0;
     render_entry_coordinate_system *c = CoordinateSystem
         (
-            renderGroup, origin, xAxis, yAxis, v4{1, 1, 0, 1}
+            renderGroup, origin, xAxis, yAxis,
+            v4{0.5f + 0.5f * Sin(angle),
+               0.5f + 0.5f * Sin(3.7f * angle),
+               0.5f + 0.5f * Sin(7.9f * angle),
+               1}
         );
     for(r32 y = 0;
         y < 1.0f;
