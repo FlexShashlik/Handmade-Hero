@@ -1824,9 +1824,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     r32 angle = gameState->time;
 
     // TODO: Perp operator
-    v2 origin = screenCenter + 200.0f * v2{Sin(angle), 0};
-    v2 xAxis = 100.0f * v2{Cos(angle), Sin(angle)};
-    v2 yAxis = 100.0f * v2{Cos(angle + 10.0f), Sin(angle + 10.0f)};//1.0f * v2{-xAxis.y, xAxis.x};
+    v2 origin = screenCenter;
+    v2 xAxis = (50.0f + 50.0f * Cos(angle)) * v2{Cos(angle), Sin(angle)};
+    v2 yAxis = v2{-xAxis.y, xAxis.x};
 
     ui32 pIndex = 0;
     render_entry_coordinate_system *c = CoordinateSystem

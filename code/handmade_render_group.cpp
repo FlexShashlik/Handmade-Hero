@@ -52,6 +52,91 @@ DrawRectangle
         
         row += buffer->pitch;
     }
+} 
+
+internal void
+DrawRectangleSlowly
+(
+    loaded_bitmap *buffer,
+    v2 origin, v2 xAxis, v2 yAxis,
+    v4 color
+)
+{
+    ui32 color32 =
+        (
+            RoundR32ToUI32(color.a * 255.0f) << 24 |
+            RoundR32ToUI32(color.r * 255.0f) << 16 |
+            RoundR32ToUI32(color.g * 255.0f) << 8 |
+            RoundR32ToUI32(color.b * 255.0f) << 0
+        );
+
+    i32 widthMax = buffer->width - 1;
+    i32 heightMax = buffer->height - 1;
+    
+    i32 yMin = heightMax;
+    i32 yMax = 0;
+    i32 xMin = widthMax;
+    i32 xMax = 0;
+    
+    v2 p[4] =
+        {
+            origin,
+            origin + xAxis,
+            origin + xAxis + yAxis,
+            origin + yAxis
+        };
+    for(i32 pIndex = 0;
+        pIndex < ArrayCount(p);
+        pIndex++)
+    {
+        v2 testP = p[pIndex];
+        i32 floorX = FloorR32ToI32(testP.x);
+        i32 ceilX = CeilR32ToI32(testP.x);
+        i32 floorY = FloorR32ToI32(testP.y);
+        i32 ceilY = CeilR32ToI32(testP.y);
+
+        if(xMin > floorX) {xMin = floorX;}
+        if(yMin > floorX) {yMin = floorY;}
+        if(xMax < ceilX) {xMax = ceilX;}
+        if(yMax < ceilY) {yMax = ceilY;}
+    }
+
+    if(xMin < 0) {xMin = 0;}
+    if(yMin < 0) {yMin = 0;}
+    if(xMax > widthMax) {xMax = widthMax;}
+    if(yMax > heightMax) {yMax = heightMax;}
+    
+    ui8 *row = ((ui8 *)buffer->memory +
+                xMin * BITMAP_BYTES_PER_PIXEL +
+                yMin * buffer->pitch);
+    for(i32 y = yMin; y <= yMax; y++)
+    {
+        ui32 *pixel = (ui32 *)row;
+        for(i32 x = xMin; x <= xMax; x++)
+        {
+#if 0
+            v2 pixelP = V2i(x, y);
+            r32 edge0 = Inner(pixelP - origin, -yAxis);
+            r32 edge1 = Inner(pixelP - origin + xAxis, xAxis);
+            r32 edge2 = Inner(pixelP - origin + xAxis + yAxis, yAxis);
+            r32 edge3 = Inner(pixelP - origin + yAxis, -xAxis);
+            
+            if(edge0 < 0 &&
+               edge1 < 0 &&
+               edge2 < 0 &&
+               edge3 < 0)
+            {
+                *pixel = color32;
+            }
+#else
+            *pixel = color32;
+#endif
+            pixel++;
+        }
+
+        
+        row += buffer->pitch;
+    }
 }
 
 inline void
@@ -368,13 +453,24 @@ RenderGroupToOutput
             {
                 render_entry_coordinate_system *entry = (render_entry_coordinate_system *)header;
 
+                v2 vMax = entry->origin + entry->xAxis + entry->yAxis;
+                DrawRectangleSlowly
+                    (
+                        outputTarget,
+                        entry->origin,
+                        entry->xAxis,
+                        entry->yAxis,
+                        entry->color
+                    );
+
+                v4 color = {1, 1, 0, 1};
                 v2 dim = {2, 2};
                 v2 pos = entry->origin;
                 DrawRectangle
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        entry->color.r, entry->color.g, entry->color.b
+                        color.r, color.g, color.b
                     );
 
                 pos = entry->origin + entry->xAxis;
@@ -382,7 +478,7 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        entry->color.r, entry->color.g, entry->color.b
+                        color.r, color.g, color.b
                     );
 
                 pos = entry->origin + entry->yAxis;
@@ -390,9 +486,17 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        entry->color.r, entry->color.g, entry->color.b
+                        color.r, color.g, color.b
                     );
 
+                DrawRectangle
+                    (
+                        outputTarget,
+                        vMax - dim, vMax + dim,
+                        color.r, color.g, color.b
+                    );
+
+#if 0
                 for(ui32 pIndex = 0;
                     pIndex < ArrayCount(entry->points);
                     pIndex++)
@@ -406,6 +510,7 @@ RenderGroupToOutput
                         entry->color.r, entry->color.g, entry->color.b
                     );
                 }
+#endif
                 
                 baseAddress += sizeof(*entry);
             } break;
