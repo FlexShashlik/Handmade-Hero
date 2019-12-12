@@ -96,7 +96,7 @@ DrawRectangleSlowly
         i32 ceilY = CeilR32ToI32(testP.y);
 
         if(xMin > floorX) {xMin = floorX;}
-        if(yMin > floorX) {yMin = floorY;}
+        if(yMin > floorY) {yMin = floorY;}
         if(xMax < ceilX) {xMax = ceilX;}
         if(yMax < ceilY) {yMax = ceilY;}
     }
@@ -114,12 +114,12 @@ DrawRectangleSlowly
         ui32 *pixel = (ui32 *)row;
         for(i32 x = xMin; x <= xMax; x++)
         {
-#if 0
+#if 1
             v2 pixelP = V2i(x, y);
-            r32 edge0 = Inner(pixelP - origin, -yAxis);
-            r32 edge1 = Inner(pixelP - origin + xAxis, xAxis);
-            r32 edge2 = Inner(pixelP - origin + xAxis + yAxis, yAxis);
-            r32 edge3 = Inner(pixelP - origin + yAxis, -xAxis);
+            r32 edge0 = Inner(pixelP - origin, -Perp(xAxis));
+            r32 edge1 = Inner(pixelP - (origin + xAxis), -Perp(yAxis));
+            r32 edge2 = Inner(pixelP - (origin + xAxis + yAxis), Perp(xAxis));
+            r32 edge3 = Inner(pixelP - (origin + yAxis), Perp(yAxis));
             
             if(edge0 < 0 &&
                edge1 < 0 &&

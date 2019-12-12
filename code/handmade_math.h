@@ -128,6 +128,13 @@ Clamp01(r32 value)
 //
 
 inline v2
+Perp(v2 a)
+{
+    v2 result = {-a.y, a.x};
+    return result;
+}
+
+inline v2
 operator*(r32 a, v2 b)
 {
     v2 result;
