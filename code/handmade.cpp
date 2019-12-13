@@ -1821,21 +1821,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     
     gameState->time += input->deltaTime;
-    r32 angle = gameState->time;
+    r32 angle = 0.1f * gameState->time;
+    r32 disp = 10.0f * Cos(5.0f * angle);
 
-    // TODO: Perp operator
     v2 origin = screenCenter;
-    v2 xAxis = (50.0f + 50.0f * Cos(angle)) * v2{Cos(angle), Sin(angle)};
-    v2 yAxis = (50.0f + 50.0f * Cos(angle)) * v2{Cos(angle + 1.0f), Sin(angle + 1.0f)};
-
+#if 0
+    v2 xAxis = 300.0f * v2{Cos(angle), Sin(angle)};
+    v2 yAxis = Perp(xAxis);
+#else
+    v2 xAxis = {300.0f, 0};
+    v2 yAxis = {0, 300.0f};
+#endif
+    
     ui32 pIndex = 0;
     render_entry_coordinate_system *c = CoordinateSystem
         (
-            renderGroup, origin, xAxis, yAxis,
+            renderGroup,
+            v2{disp, 0} + origin - 0.5f * xAxis - 0.5f * yAxis,
+            xAxis, yAxis,
             v4{0.5f + 0.5f * Sin(angle),
                0.5f + 0.5f * Sin(3.7f * angle),
                0.5f + 0.5f * Sin(7.9f * angle),
-               1}
+               1},
+            &gameState->tree
         );
     for(r32 y = 0;
         y < 1.0f;
