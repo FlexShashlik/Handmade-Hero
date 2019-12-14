@@ -134,26 +134,76 @@ DrawRectangleSlowly
                 r32 u = InvXAxisLengthSq * Inner(d, xAxis);
                 r32 v = InvYAxisLengthSq * Inner(d, yAxis);
 
+                // TODO: SSE clamping
                 Assert(u >= 0.0f && u <= 1.0f);
                 Assert(v >= 0.0f && v <= 1.0f);
+
+                r32 tX = (u * (r32)(texture->width - 2));
+                r32 tY = (v * (r32)(texture->height - 2));
                 
-                i32 x = (i32)((u * (r32)(texture->width - 1)) + 0.5f);
-                i32 y = (i32)((v * (r32)(texture->height - 1)) + 0.5f);
+                i32 x = (i32)tX;
+                i32 y = (i32)tY;
+
+                r32 fX = tX - (r32)x;
+                r32 fY = tY - (r32)y;
 
                 Assert(x >= 0 && x < texture->width);
                 Assert(y >= 0 && y < texture->height);
 
                 ui8 *texelPtr = (((ui8 *)texture->memory) +
                                  y * texture->pitch +
-                                 x * BITMAP_BYTES_PER_PIXEL);
-                ui32 texel = *(ui32 *)texelPtr;
+                                 x * sizeof(ui32));
+                ui32 texelPtrA = *(ui32 *)(texelPtr);
+                ui32 texelPtrB = *(ui32 *)(texelPtr + sizeof(ui32));
+                ui32 texelPtrC = *(ui32 *)(texelPtr + texture->pitch);
+                ui32 texelPtrD = *(ui32 *)(texelPtr + texture->pitch + sizeof(ui32));
+
+                v4 texelA = 
+                {
+                    (r32)((texelPtrA >> 16) & 0xFF),
+                    (r32)((texelPtrA >> 8) & 0xFF),
+                    (r32)((texelPtrA >> 0) & 0xFF),
+                    (r32)((texelPtrA >> 24) & 0xFF)
+                };
+
+                v4 texelB = 
+                {
+                    (r32)((texelPtrB >> 16) & 0xFF),
+                    (r32)((texelPtrB >> 8) & 0xFF),
+                    (r32)((texelPtrB >> 0) & 0xFF),
+                    (r32)((texelPtrB >> 24) & 0xFF)
+                };
                 
-                r32 sa = (r32)((texel >> 24) & 0xFF);
+                v4 texelC = 
+                {
+                    (r32)((texelPtrC >> 16) & 0xFF),
+                    (r32)((texelPtrC >> 8) & 0xFF),
+                    (r32)((texelPtrC >> 0) & 0xFF),
+                    (r32)((texelPtrC >> 24) & 0xFF)
+                };
+                
+                v4 texelD = 
+                {
+                    (r32)((texelPtrD >> 16) & 0xFF),
+                    (r32)((texelPtrD >> 8) & 0xFF),
+                    (r32)((texelPtrD >> 0) & 0xFF),
+                    (r32)((texelPtrD >> 24) & 0xFF)
+                };
+
+#if 0
+                v4 texel = texelA;
+#else
+                v4 texel = Lerp(Lerp(texelA, fX, texelB),
+                                fY,
+                                Lerp(texelC, fX, texelD));
+#endif
+                r32 sa = texel.a;
+                r32 sr = texel.r;
+                r32 sg = texel.g;
+                r32 sb = texel.b;
+                
                 r32 rsa = (sa / 255.0f) * color.a;
-                r32 sr = (r32)((texel >> 16) & 0xFF) * color.a;
-                r32 sg = (r32)((texel >> 8) & 0xFF) * color.a;
-                r32 sb = (r32)((texel >> 0) & 0xFF) * color.a;
-            
+                
                 r32 da = (r32)((*pixel >> 24) & 0xFF);
                 r32 dr = (r32)((*pixel >> 16) & 0xFF);
                 r32 dg = (r32)((*pixel >> 8) & 0xFF);

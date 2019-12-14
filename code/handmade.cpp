@@ -1822,22 +1822,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     gameState->time += input->deltaTime;
     r32 angle = 0.1f * gameState->time;
-    r32 disp = 10.0f * Cos(5.0f * angle);
+    r32 disp = 100.0f * Cos(5.0f * angle);
 
     v2 origin = screenCenter;
-#if 0
-    v2 xAxis = 300.0f * v2{Cos(angle), Sin(angle)};
+#if 1
+    v2 xAxis = 100.0f * v2{Cos(angle), Sin(angle)};
     v2 yAxis = Perp(xAxis);
 #else
-    v2 xAxis = {300.0f, 0};
-    v2 yAxis = {0, 300.0f};
+    v2 xAxis = {100.0f, 0};
+    v2 yAxis = {0, 100.0f};
 #endif
     
     ui32 pIndex = 0;
     render_entry_coordinate_system *c = CoordinateSystem
         (
             renderGroup,
-            v2{disp, 0} + origin - 0.5f * xAxis - 0.5f * yAxis,
+            /*v2{disp, 0} + */origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
             v4{0.5f + 0.5f * Sin(angle),
                0.5f + 0.5f * Sin(3.7f * angle),

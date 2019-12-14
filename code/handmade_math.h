@@ -100,6 +100,33 @@ Lerp(r32 a, r32 t, r32 b)
 }
 
 inline r32
+SafeRatioN(r32 numerator, r32 divisor, r32 n)
+{
+    r32 result = n;
+
+    if(divisor != 0.0f)
+    {
+        result = numerator / divisor;
+    }
+
+    return result;
+}
+
+inline r32
+SafeRatio0(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 0.0f);
+    return result;
+}
+
+inline r32
+SafeRatio1(r32 numerator, r32 divisor)
+{
+    r32 result = SafeRatioN(numerator, divisor, 1.0f);
+    return result;
+}
+
+inline r32
 Clamp(r32 min, r32 value, r32 max)
 {
     r32 result = value;
@@ -351,30 +378,128 @@ Clamp01(v3 value)
     return result;
 }
 
-inline r32
-SafeRatioN(r32 numerator, r32 divisor, r32 n)
-{
-    r32 result = n;
+//
+// NOTE: v4 operations
+//
 
-    if(divisor != 0.0f)
-    {
-        result = numerator / divisor;
-    }
+inline v4
+operator*(r32 a, v4 b)
+{
+    v4 result;
+
+    result.x = a * b.x;
+    result.y = a * b.y;
+    result.z = a * b.z;
+    result.w = a * b.w;
 
     return result;
 }
 
-inline r32
-SafeRatio0(r32 numerator, r32 divisor)
+inline v4
+operator*(v4 b, r32 a)
 {
-    r32 result = SafeRatioN(numerator, divisor, 0.0f);
+    v4 result = a * b;
+    return result;
+}
+
+inline v4 &
+operator*=(v4 &a, r32 b)
+{
+    a = b * a;
+    return a;
+}
+
+inline v4
+operator-(v4 a)
+{
+    v4 result;
+
+    result.x = -a.x;
+    result.y = -a.y;
+    result.z = -a.z;
+    result.w = -a.w;
+
+    return result;
+}
+
+inline v4
+operator+(v4 a, v4 b)
+{
+    v4 result;
+
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    result.w = a.w + b.w;
+
+    return result;
+}
+
+inline v4 &
+operator+=(v4 &a, v4 b)
+{
+    a = a + b;
+    return a;
+}
+
+inline v4
+operator-(v4 a, v4 b)
+{
+    v4 result;
+
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    result.z = a.z - b.z;
+    result.w = a.w - b.w;
+
+    return result;
+}
+
+inline v4
+Hadamard(v4 a, v4 b)
+{
+    v4 result = {a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
     return result;
 }
 
 inline r32
-SafeRatio1(r32 numerator, r32 divisor)
+Inner(v4 a, v4 b)
 {
-    r32 result = SafeRatioN(numerator, divisor, 1.0f);
+    r32 result = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;    
+    return result;
+}
+
+inline r32
+LengthSq(v4 a)
+{
+    r32 result = Inner(a, a);    
+    return result;
+}
+
+inline r32
+Length(v4 a)
+{
+    r32 result = SqRt(LengthSq(a));
+    return result;
+}
+
+inline v4
+Clamp01(v4 value)
+{
+    v4 result;
+
+    result.x = Clamp01(value.x);
+    result.y = Clamp01(value.y);
+    result.z = Clamp01(value.z);
+    result.w = Clamp01(value.w);
+
+    return result;
+}
+
+inline v4
+Lerp(v4 a, r32 t, v4 b)
+{
+    v4 result = (1.0f - t) * a + t * b;
     return result;
 }
 
