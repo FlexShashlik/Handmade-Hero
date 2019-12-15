@@ -1834,15 +1834,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
     
     ui32 pIndex = 0;
+    r32 cAngle = angle * 5.0f;
+    v4 color =
+        {
+            0.5f + 0.5f * Sin(cAngle),
+            0.5f + 0.5f * Sin(3.7f * cAngle),
+            0.5f + 0.5f * Sin(7.9f * cAngle),
+            0.5f + 0.5f * Sin(6.3f * cAngle),
+        };
     render_entry_coordinate_system *c = CoordinateSystem
         (
             renderGroup,
             /*v2{disp, 0} + */origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
-            v4{0.5f + 0.5f * Sin(angle),
-               0.5f + 0.5f * Sin(3.7f * angle),
-               0.5f + 0.5f * Sin(7.9f * angle),
-               1},
+            color,
             &gameState->tree
         );
     for(r32 y = 0;

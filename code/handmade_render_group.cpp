@@ -1,3 +1,31 @@
+inline v4
+SRGB255ToLinear1(v4 c)
+{
+    v4 result;
+
+    r32 inv255 = 1.0f / 255.0f;
+    
+    result.r = Square(inv255 * c.r);
+    result.g = Square(inv255 * c.g);
+    result.b = Square(inv255 * c.b);
+    result.a = inv255 * c.a;
+
+    return result;
+}
+
+inline v4
+Linear1ToSRGB255(v4 c)
+{
+    v4 result;
+    
+    result.r = 255.0f * SqRt(c.r);
+    result.g = 255.0f * SqRt(c.g);
+    result.b = 255.0f * SqRt(c.b);
+    result.a = 255.0f * c.a;
+
+    return result;
+}
+
 internal void
 DrawRectangle
 (
@@ -134,10 +162,12 @@ DrawRectangleSlowly
                 r32 u = InvXAxisLengthSq * Inner(d, xAxis);
                 r32 v = InvYAxisLengthSq * Inner(d, yAxis);
 
+#if 0
                 // TODO: SSE clamping
                 Assert(u >= 0.0f && u <= 1.0f);
                 Assert(v >= 0.0f && v <= 1.0f);
-
+#endif
+                
                 r32 tX = (u * (r32)(texture->width - 2));
                 r32 tY = (v * (r32)(texture->height - 2));
                 
@@ -183,13 +213,19 @@ DrawRectangleSlowly
                 };
                 
                 v4 texelD = 
-                {
-                    (r32)((texelPtrD >> 16) & 0xFF),
-                    (r32)((texelPtrD >> 8) & 0xFF),
-                    (r32)((texelPtrD >> 0) & 0xFF),
-                    (r32)((texelPtrD >> 24) & 0xFF)
-                };
+                    {
+                        (r32)((texelPtrD >> 16) & 0xFF),
+                        (r32)((texelPtrD >> 8) & 0xFF),
+                        (r32)((texelPtrD >> 0) & 0xFF),
+                        (r32)((texelPtrD >> 24) & 0xFF)
+                    };
 
+                // NOTE: Go from sRGB to "linear" brightness space
+                texelA = SRGB255ToLinear1(texelA);
+                texelB = SRGB255ToLinear1(texelB);
+                texelC = SRGB255ToLinear1(texelC);
+                texelD = SRGB255ToLinear1(texelD);
+                
 #if 0
                 v4 texel = texelA;
 #else
@@ -197,29 +233,39 @@ DrawRectangleSlowly
                                 fY,
                                 Lerp(texelC, fX, texelD));
 #endif
-                r32 sa = texel.a;
-                r32 sr = texel.r;
-                r32 sg = texel.g;
-                r32 sb = texel.b;
+                                
+                r32 rsa = texel.a * color.a;
+
+                // NOTE: Go from sRGB to "linear" brightness space
+                v4 dest =
+                    {
+                        (r32)((*pixel >> 16) & 0xFF),
+                        (r32)((*pixel >> 8) & 0xFF),
+                        (r32)((*pixel >> 0) & 0xFF),
+                        (r32)((*pixel >> 24) & 0xFF)
+                    };
                 
-                r32 rsa = (sa / 255.0f) * color.a;
+                // NOTE: Go from sRGB to "linear" brightness space
+                dest = SRGB255ToLinear1(dest);
                 
-                r32 da = (r32)((*pixel >> 24) & 0xFF);
-                r32 dr = (r32)((*pixel >> 16) & 0xFF);
-                r32 dg = (r32)((*pixel >> 8) & 0xFF);
-                r32 db = (r32)((*pixel >> 0) & 0xFF);
-                r32 rda = (da / 255.0f);
+                r32 rda = dest.a;
                             
                 r32 invRSA = (1.0f - rsa);            
-                r32 a = 255.0f * (rsa + rda - rsa * rda);
-                r32 r = invRSA * dr + sr;
-                r32 g = invRSA * dg + sg;
-                r32 b = invRSA * db + sb;
+                v4 blended =
+                    {
+                        invRSA * dest.r + color.a * color.r * texel.r,
+                        invRSA * dest.g + color.a * color.g * texel.g,
+                        invRSA * dest.b + color.a * color.b * texel.b,
+                        (rsa + rda - rsa * rda)
+                    };
 
-                *pixel = ((ui32)(a + 0.5f) << 24|
-                          (ui32)(r + 0.5f) << 16|
-                          (ui32)(g + 0.5f) << 8 |
-                          (ui32)(b + 0.5f) << 0);
+                // NOTE: Go from "linear" brightness space to sRGB space
+                v4 blended255 = Linear1ToSRGB255(blended);
+                
+                *pixel = ((ui32)(blended255.a + 0.5f) << 24|
+                          (ui32)(blended255.r + 0.5f) << 16|
+                          (ui32)(blended255.g + 0.5f) << 8 |
+                          (ui32)(blended255.b + 0.5f) << 0);
             }
 #else
             *pixel = color32;
