@@ -38,7 +38,16 @@ union v4
     };
     struct
     {
-        r32 r, g, b, a;
+        union
+        {
+            v3 rgb;
+            struct
+            {
+                r32 r, g, b;
+            };
+        };
+
+        r32 a;
     };
     r32 e[4];
 };

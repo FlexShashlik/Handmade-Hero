@@ -234,7 +234,7 @@ DrawRectangleSlowly
                                 Lerp(texelC, fX, texelD));
 #endif
                                 
-                r32 rsa = texel.a * color.a;
+                texel *= color.a;
 
                 // NOTE: Go from sRGB to "linear" brightness space
                 v4 dest =
@@ -247,16 +247,14 @@ DrawRectangleSlowly
                 
                 // NOTE: Go from sRGB to "linear" brightness space
                 dest = SRGB255ToLinear1(dest);
-                
-                r32 rda = dest.a;
-                            
-                r32 invRSA = (1.0f - rsa);            
+                                            
+                r32 invRSA = (1.0f - texel.a);
                 v4 blended =
                     {
-                        invRSA * dest.r + color.a * color.r * texel.r,
-                        invRSA * dest.g + color.a * color.g * texel.g,
-                        invRSA * dest.b + color.a * color.b * texel.b,
-                        (rsa + rda - rsa * rda)
+                        invRSA * dest.r + color.r * texel.r,
+                        invRSA * dest.g + color.g * texel.g,
+                        invRSA * dest.b + color.b * texel.b,
+                        (texel.a + dest.a - texel.a * dest.a)
                     };
 
                 // NOTE: Go from "linear" brightness space to sRGB space
@@ -372,28 +370,42 @@ DrawBitmap
 
         for(i32 x = minX; x < maxX; x++)
         {
-            r32 sa = (r32)((*source >> 24) & 0xFF);
-            r32 rsa = (sa / 255.0f) * cAlpha;
-            r32 sr = (r32)((*source >> 16) & 0xFF) * cAlpha;
-            r32 sg = (r32)((*source >> 8) & 0xFF) * cAlpha;
-            r32 sb = (r32)((*source >> 0) & 0xFF) * cAlpha;
-            
-            r32 da = (r32)((*dest >> 24) & 0xFF);
-            r32 dr = (r32)((*dest >> 16) & 0xFF);
-            r32 dg = (r32)((*dest >> 8) & 0xFF);
-            r32 db = (r32)((*dest >> 0) & 0xFF);
-            r32 rda = (da / 255.0f);
-                            
-            r32 invRSA = (1.0f - rsa);            
-            r32 a = 255.0f * (rsa + rda - rsa * rda);
-            r32 r = invRSA * dr + sr;
-            r32 g = invRSA * dg + sg;
-            r32 b = invRSA * db + sb;
+            v4 texel =
+                {
+                    (r32)((*source >> 16) & 0xFF),
+                    (r32)((*source >> 8) & 0xFF),
+                    (r32)((*source >> 0) & 0xFF),
+                    (r32)((*source >> 24) & 0xFF)
+                };
 
-            *dest = ((ui32)(a + 0.5f) << 24|
-                     (ui32)(r + 0.5f) << 16|
-                     (ui32)(g + 0.5f) << 8 |
-                     (ui32)(b + 0.5f) << 0);
+            texel = SRGB255ToLinear1(texel);
+            texel *= cAlpha;
+                        
+            v4 d =
+                {
+                    (r32)((*dest >> 16) & 0xFF),
+                    (r32)((*dest >> 8) & 0xFF),
+                    (r32)((*dest >> 0) & 0xFF),
+                    (r32)((*dest >> 24) & 0xFF)
+                };
+
+            d = SRGB255ToLinear1(d);
+                                        
+            r32 invRSA = (1.0f - texel.a);            
+            v4 result =
+                {
+                    invRSA * d.r + texel.r,
+                    invRSA * d.g + texel.g,
+                    invRSA * d.b + texel.b,
+                    (texel.a + d.a - texel.a * d.a)
+                };
+
+            result = Linear1ToSRGB255(result);
+            
+            *dest = ((ui32)(result.a + 0.5f) << 24|
+                     (ui32)(result.r + 0.5f) << 16|
+                     (ui32)(result.g + 0.5f) << 8 |
+                     (ui32)(result.b + 0.5f) << 0);
             
             dest++;
             source++;

@@ -113,20 +113,26 @@ DEBUGLoadBMP
             {
                 ui32 c = *sourceDest;
 
-                r32 r = (r32)((c & redMask) >> redShiftDown);
-                r32 g = (r32)((c & greenMask) >> greenShiftDown);
-                r32 b = (r32)((c & blueMask) >> blueShiftDown);
-                r32 a = (r32)((c & alphaMask) >> alphaShiftDown);
-                r32 an = (a / 255.0f);
+                v4 texel =
+                    {
+                        (r32)((c & redMask) >> redShiftDown),
+                        (r32)((c & greenMask) >> greenShiftDown),
+                        (r32)((c & blueMask) >> blueShiftDown),
+                        (r32)((c & alphaMask) >> alphaShiftDown)
+                    };
 
-                r *= an;
-                g *= an;
-                b *= an;
+                texel = SRGB255ToLinear1(texel);
+                
+#if 1
+                texel.rgb *= texel.a;
+#endif
 
-                *sourceDest++ = ((ui32)(a + 0.5f) << 24|
-                                 (ui32)(r + 0.5f) << 16|
-                                 (ui32)(g + 0.5f) << 8 |
-                                 (ui32)(b + 0.5f) << 0);
+                texel = Linear1ToSRGB255(texel);
+                
+                *sourceDest++ = ((ui32)(texel.a + 0.5f) << 24|
+                                 (ui32)(texel.r + 0.5f) << 16|
+                                 (ui32)(texel.g + 0.5f) << 8 |
+                                 (ui32)(texel.b + 0.5f) << 0);
             }
         }
     }
@@ -1835,6 +1841,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     ui32 pIndex = 0;
     r32 cAngle = angle * 5.0f;
+#if 0
     v4 color =
         {
             0.5f + 0.5f * Sin(cAngle),
@@ -1842,6 +1849,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             0.5f + 0.5f * Sin(7.9f * cAngle),
             0.5f + 0.5f * Sin(6.3f * cAngle),
         };
+#else
+    v4 color = {1.0f, 1.0f, 1.0f, 1.0f};
+#endif
+    
     render_entry_coordinate_system *c = CoordinateSystem
         (
             renderGroup,
