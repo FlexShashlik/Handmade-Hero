@@ -90,6 +90,9 @@ DrawRectangleSlowly
     v4 color, loaded_bitmap *texture
 )
 {
+    // NOTE: Premultiply color up front
+    color.rgb *= color.a;
+    
     r32 InvXAxisLengthSq = 1.0f / LengthSq(xAxis);
     r32 InvYAxisLengthSq = 1.0f / LengthSq(yAxis);
     
@@ -233,8 +236,8 @@ DrawRectangleSlowly
                                 fY,
                                 Lerp(texelC, fX, texelD));
 #endif
-                                
-                texel *= color.a;
+
+                texel = Hadamard(texel, color);
 
                 // NOTE: Go from sRGB to "linear" brightness space
                 v4 dest =
@@ -247,15 +250,8 @@ DrawRectangleSlowly
                 
                 // NOTE: Go from sRGB to "linear" brightness space
                 dest = SRGB255ToLinear1(dest);
-                                            
-                r32 invRSA = (1.0f - texel.a);
-                v4 blended =
-                    {
-                        invRSA * dest.r + color.r * texel.r,
-                        invRSA * dest.g + color.g * texel.g,
-                        invRSA * dest.b + color.b * texel.b,
-                        (texel.a + dest.a - texel.a * dest.a)
-                    };
+                
+                v4 blended = (1.0f - texel.a) * dest + texel;
 
                 // NOTE: Go from "linear" brightness space to sRGB space
                 v4 blended255 = Linear1ToSRGB255(blended);
@@ -541,11 +537,14 @@ RenderGroupToOutput
     {
         render_group_entry_header *header = (render_group_entry_header *)
             (renderGroup->pushBufferBase + baseAddress);
+        void *data = header + 1;
+        baseAddress += sizeof(*header);
+        
         switch(header->type)
         {
             case RenderGroupEntryType_render_entry_clear:
             {
-                render_entry_clear *entry = (render_entry_clear *)header;
+                render_entry_clear *entry = (render_entry_clear *)data;
 
                 DrawRectangle
                     (
@@ -561,7 +560,7 @@ RenderGroupToOutput
 
             case RenderGroupEntryType_render_entry_bitmap:
             {
-                render_entry_bitmap *entry = (render_entry_bitmap *)header;
+                render_entry_bitmap *entry = (render_entry_bitmap *)data;
                 v2 pos = GetRenderEntityBasisPos
                     (
                         renderGroup,
@@ -582,7 +581,7 @@ RenderGroupToOutput
             
             case RenderGroupEntryType_render_entry_rectangle:
             {
-                render_entry_rectangle *entry = (render_entry_rectangle *)header;
+                render_entry_rectangle *entry = (render_entry_rectangle *)data;
                 v2 pos = GetRenderEntityBasisPos
                     (
                         renderGroup,
@@ -602,7 +601,7 @@ RenderGroupToOutput
             
             case RenderGroupEntryType_render_entry_coordinate_system:
             {
-                render_entry_coordinate_system *entry = (render_entry_coordinate_system *)header;
+                render_entry_coordinate_system *entry = (render_entry_coordinate_system *)data;
 
                 v2 vMax = entry->origin + entry->xAxis + entry->yAxis;
                 DrawRectangleSlowly
@@ -693,14 +692,18 @@ AllocateRenderGroup
 }
 
 #define PushRenderElement(group, type) (type *)PushRenderElement_(group, sizeof(type), RenderGroupEntryType_##type)
-inline render_group_entry_header *
+inline void *
 PushRenderElement_(render_group *group, ui32 size, render_group_entry_type type)
 {
-    render_group_entry_header *result = 0;
+    void *result = 0;
+
+    size += sizeof(render_group_entry_header);
+    
     if(group->pushBufferSize + size < group->maxPushBufferSize)
     {
-        result = (render_group_entry_header *)(group->pushBufferBase + group->pushBufferSize);
-        result->type = type;
+        render_group_entry_header *header = (render_group_entry_header *)(group->pushBufferBase + group->pushBufferSize);
+        header->type = type;
+        result = header + 1;
         group->pushBufferSize += size;
     }
     else
