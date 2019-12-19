@@ -1408,7 +1408,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     drawBuffer->pitch = buffer->pitch;
     drawBuffer->memory = buffer->memory;
 
-    Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 0.0f});
+    Clear(renderGroup, v4{0.5f, 0.5f, 0.5f, 0.0f});
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width,
                        0.5f * (r32)drawBuffer->height};
@@ -1829,6 +1829,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     gameState->time += input->deltaTime;
     r32 angle = 0.1f * gameState->time;
     r32 disp = 100.0f * Cos(5.0f * angle);
+
+    angle = 0;
 
     v2 origin = screenCenter;
 #if 1

@@ -561,6 +561,8 @@ RenderGroupToOutput
             case RenderGroupEntryType_render_entry_bitmap:
             {
                 render_entry_bitmap *entry = (render_entry_bitmap *)data;
+                
+#if 0
                 v2 pos = GetRenderEntityBasisPos
                     (
                         renderGroup,
@@ -575,6 +577,7 @@ RenderGroupToOutput
                         pos.x, pos.y,
                         entry->a
                     );
+#endif
                 
                 baseAddress += sizeof(*entry);
             } break;
