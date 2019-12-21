@@ -1,3 +1,11 @@
+struct environment_map
+{
+    // NOTE: LOD[0] is 2^widthPow2 x 2^heightPow2
+    ui32 widthPow2;
+    ui32 heightPow2;
+    loaded_bitmap *LOD[4];
+};
+
 struct render_basis
 {
     v3 p;
@@ -37,6 +45,7 @@ struct render_entry_coordinate_system
     v2 yAxis;
     v4 color;
     loaded_bitmap *texture;
+    loaded_bitmap *normalMap;
     
     v2 points[16];
 };
