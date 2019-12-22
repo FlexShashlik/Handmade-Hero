@@ -46,8 +46,10 @@ struct render_entry_coordinate_system
     v4 color;
     loaded_bitmap *texture;
     loaded_bitmap *normalMap;
-    
-    v2 points[16];
+
+    environment_map *top;
+    environment_map *middle;
+    environment_map *bottom;
 };
 
 struct render_entry_bitmap

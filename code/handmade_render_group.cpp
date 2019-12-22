@@ -94,6 +94,17 @@ Unpack4x8(ui32 packed)
         };
     return result;
 }
+
+inline v3
+SampleEnvironmentMap
+(
+    v2 screenSpaceUV,
+    v3 normal, r32 roughness, environment_map *map
+)
+{
+    v3 result = normal;
+    return result;
+}
         
 internal void
 DrawRectangleSlowly
@@ -123,6 +134,9 @@ DrawRectangleSlowly
 
     i32 widthMax = buffer->width - 1;
     i32 heightMax = buffer->height - 1;
+
+    r32 invWidthMax = 1.0f / (r32)widthMax;
+    r32 invHeightMax = 1.0f / (r32)heightMax;
     
     i32 yMin = heightMax;
     i32 yMax = 0;
@@ -179,6 +193,8 @@ DrawRectangleSlowly
                edge2 < 0 &&
                edge3 < 0)
             {
+                v2 screenSpaceUV = {invWidthMax * (r32)x, invHeightMax * (r32)y};
+                
                 r32 u = InvXAxisLengthSq * Inner(d, xAxis);
                 r32 v = InvYAxisLengthSq * Inner(d, yAxis);
 
@@ -223,33 +239,49 @@ DrawRectangleSlowly
                                 fY,
                                 Lerp(texelC, fX, texelD));
 
-                ui8 *normalPtr = (((ui8 *)texture->memory) +
-                                 y * texture->pitch +
-                                 x * sizeof(ui32));
-                ui32 normalPtrA = *(ui32 *)(normalPtr);
-                ui32 normalPtrB = *(ui32 *)(normalPtr + sizeof(ui32));
-                ui32 normalPtrC = *(ui32 *)(normalPtr + texture->pitch);
-                ui32 normalPtrD = *(ui32 *)(normalPtr + texture->pitch + sizeof(ui32));
+                if(normalMap)
+                {
+                    ui8 *normalPtr = (((ui8 *)texture->memory) +
+                                      y * texture->pitch +
+                                      x * sizeof(ui32));
+                    ui32 normalPtrA = *(ui32 *)(normalPtr);
+                    ui32 normalPtrB = *(ui32 *)(normalPtr + sizeof(ui32));
+                    ui32 normalPtrC = *(ui32 *)(normalPtr + texture->pitch);
+                    ui32 normalPtrD = *(ui32 *)(normalPtr + texture->pitch + sizeof(ui32));
 
-                v4 normalA = Unpack4x8(normalPtrA);
-                v4 normalB = Unpack4x8(normalPtrB);
-                v4 normalC = Unpack4x8(normalPtrC);
-                v4 normalD = Unpack4x8(normalPtrD);
+                    v4 normalA = Unpack4x8(normalPtrA);
+                    v4 normalB = Unpack4x8(normalPtrB);
+                    v4 normalC = Unpack4x8(normalPtrC);
+                    v4 normalD = Unpack4x8(normalPtrD);
                 
-                v4 normal = Lerp(Lerp(normalA, fX, normalB),
-                                 fY,
-                                 Lerp(normalC, fX, normalD));
-                r32 tEnvMap = normal.z;
-                if(tEnvMap < 0.25f)
-                {
+                    v4 normal = Lerp(Lerp(normalA, fX, normalB),
+                                     fY,
+                                     Lerp(normalC, fX, normalD));
+
+                    environment_map *farMap = 0;
+                    r32 tEnvMap = normal.z;
+                    r32 tFarMap = 0;
+                    if(tEnvMap < 0.25f)
+                    {
+                        farMap = bottom;
+                        tFarMap = 1.0f - (tEnvMap / 0.25f);
+                    }
+                    else if(tEnvMap > 0.75f)
+                    {
+                        farMap = top;
+                        tFarMap = (1.0f - tEnvMap) / 0.25f;
+                    }
+
+                    v3 lightColor = SampleEnvironmentMap(screenSpaceUV, normal.xyz, normal.w, middle);
+                    if(farMap)
+                    {
+                        v3 farMapColor = SampleEnvironmentMap(screenSpaceUV, normal.xyz, normal.w, farMap);
+                        lightColor = Lerp(lightColor, tFarMap, farMapColor);
+                    }
+
+                    texel.rgb = Hadamard(texel.rgb, lightColor);
                 }
-                else if(tEnvMap > 0.75f)
-                {
-                }
-                else
-                {
-                }
-                    
+                
                 texel = Hadamard(texel, color);
 
                 // NOTE: Go from sRGB to "linear" brightness space
@@ -628,7 +660,8 @@ RenderGroupToOutput
                         entry->yAxis,
                         entry->color,
                         entry->texture,
-                        entry->normalMap
+                        entry->normalMap,
+                        entry->top, entry->middle, entry->bottom
                     );
 
                 v4 color = {1, 1, 0, 1};
@@ -870,7 +903,10 @@ CoordinateSystem
     v2 origin, v2 xAxis, v2 yAxis,
     v4 color,
     loaded_bitmap *texture,
-    loaded_bitmap *normalMap
+    loaded_bitmap *normalMap,
+    environment_map *top,
+    environment_map *middle,
+    environment_map *bottom
 )
 {
     render_entry_coordinate_system *entry = PushRenderElement(group, render_entry_coordinate_system);
@@ -882,6 +918,9 @@ CoordinateSystem
         entry->color = color;
         entry->texture = texture;
         entry->normalMap = normalMap;
+        entry->top = top;
+        entry->middle = middle;
+        entry->bottom = bottom;
     }
 
     return entry;

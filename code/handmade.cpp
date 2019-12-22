@@ -747,6 +747,48 @@ MakeEmptyBitmap
     return result;
 }
 
+internal void
+MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness)
+{
+    r32 invWidth = 1.0f / (1.0f - bitmap->width);
+    r32 invHeight = 1.0f / (1.0f - bitmap->height);
+
+    ui8 *row = (ui8 *)bitmap->memory;
+    for(i32 y = 0;
+        y < bitmap->height;
+        y++)
+    {
+        ui32 *pixel = (ui32 *)row;
+        for(i32 x = 0;
+        x < bitmap->width;
+        x++)
+        {
+            v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
+
+            // TODO: Actually generate sphere!
+            v3 normal = {2.0f * bitmapUV.x - 1.0f, 2.0f * bitmapUV.y - 1.0f, 0.0f};
+            normal.z = SqRt(1.0f - Minimum(1.0f, Square(normal.x) + Square(normal.y)));
+
+            normal = Normalize(normal);
+
+            v4 color =
+                {
+                    255.0f * (0.5f * (1.0f + normal.x)),
+                    255.0f * (0.5f * (1.0f + normal.y)),
+                    127.0f * normal.z,
+                    255.0f *roughness
+                };
+            
+            *pixel = ((ui32)(color.a + 0.5f) << 24|
+                      (ui32)(color.r + 0.5f) << 16|
+                      (ui32)(color.g + 0.5f) << 8 |
+                      (ui32)(color.b + 0.5f) << 0);
+        }
+
+        row += bitmap->pitch;
+    }
+}
+
 #if 0
 internal void
 RequestGroundBuffers
@@ -1861,19 +1903,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             /*v2{disp, 0} + */origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
             color,
-            &gameState->tree
+            &gameState->tree,
+            0, 0, 0, 0
         );
-    for(r32 y = 0;
-        y < 1.0f;
-        y += 0.25f)
-    {
-        for(r32 x = 0;
-            x < 1.0f;
-            x += 0.25f)
-        {
-            c->points[pIndex++] = {x, y};
-        }
-    }
     
     RenderGroupToOutput(renderGroup, drawBuffer);
     
