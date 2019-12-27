@@ -171,6 +171,7 @@ struct game_state
     loaded_bitmap bmp;
     loaded_bitmap shadow;
     loaded_bitmap tree;
+    loaded_bitmap treeNormal;
     loaded_bitmap sword;
     loaded_bitmap stairwell;
 

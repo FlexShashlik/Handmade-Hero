@@ -1,9 +1,6 @@
 struct environment_map
 {
-    // NOTE: LOD[0] is 2^widthPow2 x 2^heightPow2
-    ui32 widthPow2;
-    ui32 heightPow2;
-    loaded_bitmap *LOD[4];
+    loaded_bitmap *lod[4];
 };
 
 struct render_basis

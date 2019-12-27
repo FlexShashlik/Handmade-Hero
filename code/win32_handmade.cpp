@@ -432,13 +432,13 @@ Win32DisplayBufferInWindow
     i32 windowHeight
 )
 {
-    if(windowWidth >= 1366 &&
-       windowHeight >= 768)
+    if(windowWidth >= 1920 &&
+       windowHeight >= 1080)
     {
         StretchDIBits
             (
                 deviceContext,
-                0, 0, 1366, 768,
+                0, 0, 1920, 1080,
                 0, 0, buffer->width, buffer->height,
                 buffer->memory,
                 &buffer->info,
