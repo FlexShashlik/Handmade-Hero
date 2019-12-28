@@ -1,6 +1,14 @@
+struct loaded_bitmap
+{
+    i32 width;
+    i32 height;
+    i32 pitch;
+    void *memory;
+};
+
 struct environment_map
 {
-    loaded_bitmap *lod[4];
+    loaded_bitmap lod[4];
 };
 
 struct render_basis
@@ -21,7 +29,8 @@ enum render_group_entry_type
     RenderGroupEntryType_render_entry_clear,
     RenderGroupEntryType_render_entry_coordinate_system,
     RenderGroupEntryType_render_entry_bitmap,
-    RenderGroupEntryType_render_entry_rectangle
+    RenderGroupEntryType_render_entry_rectangle,
+    RenderGroupEntryType_render_entry_saturation
 };
 
 struct render_group_entry_header
@@ -32,6 +41,11 @@ struct render_group_entry_header
 struct render_entry_clear
 {
     v4 color;
+};
+
+struct render_entry_saturation
+{
+    r32 level;
 };
 
 struct render_entry_coordinate_system
@@ -53,13 +67,13 @@ struct render_entry_bitmap
 {
     render_entity_basis entityBasis;
     loaded_bitmap *bitmap;
-    r32 r, g, b, a;
+    v4 color;
 };
 
 struct render_entry_rectangle
 {
     render_entity_basis entityBasis;
-    r32 r, g, b, a;
+    v4 color;
     v2 dim;
 };
 

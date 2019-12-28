@@ -60,9 +60,14 @@ DrawRectangle
 (
     loaded_bitmap *buffer,
     v2 vMin, v2 vMax,
-    r32 r, r32 g, r32 b, r32 a = 1.0f
+    v4 color
 )
 {
+    r32 r = color.r;
+    r32 g = color.g;
+    r32 b = color.b;
+    r32 a = color.a;
+    
     i32 minX = RoundR32ToI32(vMin.x);
     i32 minY = RoundR32ToI32(vMin.y);
     i32 maxX = RoundR32ToI32(vMax.x);
@@ -90,7 +95,7 @@ DrawRectangle
     
     ui8 *endOfBuffer = (ui8 *)buffer->memory + buffer->pitch * buffer->height;
     
-    ui32 color =
+    ui32 color32 =
         (
             RoundR32ToUI32(a * 255.0f) << 24 |
             RoundR32ToUI32(r * 255.0f) << 16 |
@@ -104,7 +109,7 @@ DrawRectangle
         ui32 *pixel = (ui32 *)row;
         for(i32 x = minX; x < maxX; x++)
         {        
-            *pixel++ = color;            
+            *pixel++ = color32;            
         }
         
         row += buffer->pitch;
@@ -163,11 +168,11 @@ SampleEnvironmentMap
     ui32 lodIndex = (ui32)(roughness * (r32)(ArrayCount(map->lod - 1) + 0.5f));
     Assert(lodIndex < ArrayCount(map->lod));
 
-    loaded_bitmap *lod = map->lod[lodIndex];
+    loaded_bitmap *lod = &map->lod[lodIndex];
 
     // TODO: Intersection math
-    r32 tX = 0.0f;
-    r32 tY = 0.0f;
+    r32 tX = lod->width / 2 + normal.x * (r32)(lod->width / 2);
+    r32 tY = lod->height / 2 + normal.y * (r32)(lod->height/ 2);
     
     i32 x = (i32)tX;
     i32 y = (i32)tY;
@@ -313,14 +318,13 @@ DrawRectangleSlowly
                     normal = UnscaleAndBiasNormal(normal);
                     normal.xyz = Normalize(normal.xyz);
                     
-#if 1
                     environment_map *farMap = 0;
                     r32 tEnvMap = normal.y;
                     r32 tFarMap = 0;
                     if(tEnvMap < -0.5f)
                     {
                         farMap = bottom;
-                        tFarMap = 2.0f * (tEnvMap + 1.0f);
+                        tFarMap = -1.0f - 2.0f * tEnvMap;
                     }
                     else if(tEnvMap > 0.5f)
                     {
@@ -336,10 +340,6 @@ DrawRectangleSlowly
                     }
 
                     texel.rgb = texel.rgb + texel.a * lightColor;
-#else
-                    texel.rgb = v3{0.5f, 0.5f, 0.5f} + 0.5f * normal.rgb;
-                    texel.a = 1.0f;
-#endif
                 }
                 
                 texel = Hadamard(texel, color);
@@ -393,14 +393,14 @@ DrawRectangleOutline
             buffer,
             v2{vMin.x - r, vMin.y - r},
             v2{vMax.x + r, vMin.y + r},
-            color.r, color.g, color.b
+            ToV4(color, 1.0f)
         );
     DrawRectangle
         (
             buffer,
             v2{vMin.x - r, vMax.y - r},
             v2{vMax.x + r, vMax.y + r},
-            color.r, color.g, color.b
+            ToV4(color, 1.0f)
         );
     
     // NOTE: Left and right
@@ -409,14 +409,14 @@ DrawRectangleOutline
             buffer,
             v2{vMin.x - r, vMin.y - r},
             v2{vMin.x + r, vMax.y + r},
-            color.r, color.g, color.b
+            ToV4(color, 1.0f)
         );
     DrawRectangle
         (
             buffer,
             v2{vMax.x - r, vMin.y - r},
             v2{vMax.x + r, vMax.y + r},
-            color.r, color.g, color.b
+            ToV4(color, 1.0f)
         );    
 }
 
@@ -492,15 +492,8 @@ DrawBitmap
                 };
 
             d = SRGB255ToLinear1(d);
-                                        
-            r32 invRSA = (1.0f - texel.a);            
-            v4 result =
-                {
-                    invRSA * d.r + texel.r,
-                    invRSA * d.g + texel.g,
-                    invRSA * d.b + texel.b,
-                    (texel.a + d.a - texel.a * d.a)
-                };
+            
+            v4 result = (1.0f - texel.a) * d + texel;
 
             result = Linear1ToSRGB255(result);
             
@@ -515,6 +508,47 @@ DrawBitmap
 
         destRow += buffer->pitch;
         sourceRow += bmp->pitch;
+    }
+}
+
+
+internal void
+ChangeSaturation(loaded_bitmap *buffer, r32 level)
+{
+    ui8 *destRow = (ui8 *)buffer->memory;
+    
+    for(i32 y = 0; y < buffer->height; y++)
+    {        
+        ui32 *dest = (ui32 *)destRow;
+
+        for(i32 x = 0; x < buffer->width; x++)
+        {  
+            v4 d =
+                {
+                    (r32)((*dest >> 16) & 0xFF),
+                    (r32)((*dest >> 8) & 0xFF),
+                    (r32)((*dest >> 0) & 0xFF),
+                    (r32)((*dest >> 24) & 0xFF)
+                };
+
+            d = SRGB255ToLinear1(d);
+
+            r32 avg = (d.r + d.g + d.b) * (1.0f / 3.0f);
+            v3 delta = {d.r - avg, d.g - avg, d.b - avg};
+            
+            v4 result = ToV4(v3{avg, avg, avg} + level * delta, d.a);
+
+            result = Linear1ToSRGB255(result);
+            
+            *dest = ((ui32)(result.a + 0.5f) << 24|
+                     (ui32)(result.r + 0.5f) << 16|
+                     (ui32)(result.g + 0.5f) << 8 |
+                     (ui32)(result.b + 0.5f) << 0);
+            
+            dest++;
+        }
+
+        destRow += buffer->pitch;
     }
 }
 
@@ -657,9 +691,17 @@ RenderGroupToOutput
                         outputTarget,
                         v2{0.0f, 0.0f},
                         v2{(r32)outputTarget->width, (r32)outputTarget->height},
-                        entry->color.r, entry->color.g, entry->color.b,
-                        entry->color.a
+                        entry->color
                     );
+                
+                baseAddress += sizeof(*entry);
+            } break;
+
+            case RenderGroupEntryType_render_entry_saturation:
+            {
+                render_entry_saturation *entry = (render_entry_saturation *)data;
+
+                ChangeSaturation(outputTarget, entry->level);
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -702,7 +744,7 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos, pos + entry->dim,
-                        entry->r, entry->g, entry->b
+                        entry->color
                     );
                 
                 baseAddress += sizeof(*entry);
@@ -732,7 +774,7 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        color.r, color.g, color.b
+                        color
                     );
 
                 pos = entry->origin + entry->xAxis;
@@ -740,7 +782,7 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        color.r, color.g, color.b
+                        color
                     );
 
                 pos = entry->origin + entry->yAxis;
@@ -748,14 +790,14 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         pos - dim, pos + dim,
-                        color.r, color.g, color.b
+                        color
                     );
 
                 DrawRectangle
                     (
                         outputTarget,
                         vMax - dim, vMax + dim,
-                        color.r, color.g, color.b
+                        color
                     );
 
 #if 0
@@ -843,10 +885,7 @@ PushPiece
         piece->bitmap = bitmap;
         piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - align;
         piece->entityBasis.offsetZ = offsetZ;
-        piece->r = color.r;
-        piece->g = color.g;
-        piece->b = color.b;
-        piece->a = color.a;
+        piece->color = color;
         piece->entityBasis.entityZC = entityZC;
     }
 }
@@ -889,10 +928,7 @@ PushRect
         piece->entityBasis.basis = group->defaultBasis;
         piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - halfDim;
         piece->entityBasis.offsetZ = offsetZ;
-        piece->r = color.r;
-        piece->g = color.g;
-        piece->b = color.b;
-        piece->a = color.a;
+        piece->color = color;
         piece->entityBasis.entityZC = entityZC;
         piece->dim = group->metersToPixels * dim;
     }
@@ -954,6 +990,16 @@ Clear(render_group *group, v4 color)
     if(entry)
     {
         entry->color = color;
+    }
+}
+
+inline void
+Saturation(render_group *group, r32 level)
+{
+    render_entry_saturation *entry = PushRenderElement(group, render_entry_saturation);
+    if(entry)
+    {
+        entry->level = level;
     }
 }
 

@@ -1,5 +1,4 @@
 #include "handmade.h"
-#include "handmade_render_group.h"
 #include "handmade_render_group.cpp"
 #include "handmade_world.cpp"
 #include "handmade_random.h"
@@ -1333,16 +1332,52 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 );
             groundBuffer->pos = NullPosition();
         }
-        
-        gameState->treeNormal = MakeEmptyBitmap
+
+        gameState->testDiffuse = MakeEmptyBitmap
             (
                 &tranState->tranArena,
-                gameState->tree.width,
-                gameState->tree.height,
+                256,
+                256,
                 false
             );
-        MakeSphereNormalMap(&gameState->treeNormal, 0.0f);
-                
+
+        DrawRectangle
+            (
+                &gameState->testDiffuse,
+                v2{0, 0},
+                V2i(gameState->testDiffuse.width, gameState->testDiffuse.height),
+                v4{0.5f, 0.5f, 0.5f, 1.0f}
+            );
+       
+        gameState->testNormal = MakeEmptyBitmap
+            (
+                &tranState->tranArena,
+                gameState->testDiffuse.width,
+                gameState->testDiffuse.height,
+                false
+            );
+        MakeSphereNormalMap(&gameState->testNormal, 0.0f);
+
+        tranState->envMapWidth = 512;
+        tranState->envMapHeight = 256;
+
+        for(ui32 mapIndex = 0;
+            mapIndex < ArrayCount(tranState->envMaps);
+            mapIndex++)
+        {
+            environment_map *map = tranState->envMaps + mapIndex;
+            ui32 width = tranState->envMapWidth;
+            ui32 height = tranState->envMapHeight;
+            for(ui32 lodIndex = 0;
+                lodIndex < ArrayCount(map->lod);
+                lodIndex++)
+            {
+                map->lod[lodIndex] = MakeEmptyBitmap(&tranState->tranArena, width, height, false);
+                width >>= 1;
+                height >>= 1;
+            }
+        }
+        
         tranState->isInitialized = true;
     }
 
@@ -1465,7 +1500,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     drawBuffer->pitch = buffer->pitch;
     drawBuffer->memory = buffer->memory;
 
-    Clear(renderGroup, v4{0.5f, 0.5f, 0.5f, 0.0f});
+    Clear(renderGroup, v4{0.25f, 0.25f, 0.25f, 0.0f});
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width,
                        0.5f * (r32)drawBuffer->height};
@@ -1887,6 +1922,42 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     r32 angle = 0.1f * gameState->time;
     r32 disp = 100.0f * Cos(5.0f * angle);
 
+    v3 mapColor[] =
+    {
+        {1.0f, 0, 0},
+        {0, 1.0f, 0},
+        {0, 0, 1.0f}
+    };
+    
+    for(ui32 mapIndex = 0;
+        mapIndex < ArrayCount(tranState->envMaps);
+        mapIndex++)
+    {
+        environment_map *map = tranState->envMaps + mapIndex;
+        loaded_bitmap *lod = map->lod + 0;
+        b32 rowCheckerOn = false;
+        i32 checkerWidth = 16;
+        i32 checkerHeight = 16;
+        for(i32 y = 0;
+            y < lod->height;
+            y += checkerHeight)
+        {
+            b32 checkerOn = rowCheckerOn;
+            for(i32 x = 0;
+                x < lod->width;
+                x += checkerWidth)
+            {
+                v4 color = checkerOn ? ToV4(mapColor[mapIndex], 1.0f) : v4{0, 0, 0, 1.0f};
+                v2 minP = V2i(x, y);
+                v2 maxP = minP + V2i(checkerWidth, checkerHeight);
+                DrawRectangle(lod, minP, maxP, color);
+                checkerOn = !checkerOn;
+            }
+
+            rowCheckerOn = !rowCheckerOn;
+        }
+    }
+    
     angle = 0;
 
     v2 origin = screenCenter;
@@ -1918,10 +1989,37 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             /*v2{disp, 0} + */origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
             color,
-            &gameState->tree,
-            &gameState->treeNormal,
-            0, 0, 0
+            &gameState->testDiffuse,
+            &gameState->testNormal,
+            tranState->envMaps + 2,
+            tranState->envMaps + 1,
+            tranState->envMaps + 0
         );
+
+    v2 mapP = {0, 0};
+    for(ui32 mapIndex = 0;
+        mapIndex < ArrayCount(tranState->envMaps);
+        mapIndex++)
+    {
+        environment_map *map = tranState->envMaps + mapIndex;
+        loaded_bitmap *lod = map->lod + 0;
+
+        xAxis = 0.5f * v2{(r32)lod->width, 0};
+        yAxis = 0.5f * v2{0, (r32)lod->height};
+
+        CoordinateSystem
+            (
+                renderGroup, mapP, xAxis, yAxis,
+                v4{1.0f, 1.0f, 1.0f, 1.0f},
+                lod, 0, 0, 0, 0
+            );
+
+        mapP += yAxis + v2{0, 6.0f};
+    }
+
+#if 0
+    Saturation(renderGroup, 0.5f + 0.5f * Sin(10.0f * gameState->time));
+#endif
     
     RenderGroupToOutput(renderGroup, drawBuffer);
     

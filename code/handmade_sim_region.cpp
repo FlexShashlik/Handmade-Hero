@@ -647,13 +647,11 @@ MoveEntity
         ddPos += v3{0, 0, -9.8f}; // NOTE: Gravity
     }
     
-    v3 oldPlayerPos = _entity->pos;
     v3 deltaPlayerPos = 0.5f * ddPos *
         Square(deltaTime) + _entity->dPos * deltaTime;
     
     _entity->dPos = ddPos * deltaTime + _entity->dPos;
     Assert(LengthSq(_entity->dPos) <= Square(simRegion->maxEntityVelocity));
-    v3 newPlayerPos = oldPlayerPos + deltaPlayerPos;
 
     r32 distanceRemaining = _entity->distanceLimit;
     if(distanceRemaining == 0.0f)
