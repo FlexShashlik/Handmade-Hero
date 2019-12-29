@@ -162,7 +162,7 @@ inline v3
 SampleEnvironmentMap
 (
     v2 screenSpaceUV,
-    v3 normal, r32 roughness, environment_map *map
+    v3 sampleDirection, r32 roughness, environment_map *map
 )
 {
     ui32 lodIndex = (ui32)(roughness * (r32)(ArrayCount(map->lod - 1) + 0.5f));
@@ -170,9 +170,18 @@ SampleEnvironmentMap
 
     loaded_bitmap *lod = &map->lod[lodIndex];
 
-    // TODO: Intersection math
-    r32 tX = lod->width / 2 + normal.x * (r32)(lod->width / 2);
-    r32 tY = lod->height / 2 + normal.y * (r32)(lod->height/ 2);
+    Assert(sampleDirection.y > 0.0f);
+    r32 distanceFromMapInZ = 1.0f;
+    r32 uvPerMeter = 0.01f;
+    r32 c = (uvPerMeter * distanceFromMapInZ) / sampleDirection.y;
+    v2 offset = c * v2{sampleDirection.x, sampleDirection.z};
+    v2 uv = screenSpaceUV + offset;
+    
+    uv.x = Clamp01(uv.x);
+    uv.y = Clamp01(uv.y);
+    
+    r32 tX = (uv.x * (r32)(lod->width - 2));
+    r32 tY = (uv.y * (r32)(lod->height - 2));
     
     i32 x = (i32)tX;
     i32 y = (i32)tY;
@@ -317,14 +326,20 @@ DrawRectangleSlowly
 
                     normal = UnscaleAndBiasNormal(normal);
                     normal.xyz = Normalize(normal.xyz);
+
+                    // NOTE: The eye vector is always assumed to be {0, 0, 1}
+                    // Simplified version of the reflection -e + 2 e^T N N
+                    v3 bounceDirection = 2.0f * normal.z * normal.xyz;
+                    bounceDirection.z -= 1.0f;
                     
                     environment_map *farMap = 0;
-                    r32 tEnvMap = normal.y;
+                    r32 tEnvMap = bounceDirection.y;
                     r32 tFarMap = 0;
                     if(tEnvMap < -0.5f)
                     {
                         farMap = bottom;
                         tFarMap = -1.0f - 2.0f * tEnvMap;
+                        bounceDirection.y = -bounceDirection.y;
                     }
                     else if(tEnvMap > 0.5f)
                     {
@@ -335,7 +350,7 @@ DrawRectangleSlowly
                     v3 lightColor = {0, 0, 0}; //SampleEnvironmentMap(screenSpaceUV, normal.xyz, normal.w, middle);
                     if(farMap)
                     {
-                        v3 farMapColor = SampleEnvironmentMap(screenSpaceUV, normal.xyz, normal.w, farMap);
+                        v3 farMapColor = SampleEnvironmentMap(screenSpaceUV, bounceDirection, normal.w, farMap);
                         lightColor = Lerp(lightColor, tFarMap, farMapColor);
                     }
 

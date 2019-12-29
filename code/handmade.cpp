@@ -747,7 +747,7 @@ MakeEmptyBitmap
 }
 
 internal void
-MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness)
+MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness, r32 cX = 1.0f, r32 cY = 1.0f)
 {
     r32 invWidth = 1.0f / (r32)(bitmap->width - 1);
     r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
@@ -764,16 +764,78 @@ MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness)
         {
             v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
 
-            r32 nx = 2.0f * bitmapUV.x - 1.0f;
-            r32 ny = 2.0f * bitmapUV.y - 1.0f;
+            r32 nx = cX * (2.0f * bitmapUV.x - 1.0f);
+            r32 ny = cY * (2.0f * bitmapUV.y - 1.0f);
 
             r32 rootTerm = 1.0f - nx * nx - ny * ny;
-            v3 normal = {0, 0, 1.0f};
+            v3 normal = {0, 0.707f, 0.707f};
             r32 nz = 0.0f;
             if(rootTerm >= 0.0f)
             {
                 nz = SqRt(rootTerm);
                 normal = {nx, ny, nz};
+            }
+            
+            v4 color =
+                {
+                    255.0f * (0.5f * (1.0f + normal.x)),
+                    255.0f * (0.5f * (1.0f + normal.y)),
+                    255.0f * (0.5f * (1.0f + normal.z)),
+                    255.0f * roughness
+                };
+            
+            *pixel++ = ((ui32)(color.a + 0.5f) << 24|
+                        (ui32)(color.r + 0.5f) << 16|
+                        (ui32)(color.g + 0.5f) << 8 |
+                        (ui32)(color.b + 0.5f) << 0);
+        }
+
+        row += bitmap->pitch;
+    }
+}
+
+internal void
+MakePyramidNormalMap(loaded_bitmap *bitmap, r32 roughness)
+{
+    r32 invWidth = 1.0f / (r32)(bitmap->width - 1);
+    r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
+
+    ui8 *row = (ui8 *)bitmap->memory;
+    for(i32 y = 0;
+        y < bitmap->height;
+        y++)
+    {
+        ui32 *pixel = (ui32 *)row;
+        for(i32 x = 0;
+        x < bitmap->width;
+        x++)
+        {
+            v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
+
+            i32 invX = (bitmap->width - 1) - x;
+            r32 seven = 0.707f;
+            v3 normal = {0, 0, seven};
+            if(x < y)
+            {
+                if(invX < y)
+                {
+                    normal.x = -seven;
+                }
+                else
+                {
+                    normal.y = seven;
+                }
+            }
+            else
+            {
+                if(invX < y)
+                {
+                    normal.y = -seven;
+                }
+                else
+                {
+                    normal.x = seven;
+                }
             }
             
             v4 color =
@@ -1356,8 +1418,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 gameState->testDiffuse.height,
                 false
             );
-        MakeSphereNormalMap(&gameState->testNormal, 0.0f);
-
+        MakeSphereNormalMap(&gameState->testNormal, 0.0f, 0.0f, 1.0f);
+        //MakePyramidNormalMap(&gameState->testNormal, 0.0f);
+        
         tranState->envMapWidth = 512;
         tranState->envMapHeight = 256;
 
@@ -1958,7 +2021,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
-    angle = 0;
+    //angle = 0;
 
     v2 origin = screenCenter;
 #if 1
@@ -1986,7 +2049,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_entry_coordinate_system *c = CoordinateSystem
         (
             renderGroup,
-            /*v2{disp, 0} + */origin - 0.5f * xAxis - 0.5f * yAxis,
+            v2{disp, 0} + origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
             color,
             &gameState->testDiffuse,
