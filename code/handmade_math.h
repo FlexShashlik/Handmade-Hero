@@ -58,6 +58,24 @@ union v4
 
         r32 a;
     };
+    struct
+    {
+        v2 xy;
+        r32 ignored0_;
+        r32 ignored1_;
+    };
+    struct
+    {
+        r32 ignored2_;
+        v2 yz;
+        r32 ignored3_;
+    };
+    struct
+    {
+        r32 ignored4_;
+        r32 ignored5_;
+        v2 zw;
+    };
     r32 e[4];
 };
 

@@ -1418,7 +1418,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 gameState->testDiffuse.height,
                 false
             );
-        MakeSphereNormalMap(&gameState->testNormal, 0.0f, 0.0f, 1.0f);
+        
+        MakeSphereNormalMap(&gameState->testNormal, 0.0f);
         //MakePyramidNormalMap(&gameState->testNormal, 0.0f);
         
         tranState->envMapWidth = 512;
@@ -1983,7 +1984,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     gameState->time += input->deltaTime;
     r32 angle = 0.1f * gameState->time;
-    r32 disp = 100.0f * Cos(5.0f * angle);
+    v2 disp =
+        {
+            100.0f * Cos(5.0f * angle),
+            100.0f * Sin(3.0f * angle)
+        };
 
     v3 mapColor[] =
     {
@@ -2049,7 +2054,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_entry_coordinate_system *c = CoordinateSystem
         (
             renderGroup,
-            v2{disp, 0} + origin - 0.5f * xAxis - 0.5f * yAxis,
+            disp + origin - 0.5f * xAxis - 0.5f * yAxis,
             xAxis, yAxis,
             color,
             &gameState->testDiffuse,
