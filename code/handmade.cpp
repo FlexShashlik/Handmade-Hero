@@ -795,6 +795,54 @@ MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness, r32 cX = 1.0f, r32 cY 
 }
 
 internal void
+MakeSphereDiffuseMap(loaded_bitmap *bitmap, r32 cX = 1.0f, r32 cY = 1.0f)
+{
+    r32 invWidth = 1.0f / (r32)(bitmap->width - 1);
+    r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
+
+    ui8 *row = (ui8 *)bitmap->memory;
+    for(i32 y = 0;
+        y < bitmap->height;
+        y++)
+    {
+        ui32 *pixel = (ui32 *)row;
+        for(i32 x = 0;
+        x < bitmap->width;
+        x++)
+        {
+            v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
+
+            r32 nx = cX * (2.0f * bitmapUV.x - 1.0f);
+            r32 ny = cY * (2.0f * bitmapUV.y - 1.0f);
+
+            r32 rootTerm = 1.0f - nx * nx - ny * ny;
+            r32 alpha = 0.0f;
+            if(rootTerm >= 0.0f)
+            {
+                alpha = 1.0f;
+            }
+
+            v3 baseColor = {0.0f, 0.0f, 0.0f};
+            alpha *= 255.0f;
+            v4 color =
+                {
+                    alpha * baseColor.x,
+                    alpha * baseColor.y,
+                    alpha * baseColor.z,
+                    alpha
+                };
+            
+            *pixel++ = ((ui32)(color.a + 0.5f) << 24|
+                        (ui32)(color.r + 0.5f) << 16|
+                        (ui32)(color.g + 0.5f) << 8 |
+                        (ui32)(color.b + 0.5f) << 0);
+        }
+
+        row += bitmap->pitch;
+    }
+}
+
+internal void
 MakePyramidNormalMap(loaded_bitmap *bitmap, r32 roughness)
 {
     r32 invWidth = 1.0f / (r32)(bitmap->width - 1);
@@ -1420,6 +1468,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             );
         
         MakeSphereNormalMap(&gameState->testNormal, 0.0f);
+        MakeSphereDiffuseMap(&gameState->testDiffuse);
         //MakePyramidNormalMap(&gameState->testNormal, 0.0f);
         
         tranState->envMapWidth = 512;
@@ -1983,13 +2032,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     
     gameState->time += input->deltaTime;
-    r32 angle = 0.1f * gameState->time;
-    v2 disp =
-        {
-            100.0f * Cos(5.0f * angle),
-            100.0f * Sin(3.0f * angle)
-        };
-
+    
     v3 mapColor[] =
     {
         {1.0f, 0, 0},
@@ -2025,12 +2068,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             rowCheckerOn = !rowCheckerOn;
         }
     }
-    
+
+    tranState->envMaps[0].posZ = -1.5f;
+    tranState->envMaps[1].posZ = 0.0f;
+    tranState->envMaps[2].posZ = 1.5f;
     //angle = 0;
 
     v2 origin = screenCenter;
+
+    
+    r32 angle = 0.1f * gameState->time;
+    
 #if 1
-    v2 xAxis = 100.0f * v2{Cos(angle), Sin(angle)};
+    v2 disp =
+        {
+            100.0f * Cos(5.0f * angle),
+            100.0f * Sin(3.0f * angle)
+        };
+#else
+    v2 disp = v2{0, 0};
+#endif
+    
+#if 1
+    v2 xAxis = 100.0f * v2{Cos(10.0f * angle), Sin(10.0f * angle)};
     v2 yAxis = Perp(xAxis);
 #else
     v2 xAxis = {100.0f, 0};

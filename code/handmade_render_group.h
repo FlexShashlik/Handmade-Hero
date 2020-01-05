@@ -9,6 +9,7 @@ struct loaded_bitmap
 struct environment_map
 {
     loaded_bitmap lod[4];
+    r32 posZ;
 };
 
 struct render_basis

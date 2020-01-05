@@ -189,7 +189,7 @@ SampleEnvironmentMap
 
     // NOTE: Compute the distance to the map and the scaling factor
     // for meters-to-UVs.
-    r32 uvPerMeter = 0.01f;
+    r32 uvPerMeter = 0.1f;
     r32 c = (uvPerMeter * distanceFromMapInZ) / sampleDirection.y;
     v2 offset = c * v2{sampleDirection.x, sampleDirection.z};
 
@@ -213,8 +213,11 @@ SampleEnvironmentMap
     Assert(x >= 0 && x < lod->width);
     Assert(y >= 0 && y < lod->height);
 
+#if 0
+    // NOTE: Turn on to see where in map you're sampling from
     ui8 *texelPtr = ((ui8 *)lod->memory) + y * lod->pitch + x * sizeof(ui32);
     *(ui32 *)texelPtr = 0xFFFFFFFF;
+#endif
     
     bilinear_sample sample = BilinearSample(lod, x, y);
     v3 result = SRGBBilinearBlend(sample, fX, fY).xyz;
@@ -231,12 +234,13 @@ DrawRectangleSlowly
     loaded_bitmap *texture, loaded_bitmap *normalMap,
     environment_map *top,
     environment_map *middle,
-    environment_map *bottom
+    environment_map *bottom,
+    r32 pixelsToMeters
 )
 {
     // NOTE: Premultiply color up front
     color.rgb *= color.a;
-
+    
     r32 xAxisLength = Length(xAxis);
     r32 yAxisLength = Length(yAxis);
     
@@ -260,6 +264,10 @@ DrawRectangleSlowly
 
     r32 invWidthMax = 1.0f / (r32)widthMax;
     r32 invHeightMax = 1.0f / (r32)heightMax;
+    
+    r32 originZ = 0.0f;
+    r32 originY = (origin + 0.5f * xAxis + 0.5f * yAxis).y;
+    r32 fixedCastY = invHeightMax * originY;
     
     i32 yMin = heightMax;
     i32 yMax = 0;
@@ -316,7 +324,13 @@ DrawRectangleSlowly
                edge2 < 0 &&
                edge3 < 0)
             {
+#if 1
+                v2 screenSpaceUV = {invWidthMax * (r32)x, fixedCastY};
+                r32 zDiff = pixelsToMeters * ((r32)y - originY);
+#else
                 v2 screenSpaceUV = {invWidthMax * (r32)x, invHeightMax * (r32)y};
+                r32 zDiff = 0.0f;
+#endif
                 
                 r32 u = InvXAxisLengthSq * Inner(d, xAxis);
                 r32 v = InvYAxisLengthSq * Inner(d, yAxis);
@@ -372,14 +386,14 @@ DrawRectangleSlowly
                     bounceDirection.z = -bounceDirection.z;
 
                     environment_map *farMap = 0;
-                    r32 distanceFromMapInZ = 2.0f;
+                    r32 posZ = originZ + zDiff;
+                    r32 mapZ = 2.0f;
                     r32 tEnvMap = bounceDirection.y;
                     r32 tFarMap = 0;
                     if(tEnvMap < -0.5f)
                     {
                         farMap = bottom;
                         tFarMap = -1.0f - 2.0f * tEnvMap;
-                        distanceFromMapInZ = -distanceFromMapInZ;
                     }
                     else if(tEnvMap > 0.5f)
                     {
@@ -387,9 +401,14 @@ DrawRectangleSlowly
                         tFarMap = 2.0f * (tEnvMap - 0.5f);
                     }
 
+                    tFarMap *= tFarMap;
+                    tFarMap *= tFarMap;
+
                     v3 lightColor = {0, 0, 0}; //SampleEnvironmentMap(screenSpaceUV, normal.xyz, normal.w, middle);
                     if(farMap)
                     {
+                        r32 distanceFromMapInZ = farMap->posZ - posZ;
+                        
                         v3 farMapColor = SampleEnvironmentMap
                             (
                                 screenSpaceUV, bounceDirection,
@@ -399,6 +418,12 @@ DrawRectangleSlowly
                     }
 
                     texel.rgb = texel.rgb + texel.a * lightColor;
+
+#if 0
+                    // NOTE: Draws the bounce direction
+                    texel.rgb = v3{0.5f, 0.5f, 0.5f} + 0.5f * bounceDirection;
+                    texel.rgb *= texel.a;
+#endif
                 }
                 
                 texel = Hadamard(texel, color);
@@ -823,7 +848,8 @@ RenderGroupToOutput
                         entry->color,
                         entry->texture,
                         entry->normalMap,
-                        entry->top, entry->middle, entry->bottom
+                        entry->top, entry->middle, entry->bottom,
+                        1.0f / renderGroup->metersToPixels
                     );
 
                 v4 color = {1, 1, 0, 1};
