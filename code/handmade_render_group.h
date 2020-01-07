@@ -1,3 +1,26 @@
+/*
+
+  NOTE:
+
+  1) Everywhere outside the renderer, _Y_ always goes upward,
+  _X_ to the right.
+
+  2) All bitmaps including the render target are
+  assumed to be bottom-up (the first row pointer points to the
+  bottom-most row when viewed on screen).
+
+  3) Unless otherwise specified, all inputs to the renderer are in
+  world coordinate("meters"), NOT pixels. Anything that in pixel
+  values will be explicitly marked as such.
+
+  4) _Z_ is a special coordinate because it is broken up into discrete
+  slices, and the renderer actually understands these slices
+  (potentially).
+
+   //TODO: ZHANDLING
+    
+ */
+
 struct loaded_bitmap
 {
     i32 width;

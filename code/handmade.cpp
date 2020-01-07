@@ -76,11 +76,12 @@ DEBUGLoadBMP
     if(readResult.contentsSize != 0)
     {
         bitmap_header *header = (bitmap_header *)readResult.contents;
-
-        Assert(header->compression == 3);
         
         result.width = header->width;
         result.height = header->height;
+
+        Assert(result.height >= 0);
+        Assert(header->compression == 3);
 
         ui32 *pixels = (ui32 *)((ui8 *)readResult.contents + header->bitmapOffset);
         result.memory = pixels;
@@ -136,9 +137,12 @@ DEBUGLoadBMP
         }
     }
 
-    result.pitch = -result.width * BITMAP_BYTES_PER_PIXEL;
-    result.memory = (ui8 *)result.memory - result.pitch * (result.height - 1);
-
+    result.pitch = result.width * BITMAP_BYTES_PER_PIXEL;
+#if 0
+    // NOTE: For top-down
+    result.memory = (ui8 *)result.memory + result.pitch * (result.height - 1);
+#endif
+    
     return result;
 }
 
@@ -629,7 +633,7 @@ FillGroundChunk
                  593 * chunkY +
                  329 * chunkZ);
     
-            v2 center = v2{chunkOffsetX * width, -chunkOffsetY * height};
+            v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
             
             for(ui32 grassIndex = 0;
                 grassIndex < 100;
@@ -683,7 +687,7 @@ FillGroundChunk
                  593 * chunkY +
                  329 * chunkZ);
     
-            v2 center = v2{chunkOffsetX * width, -chunkOffsetY * height};
+            v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
             
             for(ui32 grassIndex = 0;
                 grassIndex < 50;
@@ -928,6 +932,19 @@ RequestGroundBuffers
 }
 #endif
 
+inline v2
+TopDownAlign(loaded_bitmap *bmp, v2 align)
+{
+    align.y = (r32)(bmp->height - 1) - align.y;
+    return align;
+}
+
+internal void
+SetTopDownAlign(hero_bitmaps *bmp, v2 align)
+{
+    bmp->align = TopDownAlign(&bmp->head, align);
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
@@ -1135,7 +1152,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_right_torso.bmp"
             );
 
-        heroBMP->align = v2{72, 182};
+        SetTopDownAlign(heroBMP, v2{72, 182});
 
         heroBMP++;
 
@@ -1160,7 +1177,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_back_torso.bmp"
             );
 
-        heroBMP->align = v2{72, 182};
+        SetTopDownAlign(heroBMP, v2{72, 182});
 
         heroBMP++;
 
@@ -1185,7 +1202,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_left_torso.bmp"
             );
 
-        heroBMP->align = v2{72, 182};
+        SetTopDownAlign(heroBMP, v2{72, 182});
         
         heroBMP++;
 
@@ -1210,7 +1227,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 "test/test_hero_front_torso.bmp"
             );
 
-        heroBMP->align = v2{72, 182};
+        SetTopDownAlign(heroBMP, v2{72, 182});
         
         heroBMP++;
 
@@ -1730,6 +1747,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             );
                     }
 
+#if 0
                     PushRectOutline
 						(
 							renderGroup,
@@ -1738,6 +1756,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 							_world->chunkDimInMeters.xy,
 							v4{ 1.0f, 1.0f, 0.0f, 1.0f }
 						);
+#endif
                 }
             }
         }
@@ -1860,11 +1879,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
                 case EntityType_Wall:
                 {
+                    v2 alignment = TopDownAlign(&gameState->tree, v2{40, 80});
                     PushBitmap
                         (
                             renderGroup, &gameState->tree,
                             v2{0, 0}, 0,
-                            v2{40, 80}
+                            alignment
                         );
                 } break;
 
@@ -1910,11 +1930,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             heroBitmaps->align,
                             shadowAlpha, 0.0f
                         );
+                    v2 alignment = TopDownAlign(&gameState->sword, v2{29, 10});
                     PushBitmap
                         (
                             renderGroup, &gameState->sword,
                             v2{0, 0}, 0,
-                            v2{29, 10}
+                            alignment
                         );
                 } break;
             
@@ -2030,7 +2051,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             basis->p = GetEntityGroundPoint(_entity);
         }
     }
-    
+
+#if 1
     gameState->time += input->deltaTime;
     
     v3 mapColor[] =
@@ -2147,6 +2169,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if 0
     Saturation(renderGroup, 0.5f + 0.5f * Sin(10.0f * gameState->time));
+#endif
+
 #endif
     
     RenderGroupToOutput(renderGroup, drawBuffer);

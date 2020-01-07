@@ -727,21 +727,15 @@ GetRenderEntityBasisPos
     render_entity_basis *entityBasis, v2 screenCenter
 )
 {
+    //TODO: ZHANDLING
     v3 entityBaseP = entityBasis->basis->p; 
     r32 zFudge = 1.0f + 0.1f * (entityBaseP.z + entityBasis->offsetZ);
             
-    r32 entityGroundX = screenCenter.x + renderGroup->metersToPixels *
-        zFudge * entityBaseP.x;
-    r32 entityGroundY = screenCenter.y - renderGroup->metersToPixels *
-        zFudge * entityBaseP.y;
+    v2 entityGround = screenCenter + renderGroup->metersToPixels *
+        zFudge * entityBaseP.xy;
+    r32 entityZ = renderGroup->metersToPixels * entityBaseP.z;
 
-    r32 entityZ = -renderGroup->metersToPixels * entityBaseP.z;
-
-    v2 center =
-        {
-            entityGroundX + entityBasis->offset.x,
-            entityGroundY + entityBasis->offset.y + entityBasis->entityZC * entityZ
-        };
+    v2 center = entityGround + entityBasis->offset + v2{0, entityBasis->entityZC * entityZ};
 
     return center;
 }
@@ -793,8 +787,6 @@ RenderGroupToOutput
             case RenderGroupEntryType_render_entry_bitmap:
             {
                 render_entry_bitmap *entry = (render_entry_bitmap *)data;
-                
-#if 0
                 v2 pos = GetRenderEntityBasisPos
                     (
                         renderGroup,
@@ -807,9 +799,8 @@ RenderGroupToOutput
                     (
                         outputTarget, entry->bitmap,
                         pos.x, pos.y,
-                        entry->a
+                        entry->color.a
                     );
-#endif
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -968,7 +959,7 @@ PushPiece
     {
         piece->entityBasis.basis = group->defaultBasis;
         piece->bitmap = bitmap;
-        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - align;
+        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, offset.y} - align;
         piece->entityBasis.offsetZ = offsetZ;
         piece->color = color;
         piece->entityBasis.entityZC = entityZC;
@@ -1011,7 +1002,7 @@ PushRect
         v2 halfDim = 0.5f * group->metersToPixels * dim;
         
         piece->entityBasis.basis = group->defaultBasis;
-        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, -offset.y} - halfDim;
+        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, offset.y} - halfDim;
         piece->entityBasis.offsetZ = offsetZ;
         piece->color = color;
         piece->entityBasis.entityZC = entityZC;
