@@ -117,19 +117,8 @@ struct rectangle3
     v3 max;
 };
 
-inline v3
-ToV3(v2 xy, r32 z)
-{
-    v3 result;
-
-    result.xy = xy;
-    result.z = z;
-
-    return result;
-}
-
 inline v4
-ToV4(v3 xyz, r32 w)
+V4(v3 xyz, r32 w)
 {
     v4 result;
 

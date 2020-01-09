@@ -477,14 +477,14 @@ DrawRectangleOutline
             buffer,
             v2{vMin.x - r, vMin.y - r},
             v2{vMax.x + r, vMin.y + r},
-            ToV4(color, 1.0f)
+            V4(color, 1.0f)
         );
     DrawRectangle
         (
             buffer,
             v2{vMin.x - r, vMax.y - r},
             v2{vMax.x + r, vMax.y + r},
-            ToV4(color, 1.0f)
+            V4(color, 1.0f)
         );
     
     // NOTE: Left and right
@@ -493,14 +493,14 @@ DrawRectangleOutline
             buffer,
             v2{vMin.x - r, vMin.y - r},
             v2{vMin.x + r, vMax.y + r},
-            ToV4(color, 1.0f)
+            V4(color, 1.0f)
         );
     DrawRectangle
         (
             buffer,
             v2{vMax.x - r, vMin.y - r},
             v2{vMax.x + r, vMax.y + r},
-            ToV4(color, 1.0f)
+            V4(color, 1.0f)
         );    
 }
 
@@ -620,7 +620,7 @@ ChangeSaturation(loaded_bitmap *buffer, r32 level)
             r32 avg = (d.r + d.g + d.b) * (1.0f / 3.0f);
             v3 delta = {d.r - avg, d.g - avg, d.b - avg};
             
-            v4 result = ToV4(v3{avg, avg, avg} + level * delta, d.a);
+            v4 result = V4(v3{avg, avg, avg} + level * delta, d.a);
 
             result = Linear1ToSRGB255(result);
             
@@ -728,14 +728,10 @@ GetRenderEntityBasisPos
 )
 {
     //TODO: ZHANDLING
-    v3 entityBaseP = entityBasis->basis->p; 
-    r32 zFudge = 1.0f + 0.1f * (entityBaseP.z + entityBasis->offsetZ);
-            
-    v2 entityGround = screenCenter + renderGroup->metersToPixels *
-        zFudge * entityBaseP.xy;
-    r32 entityZ = renderGroup->metersToPixels * entityBaseP.z;
-
-    v2 center = entityGround + entityBasis->offset + v2{0, entityBasis->entityZC * entityZ};
+    v3 entityBaseP = renderGroup->metersToPixels * entityBasis->basis->p; 
+    r32 zFudge = 1.0f + 0.1f * entityBaseP.z;
+    v2 entityGround = screenCenter + zFudge * entityBaseP.xy + entityBasis->offset.xy;
+    v2 center = entityGround + v2{0, entityBaseP.z + entityBasis->offset.z};
 
     return center;
 }
@@ -771,15 +767,6 @@ RenderGroupToOutput
                         v2{(r32)outputTarget->width, (r32)outputTarget->height},
                         entry->color
                     );
-                
-                baseAddress += sizeof(*entry);
-            } break;
-
-            case RenderGroupEntryType_render_entry_saturation:
-            {
-                render_entry_saturation *entry = (render_entry_saturation *)data;
-
-                ChangeSaturation(outputTarget, entry->level);
                 
                 baseAddress += sizeof(*entry);
             } break;
@@ -944,14 +931,11 @@ PushRenderElement_(render_group *group, ui32 size, render_group_entry_type type)
 }
 
 inline void
-PushPiece
+PushBitmap
 (
     render_group *group,
     loaded_bitmap *bitmap,
-    v2 offset, r32 offsetZ,
-    v2 align, v2 dim,
-    v4 color,
-    r32 entityZC = 1.0f
+    v3 offset, v4 color = {1, 1, 1, 1}
 )
 {
     render_entry_bitmap *piece = PushRenderElement(group, render_entry_bitmap);
@@ -959,53 +943,24 @@ PushPiece
     {
         piece->entityBasis.basis = group->defaultBasis;
         piece->bitmap = bitmap;
-        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, offset.y} - align;
-        piece->entityBasis.offsetZ = offsetZ;
+        piece->entityBasis.offset = group->metersToPixels * offset - V3(bitmap->align, 0);
         piece->color = color;
-        piece->entityBasis.entityZC = entityZC;
     }
-}
-
-inline void
-PushBitmap
-(
-    render_group *group,
-    loaded_bitmap *bitmap,
-    v2 offset, r32 offsetZ,
-    v2 align, r32 alpha = 1.0f,
-    r32 entityZC = 1.0f
-)
-{
-    PushPiece
-        (
-            group, bitmap,
-            offset, offsetZ,
-            align, v2{0, 0},
-            v4{1.0f, 1.0f, 1.0f, alpha},
-            entityZC
-        );
 }
 
 inline void
 PushRect
 (
     render_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim,
-    v4 color,
-    r32 entityZC = 1.0f
+    v3 offset, v2 dim, v4 color = {1, 1, 1, 1}
 )
 {
     render_entry_rectangle *piece = PushRenderElement(group, render_entry_rectangle);
     if(piece)
     {
-        v2 halfDim = 0.5f * group->metersToPixels * dim;
-        
         piece->entityBasis.basis = group->defaultBasis;
-        piece->entityBasis.offset = group->metersToPixels * v2{offset.x, offset.y} - halfDim;
-        piece->entityBasis.offsetZ = offsetZ;
+        piece->entityBasis.offset = group->metersToPixels * (offset - V3(0.5f * dim, 0));
         piece->color = color;
-        piece->entityBasis.entityZC = entityZC;
         piece->dim = group->metersToPixels * dim;
     }
 }
@@ -1014,9 +969,8 @@ inline void
 PushRectOutline
 (
     render_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim,
-    v4 color,
+    v3 offset, v2 dim,
+    v4 color = {1, 1, 1, 1},
     r32 entityZC = 1.0f
 )
 {
@@ -1026,36 +980,28 @@ PushRectOutline
     PushRect
         (
             group,
-            offset - v2{0, 0.5f * dim.y}, offsetZ,
-            v2{dim.x, thickness},
-            color,
-            entityZC
+            offset - v3{0, 0.5f * dim.y, 0},
+            v2{dim.x, thickness}, color
         );
     PushRect
         (
             group,
-            offset + v2{0, 0.5f * dim.y}, offsetZ,
-            v2{dim.x, thickness},
-            color,
-            entityZC
+            offset + v3{0, 0.5f * dim.y, 0},
+            v2{dim.x, thickness}, color
         );
     
     // NOTE: Left and right
     PushRect
         (
             group,
-            offset - v2{0.5f * dim.x, 0}, offsetZ,
-            v2{thickness, dim.y},
-            color,
-            entityZC
+            offset - v3{0.5f * dim.x, 0, 0},
+            v2{thickness, dim.y}, color
         );
     PushRect
         (
             group,
-            offset + v2{0.5f * dim.x, 0}, offsetZ,
-            v2{thickness, dim.y},
-            color,
-            entityZC
+            offset + v3{0.5f * dim.x, 0, 0},
+            v2{thickness, dim.y}, color
         );
 }
 
@@ -1066,16 +1012,6 @@ Clear(render_group *group, v4 color)
     if(entry)
     {
         entry->color = color;
-    }
-}
-
-inline void
-Saturation(render_group *group, r32 level)
-{
-    render_entry_saturation *entry = PushRenderElement(group, render_entry_saturation);
-    if(entry)
-    {
-        entry->level = level;
     }
 }
 

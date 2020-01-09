@@ -58,12 +58,19 @@ struct bitmap_header
 };
 #pragma pack(pop)
 
+inline v2
+TopDownAlign(loaded_bitmap *bmp, v2 align)
+{
+    align.y = (r32)(bmp->height - 1) - align.y;
+    return align;
+}
+
 internal loaded_bitmap
 DEBUGLoadBMP
 (
     thread_context *thread,
     debug_platform_read_entire_file *readEntireFile,
-    char *fileName
+    char *fileName, i32 alignX = 0, i32 topDownAlignY = 0
 )
 {
     loaded_bitmap result = {};
@@ -79,6 +86,7 @@ DEBUGLoadBMP
         
         result.width = header->width;
         result.height = header->height;
+        result.align = TopDownAlign(&result, V2i(alignX, topDownAlignY));
 
         Assert(result.height >= 0);
         Assert(header->compression == 3);
@@ -456,12 +464,7 @@ DrawHitPoints
                 color = v4{0.2f, 0.2f, 0.2f, 1.0f};
             }
                         
-            PushRect
-                (
-                    pieceGroup,
-                    hitPos, 0, healthDim,
-                    color, 0.0f
-                );
+            PushRect(pieceGroup, V3(hitPos, 0), healthDim, color);
             hitPos += deltaHitPos;
         }
     }
@@ -661,11 +664,7 @@ FillGroundChunk
 
                 v2 pos = center + offset - bitmapCenter;
                 
-                PushBitmap
-                    (
-                        renderGroup, stamp,
-                        pos, 0.0f, v2{0, 0}
-                    );
+                PushBitmap(renderGroup, stamp, V3(pos, 0.0f));
             }
         }
     }
@@ -706,11 +705,7 @@ FillGroundChunk
 
                 v2 pos = center + offset - bitmapCenter;
   
-                PushBitmap
-                    (
-                        renderGroup, stamp,
-                        pos, 0.0f, v2{0, 0}
-                    );
+                PushBitmap(renderGroup, stamp, V3(pos, 0.0f));
             }
         }
     }
@@ -932,17 +927,14 @@ RequestGroundBuffers
 }
 #endif
 
-inline v2
-TopDownAlign(loaded_bitmap *bmp, v2 align)
-{
-    align.y = (r32)(bmp->height - 1) - align.y;
-    return align;
-}
-
 internal void
 SetTopDownAlign(hero_bitmaps *bmp, v2 align)
 {
-    bmp->align = TopDownAlign(&bmp->head, align);
+    align = TopDownAlign(&bmp->head, align);
+    
+    bmp->head.align = align;
+    bmp->cape.align = align;
+    bmp->torso.align = align;
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -1105,14 +1097,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             (
                 thread,
                 memory->DEBUGPlatformReadEntireFile,
-                "test/test_hero_shadow.bmp"
+                "test/test_hero_shadow.bmp",
+                72, 182
             );
 
         gameState->tree = DEBUGLoadBMP
             (
                 thread,
                 memory->DEBUGPlatformReadEntireFile,
-                "test2/tree00.bmp"
+                "test2/tree00.bmp",
+                40, 80
             );
 
         gameState->stairwell = DEBUGLoadBMP
@@ -1126,7 +1120,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             (
                 thread,
                 memory->DEBUGPlatformReadEntireFile,
-                "test2/rock03.bmp"
+                "test2/rock03.bmp",
+                29, 10
             );
 
         hero_bitmaps *heroBMP = gameState->heroBitmaps;
@@ -1656,13 +1651,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     gameState->_world,
                     &groundBuffer->pos, &gameState->cameraPos
                 );
-    
-            PushBitmap
-                (
-                    renderGroup,
-                    bitmap, delta.xy, delta.z,
-                    0.5f * V2i(bitmap->width, bitmap->height)
-                );
+
+            bitmap->align = 0.5f * V2i(bitmap->width, bitmap->height);
+            PushBitmap(renderGroup, bitmap, delta);
         }
     }
     
@@ -1848,62 +1839,36 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align,
-                            shadowAlpha, 0.0f
+                            v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
                         );
             
-                    PushBitmap
-                        (
-                            renderGroup, &heroBitmaps->torso,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align
-                        );
+                    PushBitmap(renderGroup, &heroBitmaps->torso, v3{0, 0, 0});
 
-                    PushBitmap
-                        (
-                            renderGroup, &heroBitmaps->cape,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align
-                        );
+                    PushBitmap(renderGroup, &heroBitmaps->cape, v3{0, 0, 0});
     
-                    PushBitmap
-                        (
-                            renderGroup, &heroBitmaps->head,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align
-                        );
+                    PushBitmap(renderGroup, &heroBitmaps->head, v3{0, 0, 0});
 
                     DrawHitPoints(_entity, renderGroup);
                 } break;
             
                 case EntityType_Wall:
                 {
-                    v2 alignment = TopDownAlign(&gameState->tree, v2{40, 80});
-                    PushBitmap
-                        (
-                            renderGroup, &gameState->tree,
-                            v2{0, 0}, 0,
-                            alignment
-                        );
+                    PushBitmap(renderGroup, &gameState->tree, v3{0, 0, 0});
                 } break;
 
                 case EntityType_Stairwell:
                 {
                     PushRect
                         (
-                            renderGroup, v2{0, 0}, 0,
+                            renderGroup, v3{0, 0, 0},
                             _entity->walkableDim,
-                            v4{1, 0.5f, 0, 1},
-                            0.0f
+                            v4{1, 0.5f, 0, 1}
                         );
                     PushRect
                         (
-                            renderGroup, v2{0, 0},
-                            _entity->walkableHeight,
+                            renderGroup, v3{0, 0, _entity->walkableHeight},
                             _entity->walkableDim,
-                            v4{1, 1, 0, 1},
-                            0.0f
+                            v4{1, 1, 0, 1}
                         );
                 } break;
 
@@ -1926,16 +1891,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align,
-                            shadowAlpha, 0.0f
+                            v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
                         );
-                    v2 alignment = TopDownAlign(&gameState->sword, v2{29, 10});
                     PushBitmap
                         (
                             renderGroup, &gameState->sword,
-                            v2{0, 0}, 0,
-                            alignment
+                            v3{0, 0, 0}
                         );
                 } break;
             
@@ -1981,16 +1942,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align,
-                            0.5f * shadowAlpha + 0.2f * bobSin, 0.0f
+                            v3{0, 0, 0},
+                            v4{1, 1, 1, 0.5f * shadowAlpha + 0.2f * bobSin}
                         );
                     PushBitmap
                         (
                             renderGroup, &heroBitmaps->head,
-                            v2{0, 0},
-                            0.25f * bobSin,
-                            heroBitmaps->align
+                            v3{0, 0, 0.25f * bobSin}
                         );
                 } break;
 
@@ -1999,15 +1957,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align,
-                            shadowAlpha, 0.0f
+                            v3{0, 0, 0},
+                            v4{1, 1, 1, shadowAlpha}
                         );
                     PushBitmap
                         (
                             renderGroup, &heroBitmaps->torso,
-                            v2{0, 0}, 0,
-                            heroBitmaps->align
+                            v3{0, 0, 0}
                         );
                 
                     DrawHitPoints(_entity, renderGroup);
@@ -2023,7 +1979,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             _entity->collision->volumes + volumeIndex;
                         PushRectOutline
                             (
-                                renderGroup, volume->offsetPos.xy, 0,
+                                renderGroup,
+                                volume->offsetPos - v3{0, 0, 0.5f * volume->dim.z},
                                 volume->dim.xy,
                                 v4{0, 0.5f, 1.0f, 1},
                                 0.0f
@@ -2080,7 +2037,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 x < lod->width;
                 x += checkerWidth)
             {
-                v4 color = checkerOn ? ToV4(mapColor[mapIndex], 1.0f) : v4{0, 0, 0, 1.0f};
+                v4 color = checkerOn ? V4(mapColor[mapIndex], 1.0f) : v4{0, 0, 0, 1.0f};
                 v2 minP = V2i(x, y);
                 v2 maxP = minP + V2i(checkerWidth, checkerHeight);
                 DrawRectangle(lod, minP, maxP, color);
@@ -2094,6 +2051,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     tranState->envMaps[0].posZ = -1.5f;
     tranState->envMaps[1].posZ = 0.0f;
     tranState->envMaps[2].posZ = 1.5f;
+
+    DrawBitmap
+        (
+            tranState->envMaps[0].lod + 0,
+            &tranState->groundBuffers[tranState->groundBufferCount - 1].bitmap,
+            125.0f, 50.0f, 1.0f
+        );
+    
     //angle = 0;
 
     v2 origin = screenCenter;

@@ -17,12 +17,17 @@
   slices, and the renderer actually understands these slices
   (potentially).
 
+  5) All color values specified to the renderer as V4's are in
+  NON-premultiplied alpha.
+
    //TODO: ZHANDLING
     
  */
 
 struct loaded_bitmap
 {
+    v2 align;
+    
     i32 width;
     i32 height;
     i32 pitch;
@@ -43,9 +48,7 @@ struct render_basis
 struct render_entity_basis
 {
     render_basis *basis;
-    v2 offset;
-    r32 offsetZ;
-    r32 entityZC;
+    v3 offset;
 };
 
 enum render_group_entry_type
@@ -53,8 +56,7 @@ enum render_group_entry_type
     RenderGroupEntryType_render_entry_clear,
     RenderGroupEntryType_render_entry_coordinate_system,
     RenderGroupEntryType_render_entry_bitmap,
-    RenderGroupEntryType_render_entry_rectangle,
-    RenderGroupEntryType_render_entry_saturation
+    RenderGroupEntryType_render_entry_rectangle
 };
 
 struct render_group_entry_header
@@ -110,3 +112,34 @@ struct render_group
     ui32 maxPushBufferSize;
     ui8 *pushBufferBase;
 };
+
+// NOTE: Renderer API
+#if 0
+inline void
+PushBitmap
+(
+    render_group *group,
+    loaded_bitmap *bitmap,
+    v2 offset, r32 offsetZ,
+    v2 align, r32 alpha = 1.0f
+);
+
+inline void
+PushRect
+(
+    render_group *group,
+    v2 offset, r32 offsetZ,
+    v2 dim, v4 color
+);
+
+inline void
+PushRectOutline
+(
+    render_group *group,
+    v2 offset, r32 offsetZ,
+    v2 dim, v4 color
+);
+
+inline void
+Clear(render_group *group, v4 color);
+#endif
