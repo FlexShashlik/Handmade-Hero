@@ -14,13 +14,12 @@
   values will be explicitly marked as such.
 
   4) _Z_ is a special coordinate because it is broken up into discrete
-  slices, and the renderer actually understands these slices
-  (potentially).
+  slices, and the renderer actually understands these slices. _Z_
+  slices are what control the scaling of things, whereas _Z_ offsets
+  inside a slice are what control _Y_ offseting.
 
   5) All color values specified to the renderer as V4's are in
   NON-premultiplied alpha.
-
-   //TODO: ZHANDLING
     
  */
 
@@ -105,6 +104,8 @@ struct render_entry_rectangle
 
 struct render_group
 {
+    r32 globalAlpha;
+    
     render_basis *defaultBasis;
     r32 metersToPixels;
 

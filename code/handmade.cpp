@@ -1246,9 +1246,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             screenIndex < 2000;
             screenIndex++)
         {
-            ui32 doorDirection =
-                RandomChoice(&series, 2);
-            //RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
+#if 1
+            ui32 doorDirection = RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
+#else
+            ui32 doorDirection = RandomChoice(&series, 2);
+#endif
             
             b32 isCreatedZDoor = false;
             if(doorDirection == 2)
@@ -1583,6 +1585,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
 
             conHero->dPosSword = {};
+
+#if 0
             if(controller->actionUp.endedDown)
             {
                 conHero->dPosSword = v2{0.0f, 1.0f};
@@ -1602,6 +1606,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 conHero->dPosSword = v2{1.0f, 0.0f};
             }
+#else
+            r32 zoomRate = 0.0f;
+            if(controller->actionUp.endedDown)
+            {
+                zoomRate = 1.0f;
+            }
+            if(controller->actionDown.endedDown)
+            {
+                zoomRate = -1.0f;
+            }
+
+            gameState->zOffset += zoomRate * input->deltaTime;
+#endif
         }
     }
     
@@ -1617,6 +1634,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Megabytes(4),
             gameState->metersToPixels
         );
+
+    renderGroup->globalAlpha = 1.0f;//Clamp01(1.0f - gameState->zOffset);
     
     loaded_bitmap drawBuffer_ = {};
     loaded_bitmap *drawBuffer = &drawBuffer_;
@@ -1637,7 +1656,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{0, 0, 0},
             v3{screenWidthInMeters, screenHeightInMeters, 0}
         );
-
+#if 0
     for(ui32 groundBufferIndex = 0;
         groundBufferIndex < tranState->groundBufferCount;
         groundBufferIndex++)
@@ -1653,7 +1672,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 );
 
             bitmap->align = 0.5f * V2i(bitmap->width, bitmap->height);
-            PushBitmap(renderGroup, bitmap, delta);
+
+            render_basis *basis = PushStruct(&tranState->tranArena, render_basis);
+            renderGroup->defaultBasis = basis;
+            basis->p = delta + v3{0, 0, gameState->zOffset};
+
+            PushBitmap(renderGroup, bitmap, v3{0, 0, 0});
         }
     }
     
@@ -1752,6 +1776,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }
     }
+#endif
 
     // TODO: How big is it actually?
     v3 simBoundsExpansion = {15.0f, 15.0f, 15.0f};
@@ -2005,11 +2030,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     );
             }
 
-            basis->p = GetEntityGroundPoint(_entity);
+            basis->p = GetEntityGroundPoint(_entity) + v3{0, 0, gameState->zOffset};
         }
     }
 
-#if 1
+#if 0
     gameState->time += input->deltaTime;
     
     v3 mapColor[] =
@@ -2135,7 +2160,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
     Saturation(renderGroup, 0.5f + 0.5f * Sin(10.0f * gameState->time));
 #endif
-
+    
 #endif
     
     RenderGroupToOutput(renderGroup, drawBuffer);
