@@ -826,14 +826,12 @@ RenderGroupToOutput
                         screenCenter
                     );
 
-                /*
                 DrawRectangle
                     (
                         outputTarget,
                         basis.p, basis.p + basis.scale * entry->dim,
                         entry->color
                     );
-                */
                 
                 baseAddress += sizeof(*entry);
             } break;

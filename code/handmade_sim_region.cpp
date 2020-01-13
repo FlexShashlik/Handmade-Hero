@@ -206,9 +206,7 @@ BeginSim
 {
     sim_region *simRegion = PushStruct(simArena, sim_region);
     ZeroStruct(simRegion->hash);
-
-    // TODO: IMPORTANT: Calculate this from the max value of all
-    // entities radius + their speed
+    
     simRegion->maxEntityRadius = 5.0f;
     simRegion->maxEntityVelocity = 30.0f;
     r32 updateSafetyMargin = simRegion->maxEntityRadius +
@@ -372,9 +370,9 @@ EndSim(sim_region *region, game_state *gameState)
                 newCameraPos.absTileY -= 9;
             }
 #else
-            r32 camZOffset = newCameraPos._offset.z;
+            //r32 camZOffset = newCameraPos._offset.z;
             newCameraPos = stored->pos;
-            newCameraPos._offset.z = camZOffset;
+            //newCameraPos._offset.z = camZOffset;
 #endif
 
             gameState->cameraPos = newCameraPos;

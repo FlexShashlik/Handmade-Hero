@@ -1586,7 +1586,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             conHero->dPosSword = {};
 
-#if 0
             if(controller->actionUp.endedDown)
             {
                 conHero->dPosSword = v2{0.0f, 1.0f};
@@ -1606,19 +1605,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 conHero->dPosSword = v2{1.0f, 0.0f};
             }
-#else
-            r32 zoomRate = 0.0f;
-            if(controller->actionUp.endedDown)
-            {
-                zoomRate = 1.0f;
-            }
-            if(controller->actionDown.endedDown)
-            {
-                zoomRate = -1.0f;
-            }
-
-            gameState->zOffset += zoomRate * input->deltaTime;
-#endif
         }
     }
     
@@ -1634,8 +1620,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Megabytes(4),
             gameState->metersToPixels
         );
-
-    renderGroup->globalAlpha = 1.0f;//Clamp01(1.0f - gameState->zOffset);
     
     loaded_bitmap drawBuffer_ = {};
     loaded_bitmap *drawBuffer = &drawBuffer_;
@@ -1656,6 +1640,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{0, 0, 0},
             v3{screenWidthInMeters, screenHeightInMeters, 0}
         );
+    
 #if 0
     for(ui32 groundBufferIndex = 0;
         groundBufferIndex < tranState->groundBufferCount;
@@ -1787,11 +1772,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         );
 
     temporary_memory simMemory = BeginTemporaryMemory(&tranState->tranArena);
+    world_position simCenterP = gameState->cameraPos;
     sim_region *simRegion = BeginSim
         (
-            &tranState->tranArena, gameState, gameState->_world,
-            gameState->cameraPos, simBounds, input->deltaTime
+            &tranState->tranArena, gameState, _world,
+            simCenterP, simBounds, input->deltaTime
         );
+
+    v3 cameraP = Subtract(_world, &gameState->cameraPos, &simCenterP);
     
     // TODO: Move this out into handmade_entity.cpp
     for(ui32 entityIndex = 0;
@@ -1815,6 +1803,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             render_basis *basis = PushStruct(&tranState->tranArena, render_basis);
             renderGroup->defaultBasis = basis;
+
+            v3 cameraRelativeGroundP = GetEntityGroundPoint(_entity) - cameraP;
+            renderGroup->globalAlpha = Clamp01(1.0f - cameraRelativeGroundP.z);
             
             hero_bitmaps *heroBitmaps = &gameState->
                 heroBitmaps[_entity->facingDirection];
@@ -2030,9 +2021,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     );
             }
 
-            basis->p = GetEntityGroundPoint(_entity) + v3{0, 0, gameState->zOffset};
+            basis->p = GetEntityGroundPoint(_entity);
         }
     }
+
+    renderGroup->globalAlpha = 1.0f;
 
 #if 0
     gameState->time += input->deltaTime;

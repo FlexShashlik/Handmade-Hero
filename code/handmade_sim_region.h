@@ -101,7 +101,7 @@ struct sim_region
     world *_world;
     r32 maxEntityRadius;
     r32 maxEntityVelocity;
-    
+
     world_position origin;
     rectangle3 bounds;
     rectangle3 updatableBounds;
