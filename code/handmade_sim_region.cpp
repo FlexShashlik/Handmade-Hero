@@ -220,7 +220,7 @@ BeginSim
             bounds,
             v3{simRegion->maxEntityRadius,
                simRegion->maxEntityRadius,
-               simRegion->maxEntityRadius}
+               0.0f}
         );
     simRegion->bounds = AddRadiusTo
         (

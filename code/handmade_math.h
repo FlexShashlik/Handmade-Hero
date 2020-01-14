@@ -197,6 +197,20 @@ Clamp01(r32 value)
     return result;
 }
 
+inline r32
+Clamp01MapToRange(r32 min, r32 t, r32 max)
+{
+    r32 result = 0.0f;
+
+    r32 range = max - min;
+    if(range != 0)
+    {
+        result = Clamp01((t - min) / range);
+    }
+
+    return result;
+}
+
 //
 // NOTE: v2 operations
 //

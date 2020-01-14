@@ -1247,24 +1247,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             screenIndex++)
         {
 #if 1
-            ui32 doorDirection = RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 3);
+            ui32 doorDirection = RandomChoice(&series, (isDoorUp || isDoorDown) ? 2 : 4);
 #else
             ui32 doorDirection = RandomChoice(&series, 2);
 #endif
+
+            doorDirection = 3;
             
             b32 isCreatedZDoor = false;
-            if(doorDirection == 2)
+            if(doorDirection == 3)
             {
                 isCreatedZDoor = true;
-                
-                if(absTileZ == screenBaseZ)
-                {
-                    isDoorUp = true;
-                }
-                else
-                {
-                    isDoorDown = true;
-                }
+                isDoorDown = true;
+            }
+            else if(doorDirection == 2)
+            {
+                isCreatedZDoor = true;
+                isDoorUp = true;
             }
             else if(doorDirection == 1)
             {
@@ -1324,14 +1323,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     
                     if(isWall)
                     {
-                        //if(screenIndex == 0)
+                        if(tileX % 2 || tileY % 2)
                         {
                             AddWall(gameState, absTileX, absTileY, absTileZ);
                         }
                     }
                     else if(isCreatedZDoor)
                     {
-                        if(tileX == 10 && tileY == 5)
+                        if((absTileZ % 2 && tileX == 10 && tileY == 5) ||
+                           (!(absTileZ % 2) && tileX == 4 && tileY == 5))
                         {
                             AddStair
                                 (
@@ -1361,16 +1361,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             isDoorTop = false;
             isDoorRight = false;
 
-            if(doorDirection == 2)
+            if(doorDirection == 3)
             {
-                if(absTileZ == screenBaseZ)
-                {
-                    absTileZ = screenBaseZ + 1;
-                }
-                else
-                {
-                    absTileZ = screenBaseZ;
-                }
+                absTileZ -= 1;
+            }
+            else if(doorDirection == 2)
+            {
+                absTileZ += 1;
             }
             else if(doorDirection == 1)
             {
@@ -1640,6 +1637,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v3{0, 0, 0},
             v3{screenWidthInMeters, screenHeightInMeters, 0}
         );
+
+    cameraBoundsInMeters.min.z = -3.0f * gameState->typicalFloorHeight;
+    cameraBoundsInMeters.max.z = 1.0f * gameState->typicalFloorHeight;
     
 #if 0
     for(ui32 groundBufferIndex = 0;
@@ -1764,7 +1764,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
 
     // TODO: How big is it actually?
-    v3 simBoundsExpansion = {15.0f, 15.0f, 15.0f};
+    v3 simBoundsExpansion = {15.0f, 15.0f, 0.0f};
     rectangle3 simBounds = AddRadiusTo
         (
             cameraBoundsInMeters,
@@ -1805,7 +1805,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             renderGroup->defaultBasis = basis;
 
             v3 cameraRelativeGroundP = GetEntityGroundPoint(_entity) - cameraP;
-            renderGroup->globalAlpha = Clamp01(1.0f - cameraRelativeGroundP.z);
+
+            r32 fadeTopStartZ = 0.5f * gameState->typicalFloorHeight;
+            r32 fadeTopEndZ = 0.75f * gameState->typicalFloorHeight;
+            r32 fadeBottomStartZ = -2.0f * gameState->typicalFloorHeight;
+            r32 fadeBottomEndZ = -2.25f * gameState->typicalFloorHeight;
+            
+            renderGroup->globalAlpha = 1.0f;
+            if(cameraRelativeGroundP.z > fadeTopStartZ)
+            {
+                renderGroup->globalAlpha = 1.0f - Clamp01MapToRange(fadeTopStartZ, cameraRelativeGroundP.z, fadeTopEndZ);
+            }
+            else if(cameraRelativeGroundP.z < fadeBottomStartZ)
+            {
+                renderGroup->globalAlpha = 1.0f - Clamp01MapToRange(fadeBottomStartZ, cameraRelativeGroundP.z, fadeBottomEndZ);
+            }
             
             hero_bitmaps *heroBitmaps = &gameState->
                 heroBitmaps[_entity->facingDirection];
