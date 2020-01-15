@@ -724,6 +724,7 @@ struct entity_basis_p_result
 {
     v2 p;
     r32 scale;
+    b32 isValid;
 };
 inline entity_basis_p_result
 GetRenderEntityBasisPos
@@ -732,15 +733,24 @@ GetRenderEntityBasisPos
     render_entity_basis *entityBasis, v2 screenCenter
 )
 {
-    entity_basis_p_result result;
+    entity_basis_p_result result = {};
     
-    v3 entityBaseP = renderGroup->metersToPixels * entityBasis->basis->p; 
-    r32 zFudge = 1.0f + 0.0015f * entityBaseP.z;
-    v2 entityGround = screenCenter + zFudge * (entityBaseP.xy + entityBasis->offset.xy);
-    v2 center = entityGround;// + v2{0, entityBaseP.z + entityBasis->offset.z};
+    v3 entityBaseP = renderGroup->metersToPixels * entityBasis->basis->p;
 
-    result.p = center;
-    result.scale = zFudge;
+    r32 focalLength = renderGroup->metersToPixels * 20.0f;
+    r32 cameraDistanceAboveTarget = renderGroup->metersToPixels * 20.0f;
+    r32 distanceToPZ = (cameraDistanceAboveTarget - entityBaseP.z);
+    r32 nearClipPlane = renderGroup->metersToPixels * 0.2f;
+
+    v3 rawXY = V3(entityBaseP.xy + entityBasis->offset.xy, 1.0f);
+
+    if(distanceToPZ > nearClipPlane)
+    {
+        v3 projectedXY = (1.0f / distanceToPZ) * (focalLength * rawXY);
+        result.p = screenCenter + projectedXY.xy;
+        result.scale = projectedXY.z;
+        result.isValid = true;
+    }
     
     return result;
 }

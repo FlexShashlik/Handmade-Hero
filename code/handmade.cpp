@@ -2001,6 +2001,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Space:
                 {
+#if 0
                     for(ui32 volumeIndex = 0;
                         volumeIndex < _entity->collision->volumeCount;
                         volumeIndex++)
@@ -2016,6 +2017,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                 0.0f
                             );
                     }
+#endif
                 } break;
 
                 default:
