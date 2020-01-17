@@ -730,25 +730,27 @@ inline entity_basis_p_result
 GetRenderEntityBasisPos
 (
     render_group *renderGroup,
-    render_entity_basis *entityBasis, v2 screenCenter
+    render_entity_basis *entityBasis, v2 screenDim, r32 metersToPixels
 )
 {
+    v2 screenCenter = 0.5f * screenDim;
+    
     entity_basis_p_result result = {};
     
-    v3 entityBaseP = renderGroup->metersToPixels * entityBasis->basis->p;
+    v3 entityBaseP = entityBasis->basis->p;
 
-    r32 focalLength = renderGroup->metersToPixels * 20.0f;
-    r32 cameraDistanceAboveTarget = renderGroup->metersToPixels * 20.0f;
+    r32 focalLength = 6.0f;
+    r32 cameraDistanceAboveTarget = 5.0f;
     r32 distanceToPZ = (cameraDistanceAboveTarget - entityBaseP.z);
-    r32 nearClipPlane = renderGroup->metersToPixels * 0.2f;
+    r32 nearClipPlane = 0.2f;
 
     v3 rawXY = V3(entityBaseP.xy + entityBasis->offset.xy, 1.0f);
 
     if(distanceToPZ > nearClipPlane)
     {
         v3 projectedXY = (1.0f / distanceToPZ) * (focalLength * rawXY);
-        result.p = screenCenter + projectedXY.xy;
-        result.scale = projectedXY.z;
+        result.p = screenCenter + metersToPixels * projectedXY.xy;
+        result.scale = metersToPixels * projectedXY.z;
         result.isValid = true;
     }
     
@@ -761,11 +763,12 @@ RenderGroupToOutput
     render_group *renderGroup, loaded_bitmap *outputTarget
 )
 {
-    v2 screenCenter = {0.5f * (r32)outputTarget->width,
-                       0.5f * (r32)outputTarget->height};
-
-    r32 pixelsToMeters = 1.0f / renderGroup->metersToPixels;
-   
+    v2 screenDim = {(r32)outputTarget->width,
+                    (r32)outputTarget->height};
+    
+    r32 metersToPixels = screenDim.x / 20.0f;
+    r32 pixelsToMeters = 1.0f / metersToPixels;
+        
     for(ui32 baseAddress = 0;
         baseAddress < renderGroup->pushBufferSize;
         )
@@ -800,7 +803,8 @@ RenderGroupToOutput
                     (
                         renderGroup,
                         &entry->entityBasis,
-                        screenCenter
+                        screenDim,
+                        metersToPixels
                     );
                                 
                 Assert(entry->bitmap);
@@ -816,8 +820,8 @@ RenderGroupToOutput
                 DrawRectangleSlowly
                     (
                         outputTarget, basis.p,
-                        basis.scale * V2i(entry->bitmap->width, 0),
-                        basis.scale * V2i(0, entry->bitmap->height),
+                        basis.scale * v2{entry->size.x, 0},
+                        basis.scale * v2{0, entry->size.y},
                         entry->color, entry->bitmap,
                         0, 0, 0, 0, pixelsToMeters
                     );
@@ -833,7 +837,8 @@ RenderGroupToOutput
                     (
                         renderGroup,
                         &entry->entityBasis,
-                        screenCenter
+                        screenDim,
+                        metersToPixels
                     );
 
                 DrawRectangle
@@ -922,16 +927,11 @@ RenderGroupToOutput
 }
 
 internal render_group *
-AllocateRenderGroup
-(
-    memory_arena *arena,
-    ui32 maxPushBufferSize, r32 metersToPixels
-)
+AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
 {
     render_group *result = PushStruct(arena, render_group);
     result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
-    
-    result->metersToPixels = metersToPixels;
+
     result->defaultBasis = PushStruct(arena, render_basis);
     result->defaultBasis->p = v3{0, 0, 0};
 
@@ -971,7 +971,7 @@ PushBitmap
 (
     render_group *group,
     loaded_bitmap *bitmap,
-    v3 offset, v4 color = {1, 1, 1, 1}
+    r32 height, v3 offset, v4 color = {1, 1, 1, 1}
 )
 {
     render_entry_bitmap *entry = PushRenderElement(group, render_entry_bitmap);
@@ -979,8 +979,11 @@ PushBitmap
     {
         entry->entityBasis.basis = group->defaultBasis;
         entry->bitmap = bitmap;
-        entry->entityBasis.offset = group->metersToPixels * offset - V3(bitmap->align, 0);
+        v2 size = {height * bitmap->widthOverHeight, height};
+        v2 align = Hadamard(bitmap->alignPercentage, size);
+        entry->entityBasis.offset = offset - V3(align, 0);
         entry->color = color * group->globalAlpha;
+        entry->size = size;
     }
 }
 
@@ -995,9 +998,9 @@ PushRect
     if(piece)
     {
         piece->entityBasis.basis = group->defaultBasis;
-        piece->entityBasis.offset = group->metersToPixels * (offset - V3(0.5f * dim, 0));
+        piece->entityBasis.offset = (offset - V3(0.5f * dim, 0));
         piece->color = color;
-        piece->dim = group->metersToPixels * dim;
+        piece->dim = dim;
     }
 }
 

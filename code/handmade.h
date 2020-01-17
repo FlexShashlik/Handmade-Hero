@@ -168,9 +168,6 @@ struct game_state
 
     hero_bitmaps heroBitmaps[4];
     
-    r32 metersToPixels;
-    r32 pixelsToMeters;
-    
     // NOTE: Must be power of two
     pairwise_collision_rule *collisionRuleHash[256];
     pairwise_collision_rule *firstFreeCollisionRule;

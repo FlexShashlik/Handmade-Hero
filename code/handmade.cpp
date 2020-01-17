@@ -62,6 +62,10 @@ inline v2
 TopDownAlign(loaded_bitmap *bmp, v2 align)
 {
     align.y = (r32)(bmp->height - 1) - align.y;
+
+    align.x = SafeRatio0(align.x, (r32)bmp->width);
+    align.y = SafeRatio0(align.y, (r32)bmp->height);
+    
     return align;
 }
 
@@ -86,7 +90,8 @@ DEBUGLoadBMP
         
         result.width = header->width;
         result.height = header->height;
-        result.align = TopDownAlign(&result, V2i(alignX, topDownAlignY));
+        result.alignPercentage = TopDownAlign(&result, V2i(alignX, topDownAlignY));
+        result.widthOverHeight = SafeRatio0((r32)result.width, (r32)result.height);
 
         Assert(result.height >= 0);
         Assert(header->compression == 3);
@@ -603,12 +608,7 @@ FillGroundChunk
 )
 {    
     temporary_memory groundMemory = BeginTemporaryMemory(&tranState->tranArena);
-    render_group *renderGroup = AllocateRenderGroup
-        (
-            &tranState->tranArena,
-            Megabytes(4),
-            1.0f
-        );
+    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
 
     Clear(renderGroup, v4{1.0f, 1.0f, 0.0f, 1.0f});
     
@@ -664,7 +664,7 @@ FillGroundChunk
 
                 v2 pos = center + offset - bitmapCenter;
                 
-                PushBitmap(renderGroup, stamp, V3(pos, 0.0f));
+                PushBitmap(renderGroup, stamp, 1.0f, V3(pos, 0.0f));
             }
         }
     }
@@ -705,7 +705,7 @@ FillGroundChunk
 
                 v2 pos = center + offset - bitmapCenter;
   
-                PushBitmap(renderGroup, stamp, V3(pos, 0.0f));
+                PushBitmap(renderGroup, stamp, 1.0f, V3(pos, 0.0f));
             }
         }
     }
@@ -932,15 +932,19 @@ SetTopDownAlign(hero_bitmaps *bmp, v2 align)
 {
     align = TopDownAlign(&bmp->head, align);
     
-    bmp->head.align = align;
-    bmp->cape.align = align;
-    bmp->torso.align = align;
+    bmp->head.alignPercentage = align;
+    bmp->cape.alignPercentage = align;
+    bmp->torso.alignPercentage = align;
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
+
+    
+    // TODO: Remove this!
+    r32 pixelsToMeters = 1.0f / 42.0f;
     
     ui32 groundBufferWidth = 256;
     ui32 groundBufferHeight = 256;
@@ -952,13 +956,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         ui32 tilesPerHeight = 9;
 
         gameState->typicalFloorHeight = 3.0f;
-        gameState->metersToPixels = 42.0f;
-        gameState->pixelsToMeters = 1.0f / gameState->metersToPixels;
 
         v3 worldChunkDimInMeters =
             {
-                gameState->pixelsToMeters * (r32)groundBufferWidth,
-                gameState->pixelsToMeters * (r32)groundBufferHeight,
+                pixelsToMeters * (r32)groundBufferWidth,
+                pixelsToMeters * (r32)groundBufferHeight,
                 gameState->typicalFloorHeight
             };
         
@@ -1520,9 +1522,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     world *_world = gameState->_world;
     
-    r32 metersToPixels = gameState->metersToPixels;
-    r32 pixelsToMeters = 1.0f / metersToPixels;
-    
     for(i32 controllerIndex = 0;
         controllerIndex < ArrayCount(input->controllers);
         controllerIndex++)
@@ -1611,12 +1610,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     temporary_memory renderMemory = BeginTemporaryMemory(&tranState->tranArena);
     // TODO: Decide what pushbuffer size is
-    render_group *renderGroup = AllocateRenderGroup
-        (
-            &tranState->tranArena,
-            Megabytes(4),
-            gameState->metersToPixels
-        );
+    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
     
     loaded_bitmap drawBuffer_ = {};
     loaded_bitmap *drawBuffer = &drawBuffer_;
@@ -1865,25 +1859,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             }
                         }
                     }
-            
+
+                    r32 heroSizeC = 2.5f;
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
+                            heroSizeC, v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
                         );
-            
-                    PushBitmap(renderGroup, &heroBitmaps->torso, v3{0, 0, 0});
-
-                    PushBitmap(renderGroup, &heroBitmaps->cape, v3{0, 0, 0});
-    
-                    PushBitmap(renderGroup, &heroBitmaps->head, v3{0, 0, 0});
+                    PushBitmap(renderGroup, &heroBitmaps->torso, heroSizeC * 1.2f, v3{0, 0, 0});
+                    PushBitmap(renderGroup, &heroBitmaps->cape, heroSizeC * 1.2f, v3{0, 0, 0});
+                    PushBitmap(renderGroup, &heroBitmaps->head, heroSizeC * 1.2f, v3{0, 0, 0});
 
                     DrawHitPoints(_entity, renderGroup);
                 } break;
             
                 case EntityType_Wall:
                 {
-                    PushBitmap(renderGroup, &gameState->tree, v3{0, 0, 0});
+                    PushBitmap(renderGroup, &gameState->tree, 2.5f, v3{0, 0, 0});
                 } break;
 
                 case EntityType_Stairwell:
@@ -1921,12 +1913,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
+                            0.5f, v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
                         );
                     PushBitmap
                         (
                             renderGroup, &gameState->sword,
-                            v3{0, 0, 0}
+                            0.5f, v3{0, 0, 0}
                         );
                 } break;
             
@@ -1972,13 +1964,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v3{0, 0, 0},
+                            2.5f, v3{0, 0, 0},
                             v4{1, 1, 1, 0.5f * shadowAlpha + 0.2f * bobSin}
                         );
                     PushBitmap
                         (
                             renderGroup, &heroBitmaps->head,
-                            v3{0, 0, 0.25f * bobSin}
+                            2.5f, v3{0, 0, 0.25f * bobSin}
                         );
                 } break;
 
@@ -1987,13 +1979,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap
                         (
                             renderGroup, &gameState->shadow,
-                            v3{0, 0, 0},
+                            4.5f, v3{0, 0, 0},
                             v4{1, 1, 1, shadowAlpha}
                         );
                     PushBitmap
                         (
                             renderGroup, &heroBitmaps->torso,
-                            v3{0, 0, 0}
+                            4.5f, v3{0, 0, 0}
                         );
                 
                     DrawHitPoints(_entity, renderGroup);
