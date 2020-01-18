@@ -103,44 +103,25 @@ struct render_entry_rectangle
     v2 dim;
 };
 
+struct render_group_camera
+{
+    r32 focalLength;
+    r32 distanceAboveTarget;
+};
+
 struct render_group
 {
-    r32 globalAlpha;
+    render_group_camera gameCamera;
+    render_group_camera renderCamera;
     
+    r32 metersToPixels;
+    v2 monitorHalfDimInMeters;
+    
+    r32 globalAlpha;
+        
     render_basis *defaultBasis;
 
     ui32 pushBufferSize;
     ui32 maxPushBufferSize;
     ui8 *pushBufferBase;
 };
-
-// NOTE: Renderer API
-#if 0
-inline void
-PushBitmap
-(
-    render_group *group,
-    loaded_bitmap *bitmap,
-    v2 offset, r32 offsetZ,
-    v2 align, r32 alpha = 1.0f
-);
-
-inline void
-PushRect
-(
-    render_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim, v4 color
-);
-
-inline void
-PushRectOutline
-(
-    render_group *group,
-    v2 offset, r32 offsetZ,
-    v2 dim, v4 color
-);
-
-inline void
-Clear(render_group *group, v4 color);
-#endif

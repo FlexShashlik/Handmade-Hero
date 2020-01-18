@@ -608,7 +608,11 @@ FillGroundChunk
 )
 {    
     temporary_memory groundMemory = BeginTemporaryMemory(&tranState->tranArena);
-    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
+    render_group *renderGroup = AllocateRenderGroup
+        (
+            &tranState->tranArena, Megabytes(4),
+            1920, 1080
+        );
 
     Clear(renderGroup, v4{1.0f, 1.0f, 0.0f, 1.0f});
     
@@ -941,11 +945,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
-
-    
-    // TODO: Remove this!
-    r32 pixelsToMeters = 1.0f / 42.0f;
-    
+        
     ui32 groundBufferWidth = 256;
     ui32 groundBufferHeight = 256;
     
@@ -956,6 +956,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         ui32 tilesPerHeight = 9;
 
         gameState->typicalFloorHeight = 3.0f;
+        
+        // TODO: Remove this!
+        r32 pixelsToMeters = 1.0f / 42.0f;
 
         v3 worldChunkDimInMeters =
             {
@@ -1254,7 +1257,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ui32 doorDirection = RandomChoice(&series, 2);
 #endif
 
-            doorDirection = 3;
+            //doorDirection = 3;
             
             b32 isCreatedZDoor = false;
             if(doorDirection == 3)
@@ -1609,8 +1612,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     
     temporary_memory renderMemory = BeginTemporaryMemory(&tranState->tranArena);
-    // TODO: Decide what pushbuffer size is
-    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
     
     loaded_bitmap drawBuffer_ = {};
     loaded_bitmap *drawBuffer = &drawBuffer_;
@@ -1619,17 +1620,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     drawBuffer->pitch = buffer->pitch;
     drawBuffer->memory = buffer->memory;
 
+    // TODO: Decide what pushbuffer size is
+    render_group *renderGroup = AllocateRenderGroup
+        (
+            &tranState->tranArena, Megabytes(4),
+            drawBuffer->width, drawBuffer->height
+        );
+
     Clear(renderGroup, v4{0.25f, 0.25f, 0.25f, 0.0f});
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width,
                        0.5f * (r32)drawBuffer->height};
-    
-    r32 screenWidthInMeters = drawBuffer->width * pixelsToMeters;
-    r32 screenHeightInMeters = drawBuffer->height * pixelsToMeters;
-    rectangle3 cameraBoundsInMeters = RectCenterDim
+
+    rectangle2 screenBounds = GetCameraRectangleAtTarget(renderGroup);
+    rectangle3 cameraBoundsInMeters = RectMinMax
         (
-            v3{0, 0, 0},
-            v3{screenWidthInMeters, screenHeightInMeters, 0}
+            V3(screenBounds.min, 0),
+            V3(screenBounds.max, 0)
         );
 
     cameraBoundsInMeters.min.z = -3.0f * gameState->typicalFloorHeight;
@@ -1775,6 +1782,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     v3 cameraP = Subtract(_world, &gameState->cameraPos, &simCenterP);
     
+    PushRectOutline(renderGroup, v3{}, GetDim(screenBounds), v4{1, 1, 0, 1});
+    PushRectOutline(renderGroup, v3{}, GetDim(simBounds).xy, v4{0, 1, 1, 1});
+    PushRectOutline(renderGroup, v3{}, GetDim(simRegion->bounds).xy, v4{1, 0, 1, 1});
+        
     // TODO: Move this out into handmade_entity.cpp
     for(ui32 entityIndex = 0;
         entityIndex < simRegion->entityCount;

@@ -4,6 +4,10 @@ union v2
     {
         r32 x, y;
     };
+    struct
+    {
+        r32 u, v;
+    };
     r32 e[2];
 };
 
@@ -12,6 +16,10 @@ union v3
     struct
     {
         r32 x, y, z;
+    };
+    struct
+    {
+        r32 u, v, w;
     };
     struct
     {
@@ -26,6 +34,16 @@ union v3
     {
         r32 ignored1_;
         v2 yz;
+    };
+    struct
+    {
+        v2 uv;
+        r32 ignored0_;
+    };
+    struct
+    {        
+        r32 ignored0_;
+        v2 vw;
     };
     r32 e[3];
 };
@@ -597,6 +615,13 @@ GetMaxCorner(rectangle2 rect)
 }
 
 inline v2
+GetDim(rectangle2 rect)
+{
+    v2 result = rect.max - rect.min;
+    return result;
+}
+
+inline v2
 GetCenter(rectangle2 rect)
 {
     v2 result = 0.5f * (rect.min + rect.max);
@@ -691,6 +716,13 @@ inline v3
 GetMaxCorner(rectangle3 rect)
 {
     v3 result = rect.max;
+    return result;
+}
+
+inline v3
+GetDim(rectangle3 rect)
+{
+    v3 result = rect.max - rect.min;
     return result;
 }
 

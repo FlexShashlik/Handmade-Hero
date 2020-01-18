@@ -730,7 +730,7 @@ inline entity_basis_p_result
 GetRenderEntityBasisPos
 (
     render_group *renderGroup,
-    render_entity_basis *entityBasis, v2 screenDim, r32 metersToPixels
+    render_entity_basis *entityBasis, v2 screenDim
 )
 {
     v2 screenCenter = 0.5f * screenDim;
@@ -739,18 +739,16 @@ GetRenderEntityBasisPos
     
     v3 entityBaseP = entityBasis->basis->p;
 
-    r32 focalLength = 6.0f;
-    r32 cameraDistanceAboveTarget = 5.0f;
-    r32 distanceToPZ = (cameraDistanceAboveTarget - entityBaseP.z);
+    r32 distanceToPZ = (renderGroup->renderCamera.distanceAboveTarget - entityBaseP.z);
     r32 nearClipPlane = 0.2f;
 
     v3 rawXY = V3(entityBaseP.xy + entityBasis->offset.xy, 1.0f);
 
     if(distanceToPZ > nearClipPlane)
     {
-        v3 projectedXY = (1.0f / distanceToPZ) * (focalLength * rawXY);
-        result.p = screenCenter + metersToPixels * projectedXY.xy;
-        result.scale = metersToPixels * projectedXY.z;
+        v3 projectedXY = (1.0f / distanceToPZ) * (renderGroup->renderCamera.focalLength * rawXY);
+        result.p = screenCenter + renderGroup->metersToPixels * projectedXY.xy;
+        result.scale = renderGroup->metersToPixels * projectedXY.z;
         result.isValid = true;
     }
     
@@ -766,8 +764,7 @@ RenderGroupToOutput
     v2 screenDim = {(r32)outputTarget->width,
                     (r32)outputTarget->height};
     
-    r32 metersToPixels = screenDim.x / 20.0f;
-    r32 pixelsToMeters = 1.0f / metersToPixels;
+    r32 pixelsToMeters = 1.0f / renderGroup->metersToPixels;
         
     for(ui32 baseAddress = 0;
         baseAddress < renderGroup->pushBufferSize;
@@ -803,8 +800,7 @@ RenderGroupToOutput
                     (
                         renderGroup,
                         &entry->entityBasis,
-                        screenDim,
-                        metersToPixels
+                        screenDim
                     );
                                 
                 Assert(entry->bitmap);
@@ -837,8 +833,7 @@ RenderGroupToOutput
                     (
                         renderGroup,
                         &entry->entityBasis,
-                        screenDim,
-                        metersToPixels
+                        screenDim
                     );
 
                 DrawRectangle
@@ -927,7 +922,11 @@ RenderGroupToOutput
 }
 
 internal render_group *
-AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
+AllocateRenderGroup
+(
+    memory_arena *arena, ui32 maxPushBufferSize,
+    ui32 resolutionPixelsX, ui32 resolutionPixelsY
+)
 {
     render_group *result = PushStruct(arena, render_group);
     result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
@@ -938,7 +937,24 @@ AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
     result->maxPushBufferSize = maxPushBufferSize;
     result->pushBufferSize = 0;
 
+    result->gameCamera.focalLength = 0.6f;
+    result->gameCamera.distanceAboveTarget = 9.0f;
+
+    result->renderCamera = result->gameCamera;
+    //result->renderCamera.distanceAboveTarget = 30.0f;
+    
     result->globalAlpha = 1.0f;
+    
+    // NOTE: This is a approximate monitor width
+    r32 widthOfMonitor = 0.635f;
+    result->metersToPixels = (r32)resolutionPixelsX * widthOfMonitor;
+
+    r32 pixelsToMeters = 1.0f / result->metersToPixels;
+    result->monitorHalfDimInMeters =
+        {
+            0.5f * resolutionPixelsX * pixelsToMeters,
+            0.5f * resolutionPixelsY * pixelsToMeters
+        };  
     
     return result;
 }
@@ -1082,4 +1098,28 @@ CoordinateSystem
     }
 
     return entry;
+}
+
+inline v2
+Unproject(render_group *group, v2 projectedXY, r32 atDistanceFromCamera)
+{
+    v2 worldXY = (atDistanceFromCamera / group->gameCamera.focalLength) * projectedXY;
+    return worldXY;
+}
+
+inline rectangle2
+GetCameraRectangleAtDistance(render_group *group, r32 distanceFromCamera)
+{
+    v2 rawXY = Unproject(group, group->monitorHalfDimInMeters, distanceFromCamera);
+
+    rectangle2 result = RectCenterHalfDim(v2{}, rawXY);
+    
+    return result;
+}
+
+inline rectangle2
+GetCameraRectangleAtTarget(render_group *group)
+{
+    rectangle2 result = GetCameraRectangleAtDistance(group, group->gameCamera.distanceAboveTarget);
+    return result;
 }
