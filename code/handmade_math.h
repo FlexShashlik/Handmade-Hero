@@ -38,11 +38,11 @@ union v3
     struct
     {
         v2 uv;
-        r32 ignored0_;
+        r32 ignored2_;
     };
     struct
     {        
-        r32 ignored0_;
+        r32 ignored3_;
         v2 vw;
     };
     r32 e[3];

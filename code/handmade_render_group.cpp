@@ -941,7 +941,7 @@ AllocateRenderGroup
     result->gameCamera.distanceAboveTarget = 9.0f;
 
     result->renderCamera = result->gameCamera;
-    //result->renderCamera.distanceAboveTarget = 30.0f;
+    //result->renderCamera.distanceAboveTarget = 50.0f;
     
     result->globalAlpha = 1.0f;
     
