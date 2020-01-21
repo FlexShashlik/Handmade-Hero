@@ -636,6 +636,7 @@ FillGroundChunk
 
     groundBuffer->pos = *chunkPos;
 
+#if 0
     r32 width = gameState->_world->chunkDimInMeters.x;
     r32 height = gameState->_world->chunkDimInMeters.y;
     v2 halfDim = 0.5f * v2{width, height};
@@ -719,6 +720,7 @@ FillGroundChunk
             }
         }
     }
+#endif
     
     RenderGroupToOutput(renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
@@ -923,8 +925,17 @@ SetTopDownAlign(hero_bitmaps *bmp, v2 align)
     bmp->torso.alignPercentage = align;
 }
 
+#if HANDMADE_INTERNAL
+game_memory *DebugGlobalMemory;
+#endif
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+#if HANDMADE_INTERNAL
+    DebugGlobalMemory = memory;
+#endif
+    
+    BEGIN_TIMED_BLOCK(GameUpdateAndRender);
+    
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
         
@@ -2166,6 +2177,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     CheckArena(&gameState->worldArena);
     CheckArena(&tranState->tranArena);
+    
+    END_TIMED_BLOCK(GameUpdateAndRender);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

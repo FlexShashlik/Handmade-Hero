@@ -238,6 +238,8 @@ DrawRectangleSlowly
     r32 pixelsToMeters
 )
 {
+    BEGIN_TIMED_BLOCK(DrawRectangleSlowly);
+    
     // NOTE: Premultiply color up front
     color.rgb *= color.a;
     
@@ -310,6 +312,8 @@ DrawRectangleSlowly
         ui32 *pixel = (ui32 *)row;
         for(i32 x = xMin; x <= xMax; x++)
         {
+            BEGIN_TIMED_BLOCK(TestPixel);
+            
 #if 1
             v2 pixelP = V2i(x, y);
             v2 d = pixelP - origin;
@@ -324,6 +328,7 @@ DrawRectangleSlowly
                edge2 < 0 &&
                edge3 < 0)
             {
+                BEGIN_TIMED_BLOCK(FillPixel);
 #if 1
                 v2 screenSpaceUV = {invWidthMax * (r32)x, fixedCastY};
                 r32 zDiff = pixelsToMeters * ((r32)y - originY);
@@ -356,6 +361,7 @@ DrawRectangleSlowly
                 bilinear_sample texelSample = BilinearSample(texture, x, y);
                 v4 texel = SRGBBilinearBlend(texelSample, fX, fY);                
 
+#if 0
                 if(normalMap)
                 {
                     bilinear_sample normalSample = BilinearSample(normalMap, x, y);
@@ -425,6 +431,7 @@ DrawRectangleSlowly
                     texel.rgb *= texel.a;
 #endif
                 }
+#endif
                 
                 texel = Hadamard(texel, color);
                 texel.rgb = Clamp01(texel.rgb);
@@ -450,16 +457,22 @@ DrawRectangleSlowly
                           (ui32)(blended255.r + 0.5f) << 16|
                           (ui32)(blended255.g + 0.5f) << 8 |
                           (ui32)(blended255.b + 0.5f) << 0);
+
+                END_TIMED_BLOCK(FillPixel);
             }
 #else
             *pixel = color32;
 #endif
             pixel++;
+
+            END_TIMED_BLOCK(TestPixel);
         }
 
         
         row += buffer->pitch;
     }
+
+    END_TIMED_BLOCK(DrawRectangleSlowly);
 }
 
 inline void
@@ -761,6 +774,8 @@ RenderGroupToOutput
     render_group *renderGroup, loaded_bitmap *outputTarget
 )
 {
+    BEGIN_TIMED_BLOCK(RenderGroupToOutput);
+    
     v2 screenDim = {(r32)outputTarget->width,
                     (r32)outputTarget->height};
     
@@ -919,6 +934,8 @@ RenderGroupToOutput
             InvalidDefaultCase;
         }
     }
+
+    END_TIMED_BLOCK(RenderGroupToOutput);
 }
 
 internal render_group *

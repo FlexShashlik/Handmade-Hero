@@ -1064,6 +1064,36 @@ Win32GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
     return (r32)(end.QuadPart - start.QuadPart) / (r32)GlobalPerfCountFrequency;   
 }
 
+internal void
+HandleDebugCycleCounters(game_memory *memory)
+{
+#if HANDMADE_INTERNAL
+    OutputDebugStringA("DEBUG CYCLE COUNT:\n");
+    
+    for(i32 counterIndex = 0;
+        counterIndex < ArrayCount(memory->counters);
+        counterIndex++)
+    {
+        debug_cycle_counter *counter = memory->counters + counterIndex;
+
+        if(counter->hitCount)
+        {
+            char textBuffer[256];
+            sprintf_s
+                (
+                    textBuffer, sizeof(textBuffer),
+                    "  %d: %I64ucy %uh %I64ucy/h\n",
+                    counterIndex, counter->cycleCount, counter->hitCount, counter->cycleCount / counter->hitCount
+                );
+            OutputDebugStringA(textBuffer);
+            
+            counter->cycleCount = 0;
+            counter->hitCount = 0;
+        }
+    }
+#endif
+}
+
 #if 0
 internal void
 Win32DebugDrawVertical(win32_offscreen_buffer *buffer, i32 x, i32 top, i32 bottom, ui32 color)
@@ -1745,13 +1775,8 @@ CALLBACK WinMain
 
                         if(gameCode.updateAndRender)
                         {
-                            gameCode.updateAndRender
-                                (
-                                    &thread,
-                                    &gameMemory,
-                                    newInput,
-                                    &buffer
-                                );
+                            gameCode.updateAndRender(&thread, &gameMemory, newInput, &buffer);
+                            HandleDebugCycleCounters(&gameMemory);
                         }
                         
                         LARGE_INTEGER audioWallClock = Win32GetWallClock();

@@ -101,11 +101,12 @@ typedef struct thread_context
 
 // NOTE: Services that the platform layer provides to the game
 #if HANDMADE_INTERNAL
-/* IMPORTANT:
+/*
+  IMPORTANT:
 
    These are NOT for doing anything in the shipping game - they
    are blocking and the write doesn't protect against lost data!
- */
+*/
 
 typedef struct debug_read_file_result
 {
@@ -121,6 +122,37 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(thread_context *thread, char *fileName, ui32 memorySize, void *memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
+enum
+{
+    DebugCycleCounter_GameUpdateAndRender,
+    DebugCycleCounter_RenderGroupToOutput,
+    DebugCycleCounter_DrawRectangleSlowly,
+    DebugCycleCounter_TestPixel,
+    DebugCycleCounter_FillPixel,
+    DebugCycleCounter_Count,
+};
+    
+typedef struct debug_cycle_counter
+{
+    ui64 cycleCount;
+    ui32 hitCount;
+} debug_cycle_counter;
+
+extern struct game_memory *DebugGlobalMemory;
+    
+#if _MSC_VER
+
+#define BEGIN_TIMED_BLOCK(ID) ui64 startCycleCount##ID = __rdtsc();
+#define END_TIMED_BLOCK(ID) DebugGlobalMemory->counters[DebugCycleCounter_##ID].cycleCount += __rdtsc() - startCycleCount##ID; DebugGlobalMemory->counters[DebugCycleCounter_##ID].hitCount++;
+
+#else
+    
+#define BEGIN_TIMED_BLOCK(ID)
+#define END_TIMED_BLOCK(ID)
+    
+#endif
+    
 #endif
 
 #define BITMAP_BYTES_PER_PIXEL 4
@@ -193,7 +225,7 @@ typedef struct game_input
     
     game_controller_input controllers[5];
 } game_input;
-
+    
 typedef struct game_memory
 {
     b32 isInitialized;
@@ -207,6 +239,10 @@ typedef struct game_memory
     debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
     debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
     debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
+
+#if HANDMADE_INTERNAL
+    debug_cycle_counter counters[DebugCycleCounter_Count];
+#endif
 } game_memory;
 
 #define GAME_UPDATE_AND_RENDER(name) void name(thread_context *thread, game_memory *memory, game_input *input, game_offscreen_buffer *buffer)
