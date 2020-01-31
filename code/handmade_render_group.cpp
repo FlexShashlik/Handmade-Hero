@@ -506,8 +506,9 @@ DrawRectangleHopefullyQuickly
             RoundR32ToUI32(color.b * 255.0f) << 0
         );
 
-    i32 widthMax = buffer->width - 1;
-    i32 heightMax = buffer->height - 1;
+    // TODO: IMPORTANT: STOP DOING THIS ONCE WE HAVE REAL ROW LOADING
+    i32 widthMax = (buffer->width - 1) - 3;
+    i32 heightMax = (buffer->height - 1) - 3;
 
     r32 invWidthMax = 1.0f / (r32)widthMax;
     r32 invHeightMax = 1.0f / (r32)heightMax;
@@ -560,98 +561,148 @@ DrawRectangleHopefullyQuickly
     for(i32 y = yMin; y <= yMax; y++)
     {
         ui32 *pixel = (ui32 *)row;
-        for(i32 x = xMin; x <= xMax; x++)
+        for(i32 xI = xMin; xI <= xMax; xI += 4)
         {
             BEGIN_TIMED_BLOCK(TestPixel);
+
+            r32 texelAr[4];
+            r32 texelAg[4];
+            r32 texelAb[4];
+            r32 texelAa[4];
             
-            v2 pixelP = V2i(x, y);
-            v2 d = pixelP - origin;
-            
-            r32 u = Inner(d, nXAxis);
-            r32 v = Inner(d, nYAxis);
-                
-            if(u >= 0.0f &&
-               u <= 1.0f &&
-               v >= 0.0f &&
-               v <= 1.0f)
+            r32 texelBr[4];
+            r32 texelBg[4];
+            r32 texelBb[4];
+            r32 texelBa[4];
+
+            r32 texelCr[4];
+            r32 texelCg[4];
+            r32 texelCb[4];
+            r32 texelCa[4];
+
+            r32 texelDr[4];
+            r32 texelDg[4];
+            r32 texelDb[4];
+            r32 texelDa[4];
+
+            r32 destr[4];
+            r32 destg[4];
+            r32 destb[4];
+            r32 desta[4];
+
+            r32 blendedr[4];
+            r32 blendedg[4];
+            r32 blendedb[4];
+            r32 blendeda[4];
+
+            r32 fX[4];
+            r32 fY[4];
+
+            b32 shouldFill[4];
+                        
+            for(i32 i = 0; i < 4; i++)
             {
-                BEGIN_TIMED_BLOCK(FillPixel);
+                v2 pixelP = V2i(xI + i, y);
+                v2 d = pixelP - origin;
+            
+                r32 u = Inner(d, nXAxis);
+                r32 v = Inner(d, nYAxis);
+
+                shouldFill[i] = (u >= 0.0f &&
+                                 u <= 1.0f &&
+                                 v >= 0.0f &&
+                                 v <= 1.0f);
                 
-                r32 tX = (u * (r32)(texture->width - 2));
-                r32 tY = (v * (r32)(texture->height - 2));
+                if(shouldFill[i])
+                {
+                    r32 tX = (u * (r32)(texture->width - 2));
+                    r32 tY = (v * (r32)(texture->height - 2));
                 
-                i32 x = (i32)tX;
-                i32 y = (i32)tY;
+                    i32 x = (i32)tX;
+                    i32 y = (i32)tY;
 
-                r32 fX = tX - (r32)x;
-                r32 fY = tY - (r32)y;
+                    fX[i] = tX - (r32)x;
+                    fY[i] = tY - (r32)y;
 
-                Assert(x >= 0 && x < texture->width);
-                Assert(y >= 0 && y < texture->height);
+                    Assert(x >= 0 && x < texture->width);
+                    Assert(y >= 0 && y < texture->height);
 
                 
-                ui8 *texelPtr = (((ui8 *)texture->memory) +
-                                 y * texture->pitch +
-                                 x * sizeof(ui32));
-                ui32 sampleA = *(ui32 *)(texelPtr);
-                ui32 sampleB = *(ui32 *)(texelPtr + sizeof(ui32));
-                ui32 sampleC = *(ui32 *)(texelPtr + texture->pitch);
-                ui32 sampleD = *(ui32 *)(texelPtr + texture->pitch + sizeof(ui32));
+                    ui8 *texelPtr = (((ui8 *)texture->memory) +
+                                     y * texture->pitch +
+                                     x * sizeof(ui32));
+                    ui32 sampleA = *(ui32 *)(texelPtr);
+                    ui32 sampleB = *(ui32 *)(texelPtr + sizeof(ui32));
+                    ui32 sampleC = *(ui32 *)(texelPtr + texture->pitch);
+                    ui32 sampleD = *(ui32 *)(texelPtr + texture->pitch + sizeof(ui32));
                 
-                r32 texelAr = (r32)((sampleA >> 16) & 0xFF);
-                r32 texelAg = (r32)((sampleA >> 8) & 0xFF);
-                r32 texelAb = (r32)((sampleA >> 0) & 0xFF);
-                r32 texelAa = (r32)((sampleA >> 24) & 0xFF);
+                    texelAr[i] = (r32)((sampleA >> 16) & 0xFF);
+                    texelAg[i] = (r32)((sampleA >> 8) & 0xFF);
+                    texelAb[i] = (r32)((sampleA >> 0) & 0xFF);
+                    texelAa[i] = (r32)((sampleA >> 24) & 0xFF);
 
-                r32 texelBr = (r32)((sampleB >> 16) & 0xFF);
-                r32 texelBg = (r32)((sampleB >> 8) & 0xFF);
-                r32 texelBb = (r32)((sampleB >> 0) & 0xFF);
-                r32 texelBa = (r32)((sampleB >> 24) & 0xFF);
+                    texelBr[i] = (r32)((sampleB >> 16) & 0xFF);
+                    texelBg[i] = (r32)((sampleB >> 8) & 0xFF);
+                    texelBb[i] = (r32)((sampleB >> 0) & 0xFF);
+                    texelBa[i] = (r32)((sampleB >> 24) & 0xFF);
 
-                r32 texelCr = (r32)((sampleC >> 16) & 0xFF);
-                r32 texelCg = (r32)((sampleC >> 8) & 0xFF);
-                r32 texelCb = (r32)((sampleC >> 0) & 0xFF);
-                r32 texelCa = (r32)((sampleC >> 24) & 0xFF);
+                    texelCr[i] = (r32)((sampleC >> 16) & 0xFF);
+                    texelCg[i] = (r32)((sampleC >> 8) & 0xFF);
+                    texelCb[i] = (r32)((sampleC >> 0) & 0xFF);
+                    texelCa[i] = (r32)((sampleC >> 24) & 0xFF);
 
-                r32 texelDr = (r32)((sampleD >> 16) & 0xFF);
-                r32 texelDg = (r32)((sampleD >> 8) & 0xFF);
-                r32 texelDb = (r32)((sampleD >> 0) & 0xFF);
-                r32 texelDa = (r32)((sampleD >> 24) & 0xFF);
-                                
+                    texelDr[i] = (r32)((sampleD >> 16) & 0xFF);
+                    texelDg[i] = (r32)((sampleD >> 8) & 0xFF);
+                    texelDb[i] = (r32)((sampleD >> 0) & 0xFF);
+                    texelDa[i] = (r32)((sampleD >> 24) & 0xFF);
+
+                    // NOTE: Load destination
+                    destr[i] = (r32)((*(pixel + i) >> 16) & 0xFF);
+                    destg[i] = (r32)((*(pixel + i) >> 8) & 0xFF);
+                    destb[i] = (r32)((*(pixel + i) >> 0) & 0xFF);
+                    desta[i] = (r32)((*(pixel + i) >> 24) & 0xFF);
+                }
+            }
+
+            for(i32 i = 0; i < 4; i++)
+            {                   
                 // NOTE: Convert texture from sRGB to "linear" brightness space
-                texelAr = Square(inv255 * texelAr);
-                texelAg = Square(inv255 * texelAg);
-                texelAb = Square(inv255 * texelAb);
-                texelAa = inv255 * texelAa;
+                texelAr[i] = inv255 * texelAr[i];
+                texelAr[i] *= texelAr[i];
+                texelAg[i] = inv255 * texelAg[i];
+                texelAg[i] *= texelAg[i];
+                texelAb[i] = inv255 * texelAb[i];
+                texelAb[i] *= texelAb[i];
+                texelAa[i] = inv255 * texelAa[i];
+                
+                texelBr[i] = Square(inv255 * texelBr[i]);
+                texelBg[i] = Square(inv255 * texelBg[i]);
+                texelBb[i] = Square(inv255 * texelBb[i]);
+                texelBa[i] = inv255 * texelBa[i];
 
-                texelBr = Square(inv255 * texelBr);
-                texelBg = Square(inv255 * texelBg);
-                texelBb = Square(inv255 * texelBb);
-                texelBa = inv255 * texelBa;
+                texelCr[i] = Square(inv255 * texelCr[i]);
+                texelCg[i] = Square(inv255 * texelCg[i]);
+                texelCb[i] = Square(inv255 * texelCb[i]);
+                texelCa[i] = inv255 * texelCa[i];
 
-                texelCr = Square(inv255 * texelCr);
-                texelCg = Square(inv255 * texelCg);
-                texelCb = Square(inv255 * texelCb);
-                texelCa = inv255 * texelCa;
-
-                texelDr = Square(inv255 * texelDr);
-                texelDg = Square(inv255 * texelDg);
-                texelDb = Square(inv255 * texelDb);
-                texelDa = inv255 * texelDa;
+                texelDr[i] = Square(inv255 * texelDr[i]);
+                texelDg[i] = Square(inv255 * texelDg[i]);
+                texelDb[i] = Square(inv255 * texelDb[i]);
+                texelDa[i] = inv255 * texelDa[i];
 
                 // NOTE: Bilinear texture blend
-                r32 ifX = 1.0f - fX;
-                r32 ifY = 1.0f - fY;
+                r32 ifX = 1.0f - fX[i];
+                r32 ifY = 1.0f - fY[i];
                 
                 r32 l0 = ifY * ifX;
-                r32 l1 = ifY * fX;
-                r32 l2 = fY * ifX;
-                r32 l3 = fY * fX;
+                r32 l1 = ifY * fX[i];
+                r32 l2 = fY[i] * ifX;
+                r32 l3 = fY[i] * fX[i];
 
-                r32 texelr = l0 * texelAr + l1 * texelBr + l2 * texelCr + l3 * texelDr;
-                r32 texelg = l0 * texelAg + l1 * texelBg + l2 * texelCg + l3 * texelDg;
-                r32 texelb = l0 * texelAb + l1 * texelBb + l2 * texelCb + l3 * texelDb;
-                r32 texela = l0 * texelAa + l1 * texelBa + l2 * texelCa + l3 * texelDa;
+                r32 texelr = l0 * texelAr[i] + l1 * texelBr[i] + l2 * texelCr[i] + l3 * texelDr[i];
+                r32 texelg = l0 * texelAg[i] + l1 * texelBg[i] + l2 * texelCg[i] + l3 * texelDg[i];
+                r32 texelb = l0 * texelAb[i] + l1 * texelBb[i] + l2 * texelCb[i] + l3 * texelDb[i];
+                r32 texela = l0 * texelAa[i] + l1 * texelBa[i] + l2 * texelCa[i] + l3 * texelDa[i];
 
                 // NOTE: Modulate by incoming color
                 texelr = texelr * color.r;
@@ -663,42 +714,40 @@ DrawRectangleHopefullyQuickly
                 texelr = Clamp01(texelr);
                 texelg = Clamp01(texelg);
                 texelb = Clamp01(texelb);
-
-                // NOTE: Load destination
-                r32 destr = (r32)((*pixel >> 16) & 0xFF);
-                r32 destg = (r32)((*pixel >> 8) & 0xFF);
-                r32 destb = (r32)((*pixel >> 0) & 0xFF);
-                r32 desta = (r32)((*pixel >> 24) & 0xFF);
                 
                 // NOTE: Go from sRGB to "linear" brightness space
-                destr = Square(inv255 * destr);
-                destg = Square(inv255 * destg);
-                destb = Square(inv255 * destb);
-                desta = inv255 * desta;
+                destr[i] = Square(inv255 * destr[i]);
+                destg[i] = Square(inv255 * destg[i]);
+                destb[i] = Square(inv255 * destb[i]);
+                desta[i] = inv255 * desta[i];
 
                 // NOTE: Destination blend
                 r32 invTexelA = 1.0f - texela;
-                r32 blendedr = invTexelA * destr + texelr;
-                r32 blendedg = invTexelA * destg + texelg;
-                r32 blendedb = invTexelA * destb + texelb;
-                r32 blendeda = invTexelA * desta + texela;
+                blendedr[i] = invTexelA * destr[i] + texelr;
+                blendedg[i] = invTexelA * destg[i] + texelg;
+                blendedb[i] = invTexelA * destb[i] + texelb;
+                blendeda[i] = invTexelA * desta[i] + texela;
                 
                 // NOTE: Go from "linear" brightness space to sRGB space
-                blendedr = 255.0f * SqRt(blendedr);
-                blendedg = 255.0f * SqRt(blendedg);
-                blendedb = 255.0f * SqRt(blendedb);
-                blendeda = 255.0f * blendeda;
+                blendedr[i] = 255.0f * SqRt(blendedr[i]);
+                blendedg[i] = 255.0f * SqRt(blendedg[i]);
+                blendedb[i] = 255.0f * SqRt(blendedb[i]);
+                blendeda[i] = 255.0f * blendeda[i];
+            }
 
-                // NOTE: Repack
-                *pixel = ((ui32)(blendeda + 0.5f) << 24|
-                          (ui32)(blendedr + 0.5f) << 16|
-                          (ui32)(blendedg + 0.5f) << 8 |
-                          (ui32)(blendedb + 0.5f) << 0);
-
-                END_TIMED_BLOCK(FillPixel);
+            for(i32 i = 0; i < 4; i++)
+            {
+                if(shouldFill[i])
+                {
+                    // NOTE: Repack
+                    *(pixel + i) = ((ui32)(blendeda[i] + 0.5f) << 24|
+                                    (ui32)(blendedr[i] + 0.5f) << 16|
+                                    (ui32)(blendedg[i] + 0.5f) << 8 |
+                                    (ui32)(blendedb[i] + 0.5f) << 0);
+                }
             }
             
-            pixel++;
+            pixel += 4;
 
             END_TIMED_BLOCK(TestPixel);
         }
