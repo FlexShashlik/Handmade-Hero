@@ -547,6 +547,7 @@ DrawRectangleHopefullyQuickly
     __m128 inv255_4x = _mm_set1_ps(inv255);
 
     __m128 zero = _mm_set1_ps(0.0f);
+    __m128 half_4x = _mm_set1_ps(0.5f);
     __m128 one = _mm_set1_ps(1.0f);
     __m128 one255_4x = _mm_set1_ps(255.0f);
     __m128 colorr_4x = _mm_set1_ps(color.r);
@@ -708,10 +709,14 @@ DrawRectangleHopefullyQuickly
             __m128 l2 = _mm_mul_ps(fY, ifX);
             __m128 l3 = _mm_mul_ps(fY, fX);
 
-            __m128 texelr = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAr), _mm_mul_ps(l1, texelBr)), _mm_mul_ps(l2, texelCr)), _mm_mul_ps(l3, texelDr));
-            __m128 texelg = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAg), _mm_mul_ps(l1, texelBg)), _mm_mul_ps(l2, texelCg)), _mm_mul_ps(l3, texelDg));
-            __m128 texelb = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAb), _mm_mul_ps(l1, texelBb)), _mm_mul_ps(l2, texelCb)), _mm_mul_ps(l3, texelDb));
-            __m128 texela = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAa), _mm_mul_ps(l1, texelBa)), _mm_mul_ps(l2, texelCa)), _mm_mul_ps(l3, texelDa));
+            __m128 texelr = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAr), _mm_mul_ps(l1, texelBr)),
+                                       _mm_add_ps(_mm_mul_ps(l2, texelCr), _mm_mul_ps(l3, texelDr)));
+            __m128 texelg = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAg), _mm_mul_ps(l1, texelBg)),
+                                       _mm_add_ps(_mm_mul_ps(l2, texelCg), _mm_mul_ps(l3, texelDg)));
+            __m128 texelb = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAb), _mm_mul_ps(l1, texelBb)),
+                                       _mm_add_ps(_mm_mul_ps(l2, texelCb), _mm_mul_ps(l3, texelDb)));
+            __m128 texela = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAa), _mm_mul_ps(l1, texelBa)),
+                                       _mm_add_ps(_mm_mul_ps(l2, texelCa), _mm_mul_ps(l3, texelDa)));
             
             // NOTE: Modulate by incoming color
             texelr = _mm_mul_ps(texelr, colorr_4x);
@@ -742,18 +747,23 @@ DrawRectangleHopefullyQuickly
             blendedg = _mm_mul_ps(one255_4x, _mm_sqrt_ps(blendedg));
             blendedb = _mm_mul_ps(one255_4x, _mm_sqrt_ps(blendedb));
             blendeda = _mm_mul_ps(one255_4x, blendeda);
-                
-            for(i32 i = 0; i < 4; i++)
-            {
-                if(shouldFill[i])
-                {
-                    // NOTE: Repack
-                    *(pixel + i) = ((ui32)(M(blendeda, i) + 0.5f) << 24|
-                                    (ui32)(M(blendedr, i) + 0.5f) << 16|
-                                    (ui32)(M(blendedg, i) + 0.5f) << 8 |
-                                    (ui32)(M(blendedb, i) + 0.5f) << 0);
-                }
-            }
+
+            // TODO: Should we set the rounding mode to nearest and save the adds?
+            __m128i intr = _mm_cvttps_epi32(_mm_add_ps(blendedr, half_4x));
+            __m128i intg = _mm_cvttps_epi32(_mm_add_ps(blendedg, half_4x));
+            __m128i intb = _mm_cvttps_epi32(_mm_add_ps(blendedb, half_4x));
+            __m128i inta = _mm_cvttps_epi32(_mm_add_ps(blendeda, half_4x));
+            
+            __m128i sr = _mm_slli_epi32(intr, 16);
+            __m128i sg = _mm_slli_epi32(intg, 8);
+            __m128i sb = intb;
+            __m128i sa = _mm_slli_epi32(inta, 24);
+
+            __m128i out = _mm_or_si128(_mm_or_si128(sr, sg), _mm_or_si128(sb, sa));
+
+            // TODO: Write only the pixels where shouldFill[i] == true
+            // NOTE: Unaligned store
+            _mm_storeu_si128((__m128i *)pixel, out);
             
             pixel += 4;
         }
