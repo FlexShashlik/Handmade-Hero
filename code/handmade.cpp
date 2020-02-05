@@ -1426,7 +1426,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
 
-        tranState->groundBufferCount = 64;
+        tranState->groundBufferCount = 256;
         tranState->groundBuffers = PushArray
             (
                 &tranState->tranArena,
