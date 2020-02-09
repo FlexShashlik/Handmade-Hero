@@ -471,8 +471,30 @@ DrawRectangleSlowly
     END_TIMED_BLOCK(DrawRectangleSlowly);
 }
 
+struct counts
+{
+    int mm_add_ps;
+    int mm_sub_ps;
+    int mm_mul_ps;
+    int mm_castps_si128;
+    int mm_and_ps;
+    int mm_or_si128;
+    int mm_cmpge_ps;
+    int mm_cmple_ps;
+    int mm_min_ps;
+    int mm_max_ps;
+    int mm_cvttps_epi32;
+    int mm_cvtps_epi32;
+    int mm_cvtepi32_ps;
+    int mm_and_si128;
+    int mm_andnot_si128;
+    int mm_srli_epi32;
+    int mm_slli_epi32;
+    int mm_sqrt_ps;
+};
+
 internal void
-DrawRectangleHopefullyQuickly
+DrawRectangleQuickly
 (
     loaded_bitmap *buffer,
     v2 origin, v2 xAxis, v2 yAxis,
@@ -481,7 +503,7 @@ DrawRectangleHopefullyQuickly
     r32 pixelsToMeters
 )
 {
-    BEGIN_TIMED_BLOCK(DrawRectangleHopefullyQuickly);
+    BEGIN_TIMED_BLOCK(DrawRectangleQuickly);
     
     // NOTE: Premultiply color up front
     color.rgb *= color.a;
@@ -547,6 +569,7 @@ DrawRectangleHopefullyQuickly
     __m128 inv255_4x = _mm_set1_ps(inv255);
 
     __m128 zero = _mm_set1_ps(0.0f);
+    __m128 four_4x = _mm_set1_ps(4.0f);
     __m128 one = _mm_set1_ps(1.0f);
     __m128 one255_4x = _mm_set1_ps(255.0f);
     __m128 colorr_4x = _mm_set1_ps(color.r);
@@ -572,24 +595,55 @@ DrawRectangleHopefullyQuickly
     BEGIN_TIMED_BLOCK(ProcessPixel);
     for(i32 y = yMin; y <= yMax; y++)
     {
+        __m128 pixelPy = _mm_set1_ps((r32)y);
+        pixelPy = _mm_sub_ps(pixelPy, originy_4x);
+        
+        __m128 pixelPx = _mm_set_ps((r32)(xMin + 3),
+                                    (r32)(xMin + 2),
+                                    (r32)(xMin + 1),
+                                    (r32)(xMin + 0));
+        pixelPx = _mm_sub_ps(pixelPx, originx_4x);
+        
         ui32 *pixel = (ui32 *)row;
         for(i32 xI = xMin; xI <= xMax; xI += 4)
         {
 #define mmSquare(a) _mm_mul_ps(a, a)
 #define M(a, i) ((r32 *)&a)[i]
 #define Mi(a, i) ((ui32 *)&a)[i]
+
+#define COUNT_CYCLES 0
+
+#if COUNT_CYCLES
+            counts Counts = {};
+#define _mm_add_ps(a, b) ++Counts.mm_add_ps; a; b
+#define _mm_sub_ps(a, b) ++Counts.mm_sub_ps; a; b
+#define _mm_mul_ps(a, b) ++Counts.mm_mul_ps; a; b
+#define _mm_castps_si128(a) ++Counts.mm_castps_si128; a
+#define _mm_and_ps(a, b) ++Counts.mm_and_ps; a; b
+#define _mm_or_si128(a, b) ++Counts.mm_or_si128; a; b
+#define _mm_cmpge_ps(a, b) ++Counts.mm_cmpge_ps; a; b
+#define _mm_cmple_ps(a, b) ++Counts.mm_cmple_ps; a; b
+#define _mm_min_ps(a, b) ++Counts.mm_min_ps; a; b
+#define _mm_max_ps(a, b) ++Counts.mm_max_ps; a; b
+#define _mm_cvttps_epi32(a) ++Counts.mm_cvttps_epi32; a
+#define _mm_cvtps_epi32(a) ++Counts.mm_cvtps_epi32; a
+#define _mm_cvtepi32_ps(a) ++Counts.mm_cvtepi32_ps; a
+#define _mm_and_si128(a, b) ++Counts.mm_and_si128; a; b
+#define _mm_andnot_si128(a, b) ++Counts.mm_andnot_si128; a; b
+#define _mm_srli_epi32(a, b) ++Counts.mm_srli_epi32; a
+#define _mm_slli_epi32(a, b) ++Counts.mm_slli_epi32; a
+#define _mm_sqrt_ps(a) ++Counts.mm_sqrt_ps; a
+#undef mmSquare
+#define mmSquare(a) ++Counts.mm_mul_ps; a
+#define __m128 i32
+#define __m128i i32
+
+#define _mm_loadu_si128(a) 0
+#define _mm_storeu_si128(a, b)
+#endif
             
-            __m128 pixelPx = _mm_set_ps((r32)(xI + 3),
-                                        (r32)(xI + 2),
-                                        (r32)(xI + 1),
-                                        (r32)(xI + 0));
-            __m128 pixelPy = _mm_set1_ps((r32)y);
-
-            __m128 dx = _mm_sub_ps(pixelPx, originx_4x);
-            __m128 dy = _mm_sub_ps(pixelPy, originy_4x);
-
-            __m128 u = _mm_add_ps(_mm_mul_ps(dx, nXAxisx_4x), _mm_mul_ps(dy, nXAxisy_4x));
-            __m128 v = _mm_add_ps(_mm_mul_ps(dx, nYAxisx_4x), _mm_mul_ps(dy, nYAxisy_4x));
+            __m128 u = _mm_add_ps(_mm_mul_ps(pixelPx, nXAxisx_4x), _mm_mul_ps(pixelPy, nXAxisy_4x));
+            __m128 v = _mm_add_ps(_mm_mul_ps(pixelPx, nYAxisx_4x), _mm_mul_ps(pixelPy, nYAxisy_4x));
             __m128i writeMask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(u, zero),
                                                                        _mm_cmple_ps(u, one)),
                                                             _mm_and_ps(_mm_cmpge_ps(v, zero),
@@ -611,12 +665,19 @@ DrawRectangleHopefullyQuickly
             
                 __m128 fX = _mm_sub_ps(tX, _mm_cvtepi32_ps(fetchX_4x));
                 __m128 fY = _mm_sub_ps(tY, _mm_cvtepi32_ps(fetchY_4x));
-            
+
+#if 1
                 __m128i sampleA;
                 __m128i sampleB;
                 __m128i sampleC;
                 __m128i sampleD;
-            
+
+#if COUNT_CYCLES
+                sampleA = 0;
+                sampleB = 0;
+                sampleC = 0;
+                sampleD = 0;
+#else
                 for(i32 i = 0; i < 4; i++)
                 {
                     i32 fetchX = Mi(fetchX_4x, i);
@@ -635,7 +696,8 @@ DrawRectangleHopefullyQuickly
                     Mi(sampleC, i) = *(ui32 *)(texelPtr + texture->pitch);
                     Mi(sampleD, i) = *(ui32 *)(texelPtr + texture->pitch + sizeof(ui32));
                 }
-
+#endif
+                
                 // NOTE: Unpack bilinear texel samples
                 __m128 texelAr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampleA, 16), maskFF));
                 __m128 texelAg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(sampleA, 8), maskFF));
@@ -746,13 +808,43 @@ DrawRectangleHopefullyQuickly
 
                 __m128i out = _mm_or_si128(_mm_or_si128(sr, sg), _mm_or_si128(sb, sa));
 
+#else
+                __m128i out = _mm_or_si128(fetchX_4x, fetchY_4x);
+#endif
                 __m128i maskedOut = _mm_or_si128(_mm_and_si128(writeMask, out),
                                                  _mm_andnot_si128(writeMask, originalDest));
-            
+
                 // NOTE: Unaligned store
                 _mm_storeu_si128((__m128i *)pixel, maskedOut);
             }
+
+#if COUNT_CYCLES
+#undef _mm_add_ps
+            r32 Third = 1.0f / 3.0f;
+
+            r32 Total = 0.0f;
+#define Sum(L, A) (L*(r32)A); Total += (L*(r32)A)
+            r32 mm_add_ps = Sum(1, Counts.mm_add_ps);
+            r32 mm_sub_ps = Sum(1, Counts.mm_sub_ps);
+            r32 mm_mul_ps = Sum(1, Counts.mm_mul_ps);
+            r32 mm_and_ps = Sum(Third, Counts.mm_and_ps);
+            r32 mm_cmpge_ps = Sum(1, Counts.mm_cmpge_ps);
+            r32 mm_cmple_ps = Sum(1, Counts.mm_cmple_ps);
+            r32 mm_min_ps = Sum(1, Counts.mm_min_ps);
+            r32 mm_max_ps = Sum(1, Counts.mm_max_ps);
+            r32 mm_castps_si128 = Sum(0, 0);
+            r32 mm_or_si128 = Sum(Third, Counts.mm_or_si128);
+            r32 mm_cvttps_epi32 = Sum(1, Counts.mm_cvttps_epi32);
+            r32 mm_cvtps_epi32 = Sum(1, Counts.mm_cvtps_epi32);
+            r32 mm_cvtepi32_ps = Sum(1, Counts.mm_cvtepi32_ps);
+            r32 mm_and_si128 = Sum(Third, Counts.mm_and_si128);
+            r32 mm_andnot_si128 = Sum(Third, Counts.mm_andnot_si128);
+            r32 mm_srli_epi32 = Sum(1, Counts.mm_srli_epi32);
+            r32 mm_slli_epi32 = Sum(1, Counts.mm_slli_epi32);
+            r32 mm_sqrt_ps = Sum(16, Counts.mm_sqrt_ps);
+#endif
             
+            pixelPx = _mm_add_ps(pixelPx, four_4x);
             pixel += 4;
         }
         
@@ -760,7 +852,7 @@ DrawRectangleHopefullyQuickly
     }
     END_TIMED_BLOCK_COUNTED(ProcessPixel, (xMax - xMin + 1) * (yMax - yMin + 1));
 
-    END_TIMED_BLOCK(DrawRectangleHopefullyQuickly);
+    END_TIMED_BLOCK(DrawRectangleQuickly);
 }
 
 inline void
@@ -1127,7 +1219,7 @@ RenderGroupToOutput
                         pixelsToMeters
                     );
 #else
-                DrawRectangleHopefullyQuickly
+                DrawRectangleQuickly
                     (
                         outputTarget, basis.p,
                         basis.scale * v2{entry->size.x, 0},

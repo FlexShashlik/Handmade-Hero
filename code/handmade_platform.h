@@ -129,7 +129,7 @@ enum
     /* 1 */ DebugCycleCounter_RenderGroupToOutput,
     /* 2 */ DebugCycleCounter_DrawRectangleSlowly,
     /* 3 */ DebugCycleCounter_ProcessPixel,
-    /* 4 */ DebugCycleCounter_DrawRectangleHopefullyQuickly,
+    /* 4 */ DebugCycleCounter_DrawRectangleQuickly,
     DebugCycleCounter_Count,
 };
     
