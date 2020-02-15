@@ -60,40 +60,26 @@ DrawRectangle
 (
     loaded_bitmap *buffer,
     v2 vMin, v2 vMax,
-    v4 color
+    v4 color, rectangle2i clipRect, b32 even
 )
 {
     r32 r = color.r;
     r32 g = color.g;
     r32 b = color.b;
     r32 a = color.a;
+
+    rectangle2i fillRect;
+    fillRect.minX = RoundR32ToI32(vMin.x);
+    fillRect.minY = RoundR32ToI32(vMin.y);
+    fillRect.maxX = RoundR32ToI32(vMax.x);
+    fillRect.maxY = RoundR32ToI32(vMax.y);
+
+    fillRect = Intersect(fillRect, clipRect);
     
-    i32 minX = RoundR32ToI32(vMin.x);
-    i32 minY = RoundR32ToI32(vMin.y);
-    i32 maxX = RoundR32ToI32(vMax.x);
-    i32 maxY = RoundR32ToI32(vMax.y);
-
-    if(minX < 0)
+    if(!even == (fillRect.minY & 1))
     {
-        minX = 0;
+        fillRect.minY += 1;
     }
-
-    if(minY < 0)
-    {
-        minY = 0;
-    }
-
-    if(maxX > buffer->width)
-    {
-        maxX = buffer->width;
-    }
-
-    if(maxY > buffer->height)
-    {
-        maxY = buffer->height;
-    }
-    
-    ui8 *endOfBuffer = (ui8 *)buffer->memory + buffer->pitch * buffer->height;
     
     ui32 color32 =
         (
@@ -103,16 +89,19 @@ DrawRectangle
             RoundR32ToUI32(b * 255.0f) << 0
         );
 
-    ui8 *row = (ui8 *)buffer->memory + minX * BITMAP_BYTES_PER_PIXEL + minY * buffer->pitch;
-    for(i32 y = minY; y < maxY; y++)
+    ui8 *row = ((ui8 *)buffer->memory +
+                fillRect.minX * BITMAP_BYTES_PER_PIXEL +
+                fillRect.minY * buffer->pitch);
+    
+    for(i32 y = fillRect.minY; y < fillRect.maxY; y += 2)
     {
         ui32 *pixel = (ui32 *)row;
-        for(i32 x = minX; x < maxX; x++)
+        for(i32 x = fillRect.minX; x < fillRect.maxX; x++)
         {        
             *pixel++ = color32;            
         }
         
-        row += buffer->pitch;
+        row += 2 * buffer->pitch;
     }
 }
 
@@ -505,9 +494,8 @@ DrawRectangleQuickly
 (
     loaded_bitmap *buffer,
     v2 origin, v2 xAxis, v2 yAxis,
-    v4 color,
-    loaded_bitmap *texture,
-    r32 pixelsToMeters
+    v4 color, loaded_bitmap *texture,
+    r32 pixelsToMeters, rectangle2i clipRect, b32 even
 )
 {
     BEGIN_TIMED_BLOCK(DrawRectangleQuickly);
@@ -524,22 +512,8 @@ DrawRectangleQuickly
                     
     r32 invXAxisLengthSq = 1.0f / LengthSq(xAxis);
     r32 invYAxisLengthSq = 1.0f / LengthSq(yAxis);
-
-    // TODO: IMPORTANT: STOP DOING THIS ONCE WE HAVE REAL ROW LOADING
-    i32 widthMax = (buffer->width - 1) - 3;
-    i32 heightMax = (buffer->height - 1) - 3;
-
-    r32 invWidthMax = 1.0f / (r32)widthMax;
-    r32 invHeightMax = 1.0f / (r32)heightMax;
     
-    r32 originZ = 0.0f;
-    r32 originY = (origin + 0.5f * xAxis + 0.5f * yAxis).y;
-    r32 fixedCastY = invHeightMax * originY;
-    
-    i32 yMin = heightMax;
-    i32 yMax = 0;
-    i32 xMin = widthMax;
-    i32 xMax = 0;
+    rectangle2i fillRect = InvertedInfinityRectangle();
     
     v2 p[4] =
         {
@@ -554,303 +528,309 @@ DrawRectangleQuickly
     {
         v2 testP = p[pIndex];
         i32 floorX = FloorR32ToI32(testP.x);
-        i32 ceilX = CeilR32ToI32(testP.x);
+        i32 ceilX = CeilR32ToI32(testP.x) + 1;
         i32 floorY = FloorR32ToI32(testP.y);
-        i32 ceilY = CeilR32ToI32(testP.y);
+        i32 ceilY = CeilR32ToI32(testP.y) + 1;
 
-        if(xMin > floorX) {xMin = floorX;}
-        if(yMin > floorY) {yMin = floorY;}
-        if(xMax < ceilX) {xMax = ceilX;}
-        if(yMax < ceilY) {yMax = ceilY;}
+        if(fillRect.minX > floorX) {fillRect.minX = floorX;}
+        if(fillRect.minY > floorY) {fillRect.minY = floorY;}
+        if(fillRect.maxX < ceilX) {fillRect.maxX = ceilX;}
+        if(fillRect.maxY < ceilY) {fillRect.maxY = ceilY;}
     }
 
-    if(xMin < 0) {xMin = 0;}
-    if(yMin < 0) {yMin = 0;}
-    if(xMax > widthMax) {xMax = widthMax;}
-    if(yMax > heightMax) {yMax = heightMax;}
+    fillRect = Intersect(clipRect, fillRect);
 
-    v2 nXAxis = invXAxisLengthSq * xAxis;
-    v2 nYAxis = invYAxisLengthSq * yAxis;
-
-    r32 inv255 = 1.0f / 255.0f;
-    __m128 inv255_4x = _mm_set1_ps(inv255);
-
-    r32 normalizeC = 1.0f / 255.0f;
-    r32 normalizeSqC = 1.0f / Square(255.0f);
-
-    __m128 zero = _mm_set1_ps(0.0f);
-    __m128 four_4x = _mm_set1_ps(4.0f);
-    __m128 one = _mm_set1_ps(1.0f);
-    __m128 one255_4x = _mm_set1_ps(255.0f);
-    __m128 colorr_4x = _mm_set1_ps(color.r);
-    __m128 colorg_4x = _mm_set1_ps(color.g);
-    __m128 colorb_4x = _mm_set1_ps(color.b);
-    __m128 colora_4x = _mm_set1_ps(color.a);
-    __m128 nXAxisx_4x = _mm_set1_ps(nXAxis.x);
-    __m128 nXAxisy_4x = _mm_set1_ps(nXAxis.y);
-    __m128 nYAxisx_4x = _mm_set1_ps(nYAxis.x);
-    __m128 nYAxisy_4x = _mm_set1_ps(nYAxis.y);
-    __m128 originx_4x = _mm_set1_ps(origin.x);
-    __m128 originy_4x = _mm_set1_ps(origin.y);
-    __m128 maxColorValue = _mm_set1_ps(255.0f * 255.0f);
-
-    __m128 widthM2 = _mm_set1_ps((r32)(texture->width - 2));
-    __m128 heightM2 = _mm_set1_ps((r32)(texture->height - 2));
-
-    __m128i maskFF = _mm_set1_epi32(0xFF);
-    __m128i maskFFFF = _mm_set1_epi32(0xFFFF);
-    __m128i maskFF00FF = _mm_set1_epi32(0x00FF00FF);
-    
-    ui8 *row = ((ui8 *)buffer->memory +
-                xMin * BITMAP_BYTES_PER_PIXEL +
-                yMin * buffer->pitch);
-
-    i32 texturePitch = texture->pitch;
-    void *textureMemory = texture->memory;
-    
-    BEGIN_TIMED_BLOCK(ProcessPixel);
-    for(i32 y = yMin; y <= yMax; y++)
+    if(!even == (fillRect.minY & 1))
     {
-        __m128 pixelPy = _mm_set1_ps((r32)y);
-        pixelPy = _mm_sub_ps(pixelPy, originy_4x);
-        
-        __m128 pixelPx = _mm_set_ps((r32)(xMin + 3),
-                                    (r32)(xMin + 2),
-                                    (r32)(xMin + 1),
-                                    (r32)(xMin + 0));
-        pixelPx = _mm_sub_ps(pixelPx, originx_4x);
-        
-        ui32 *pixel = (ui32 *)row;
-        for(i32 xI = xMin; xI <= xMax; xI += 4)
+        fillRect.minY += 1;
+    }
+
+    if(HasArea(fillRect))
+    {
+        __m128i startupClipMask = _mm_set1_epi8(-1); 
+    
+        i32 fillWidth = fillRect.maxX - fillRect.minX;
+        i32 fillWidthAlign = fillWidth & 3;
+        if(fillWidthAlign > 0)
         {
+            i32 adjustment = (4 - fillWidthAlign);
+            switch(adjustment)
+            {
+                case 1: {startupClipMask = _mm_slli_si128(startupClipMask, 1 * 4);} break;
+                case 2: {startupClipMask = _mm_slli_si128(startupClipMask, 2 * 4);} break;
+                case 3: {startupClipMask = _mm_slli_si128(startupClipMask, 3 * 4);} break;
+            }
+        
+            fillWidth += adjustment;
+            fillRect.minX = fillRect.maxX - fillWidth;
+        }
+    
+        v2 nXAxis = invXAxisLengthSq * xAxis;
+        v2 nYAxis = invYAxisLengthSq * yAxis;
+
+        r32 inv255 = 1.0f / 255.0f;
+        __m128 inv255_4x = _mm_set1_ps(inv255);
+
+        r32 normalizeC = 1.0f / 255.0f;
+        r32 normalizeSqC = 1.0f / Square(255.0f);
+
+        __m128 zero = _mm_set1_ps(0.0f);
+        __m128 four_4x = _mm_set1_ps(4.0f);
+        __m128 one = _mm_set1_ps(1.0f);
+        __m128 one255_4x = _mm_set1_ps(255.0f);
+        __m128 colorr_4x = _mm_set1_ps(color.r);
+        __m128 colorg_4x = _mm_set1_ps(color.g);
+        __m128 colorb_4x = _mm_set1_ps(color.b);
+        __m128 colora_4x = _mm_set1_ps(color.a);
+        __m128 nXAxisx_4x = _mm_set1_ps(nXAxis.x);
+        __m128 nXAxisy_4x = _mm_set1_ps(nXAxis.y);
+        __m128 nYAxisx_4x = _mm_set1_ps(nYAxis.x);
+        __m128 nYAxisy_4x = _mm_set1_ps(nYAxis.y);
+        __m128 originx_4x = _mm_set1_ps(origin.x);
+        __m128 originy_4x = _mm_set1_ps(origin.y);
+        __m128 maxColorValue = _mm_set1_ps(255.0f * 255.0f);
+        __m128i texturePitch_4x = _mm_set1_epi32(texture->pitch);
+    
+        __m128 widthM2 = _mm_set1_ps((r32)(texture->width - 2));
+        __m128 heightM2 = _mm_set1_ps((r32)(texture->height - 2));
+
+        __m128i maskFF = _mm_set1_epi32(0xFF);
+        __m128i maskFFFF = _mm_set1_epi32(0xFFFF);
+        __m128i maskFF00FF = _mm_set1_epi32(0x00FF00FF);
+    
+        ui8 *row = ((ui8 *)buffer->memory +
+                    fillRect.minX * BITMAP_BYTES_PER_PIXEL +
+                    fillRect.minY * buffer->pitch);
+        i32 rowAdvance = 2 * buffer->pitch;
+
+        void *textureMemory = texture->memory;
+        i32 texturePitch = texture->pitch;
+
+        i32 minY = fillRect.minY;
+        i32 minX = fillRect.minX;
+        i32 maxY = fillRect.maxY;
+        i32 maxX = fillRect.maxX;
+    
+        BEGIN_TIMED_BLOCK(ProcessPixel);
+        for(i32 y = minY; y < maxY; y += 2)
+        {
+            __m128 pixelPy = _mm_set1_ps((r32)y);
+            pixelPy = _mm_sub_ps(pixelPy, originy_4x);
+        
+            __m128 pixelPx = _mm_set_ps((r32)(fillRect.minX + 3),
+                                        (r32)(fillRect.minX + 2),
+                                        (r32)(fillRect.minX + 1),
+                                        (r32)(fillRect.minX + 0));
+            pixelPx = _mm_sub_ps(pixelPx, originx_4x);
+
+            __m128i clipMask = startupClipMask;
+        
+            ui32 *pixel = (ui32 *)row;
+            for(i32 xI = minX; xI < maxX; xI += 4)
+            {
 #define mmSquare(a) _mm_mul_ps(a, a)
 #define M(a, i) ((r32 *)&a)[i]
 #define Mi(a, i) ((ui32 *)&a)[i]
 
-            IACA_VC64_START;
+                IACA_VC64_START;
             
-            __m128 u = _mm_add_ps(_mm_mul_ps(pixelPx, nXAxisx_4x), _mm_mul_ps(pixelPy, nXAxisy_4x));
-            __m128 v = _mm_add_ps(_mm_mul_ps(pixelPx, nYAxisx_4x), _mm_mul_ps(pixelPy, nYAxisy_4x));
-            __m128i writeMask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(u, zero),
-                                                                       _mm_cmple_ps(u, one)),
-                                                            _mm_and_ps(_mm_cmpge_ps(v, zero),
-                                                                       _mm_cmple_ps(v, one))));
+                __m128 u = _mm_add_ps(_mm_mul_ps(pixelPx, nXAxisx_4x), _mm_mul_ps(pixelPy, nXAxisy_4x));
+                __m128 v = _mm_add_ps(_mm_mul_ps(pixelPx, nYAxisx_4x), _mm_mul_ps(pixelPy, nYAxisy_4x));
+                __m128i writeMask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(u, zero),
+                                                                           _mm_cmple_ps(u, one)),
+                                                                _mm_and_ps(_mm_cmpge_ps(v, zero),
+                                                                           _mm_cmple_ps(v, one))));
 
-            // TODO: Re-check this later
-            //if(_mm_movemask_epi8(writeMask))
-            {
-                __m128i originalDest = _mm_loadu_si128((__m128i *)pixel);
+                writeMask = _mm_and_si128(writeMask, clipMask);
             
-                u = _mm_min_ps(_mm_max_ps(u, zero), one);
-                v = _mm_min_ps(_mm_max_ps(v, zero), one);
-
-                __m128 tX = _mm_mul_ps(u, widthM2);
-                __m128 tY = _mm_mul_ps(v, heightM2);
-
-                __m128i fetchX_4x = _mm_cvttps_epi32(tX);
-                __m128i fetchY_4x = _mm_cvttps_epi32(tY);
-            
-                __m128 fX = _mm_sub_ps(tX, _mm_cvtepi32_ps(fetchX_4x));
-                __m128 fY = _mm_sub_ps(tY, _mm_cvtepi32_ps(fetchY_4x));
-
-                __m128i sampleA;
-                __m128i sampleB;
-                __m128i sampleC;
-                __m128i sampleD;
-
-                for(i32 i = 0; i < 4; i++)
+                // TODO: Re-check this later
+                //if(_mm_movemask_epi8(writeMask))
                 {
-                    i32 fetchX = Mi(fetchX_4x, i);
-                    i32 fetchY = Mi(fetchY_4x, i);
-
-                    Assert(fetchX >= 0 && fetchX < texture->width);
-                    Assert(fetchY >= 0 && fetchY < texture->height);
-
-                
-                    ui8 *texelPtr = (((ui8 *)textureMemory) +
-                                     fetchY * texturePitch +
-                                     fetchX * sizeof(ui32));
-                
-                    Mi(sampleA, i) = *(ui32 *)(texelPtr);
-                    Mi(sampleB, i) = *(ui32 *)(texelPtr + sizeof(ui32));
-                    Mi(sampleC, i) = *(ui32 *)(texelPtr + texture->pitch);
-                    Mi(sampleD, i) = *(ui32 *)(texelPtr + texture->pitch + sizeof(ui32));
-                }
-                
-                // NOTE: Unpack bilinear texel samples
-                __m128i texelArb = _mm_and_si128(sampleA, maskFF00FF);
-                __m128i texelAag = _mm_and_si128(_mm_srli_epi32(sampleA, 8), maskFF00FF);
-                texelArb = _mm_mullo_epi16(texelArb, texelArb);
-                __m128 texelAa = _mm_cvtepi32_ps(_mm_srli_epi32(texelAag, 16));
-                texelAag = _mm_mullo_epi16(texelAag, texelAag);
-
-                __m128i texelBrb = _mm_and_si128(sampleB, maskFF00FF);
-                __m128i texelBag = _mm_and_si128(_mm_srli_epi32(sampleB, 8), maskFF00FF);
-                texelBrb = _mm_mullo_epi16(texelBrb, texelBrb);
-                __m128 texelBa = _mm_cvtepi32_ps(_mm_srli_epi32(texelBag, 16));
-                texelBag = _mm_mullo_epi16(texelBag, texelBag);
-
-                __m128i texelCrb = _mm_and_si128(sampleC, maskFF00FF);
-                __m128i texelCag = _mm_and_si128(_mm_srli_epi32(sampleC, 8), maskFF00FF);
-                texelCrb = _mm_mullo_epi16(texelCrb, texelCrb);
-                __m128 texelCa = _mm_cvtepi32_ps(_mm_srli_epi32(texelCag, 16));
-                texelCag = _mm_mullo_epi16(texelCag, texelCag);
-
-                __m128i texelDrb = _mm_and_si128(sampleD, maskFF00FF);
-                __m128i texelDag = _mm_and_si128(_mm_srli_epi32(sampleD, 8), maskFF00FF);
-                texelDrb = _mm_mullo_epi16(texelDrb, texelDrb);
-                __m128 texelDa = _mm_cvtepi32_ps(_mm_srli_epi32(texelDag, 16));
-                texelDag = _mm_mullo_epi16(texelDag, texelDag);
-                
-                // NOTE: Load destination
-                __m128 destr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 16), maskFF));
-                __m128 destg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 8), maskFF));
-                __m128 destb = _mm_cvtepi32_ps(_mm_and_si128(originalDest, maskFF));
-                __m128 desta = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 24), maskFF));
+                    __m128i originalDest = _mm_loadu_si128((__m128i *)pixel);
             
-                // NOTE: Convert texture from sRGB [0;255] to "linear" [0;1] brightness space
-                __m128 texelAr = _mm_cvtepi32_ps(_mm_srli_epi32(texelArb, 16));
-                __m128 texelAg = _mm_cvtepi32_ps(_mm_and_si128(texelAag, maskFFFF));
-                __m128 texelAb = _mm_cvtepi32_ps(_mm_and_si128(texelArb, maskFFFF));
+                    u = _mm_min_ps(_mm_max_ps(u, zero), one);
+                    v = _mm_min_ps(_mm_max_ps(v, zero), one);
 
-                __m128 texelBr = _mm_cvtepi32_ps(_mm_srli_epi32(texelBrb, 16));
-                __m128 texelBg = _mm_cvtepi32_ps(_mm_and_si128(texelBag, maskFFFF));
-                __m128 texelBb = _mm_cvtepi32_ps(_mm_and_si128(texelBrb, maskFFFF));
+                    __m128 tX = _mm_mul_ps(u, widthM2);
+                    __m128 tY = _mm_mul_ps(v, heightM2);
 
-                __m128 texelCr = _mm_cvtepi32_ps(_mm_srli_epi32(texelCrb, 16));
-                __m128 texelCg = _mm_cvtepi32_ps(_mm_and_si128(texelCag, maskFFFF));
-                __m128 texelCb = _mm_cvtepi32_ps(_mm_and_si128(texelCrb, maskFFFF));
-
-                __m128 texelDr = _mm_cvtepi32_ps(_mm_srli_epi32(texelDrb, 16));
-                __m128 texelDg = _mm_cvtepi32_ps(_mm_and_si128(texelDag, maskFFFF));
-                __m128 texelDb = _mm_cvtepi32_ps(_mm_and_si128(texelDrb, maskFFFF));
-                
-                // NOTE: Bilinear texture blend
-                __m128 ifX = _mm_sub_ps(one, fX);
-                __m128 ifY = _mm_sub_ps(one, fY);
-                
-                __m128 l0 = _mm_mul_ps(ifY, ifX);
-                __m128 l1 = _mm_mul_ps(ifY, fX);
-                __m128 l2 = _mm_mul_ps(fY, ifX);
-                __m128 l3 = _mm_mul_ps(fY, fX);
-
-                __m128 texelr = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAr), _mm_mul_ps(l1, texelBr)),
-                                           _mm_add_ps(_mm_mul_ps(l2, texelCr), _mm_mul_ps(l3, texelDr)));
-                __m128 texelg = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAg), _mm_mul_ps(l1, texelBg)),
-                                           _mm_add_ps(_mm_mul_ps(l2, texelCg), _mm_mul_ps(l3, texelDg)));
-                __m128 texelb = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAb), _mm_mul_ps(l1, texelBb)),
-                                           _mm_add_ps(_mm_mul_ps(l2, texelCb), _mm_mul_ps(l3, texelDb)));
-                __m128 texela = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAa), _mm_mul_ps(l1, texelBa)),
-                                           _mm_add_ps(_mm_mul_ps(l2, texelCa), _mm_mul_ps(l3, texelDa)));
+                    __m128i fetchX_4x = _mm_cvttps_epi32(tX);
+                    __m128i fetchY_4x = _mm_cvttps_epi32(tY);
             
-                // NOTE: Modulate by incoming color
-                texelr = _mm_mul_ps(texelr, colorr_4x);
-                texelg = _mm_mul_ps(texelg, colorg_4x);
-                texelb = _mm_mul_ps(texelb, colorb_4x);
-                texela = _mm_mul_ps(texela, colora_4x);
+                    __m128 fX = _mm_sub_ps(tX, _mm_cvtepi32_ps(fetchX_4x));
+                    __m128 fY = _mm_sub_ps(tY, _mm_cvtepi32_ps(fetchY_4x));
 
-                // NOTE: Clamp colors to valid range
-                texelr = _mm_min_ps(_mm_max_ps(texelr, zero), maxColorValue);
-                texelg = _mm_min_ps(_mm_max_ps(texelg, zero), maxColorValue);
-                texelb = _mm_min_ps(_mm_max_ps(texelb, zero), maxColorValue);
+                    fetchX_4x = _mm_slli_epi32(fetchX_4x, 2);
+                    fetchY_4x = _mm_or_si128(_mm_mullo_epi16(fetchY_4x, texturePitch_4x),
+                                             _mm_slli_epi32(_mm_mulhi_epi16(fetchY_4x, texturePitch_4x), 16));
+                    __m128i fetch_4x = _mm_add_epi32(fetchX_4x, fetchY_4x);
+                
+                    i32 fetch0 = Mi(fetch_4x, 0);
+                    i32 fetch1 = Mi(fetch_4x, 1);
+                    i32 fetch2 = Mi(fetch_4x, 2);
+                    i32 fetch3 = Mi(fetch_4x, 3);
+                
+                    ui8 *texelPtr0 = ((ui8 *)textureMemory) + fetch0;
+                    ui8 *texelPtr1 = ((ui8 *)textureMemory) + fetch1;
+                    ui8 *texelPtr2 = ((ui8 *)textureMemory) + fetch2;
+                    ui8 *texelPtr3 = ((ui8 *)textureMemory) + fetch3;
+
+                    __m128i sampleA = _mm_setr_epi32(*(ui32 *)(texelPtr0),
+                                                     *(ui32 *)(texelPtr1),
+                                                     *(ui32 *)(texelPtr2),
+                                                     *(ui32 *)(texelPtr3));
+                
+                    __m128i sampleB = _mm_setr_epi32(*(ui32 *)(texelPtr0 + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr1 + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr2 + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr3 + sizeof(ui32)));
+
+                    __m128i sampleC = _mm_setr_epi32(*(ui32 *)(texelPtr0 + texturePitch),
+                                                     *(ui32 *)(texelPtr1 + texturePitch),
+                                                     *(ui32 *)(texelPtr2 + texturePitch),
+                                                     *(ui32 *)(texelPtr3 + texturePitch));
+                
+                    __m128i sampleD = _mm_setr_epi32(*(ui32 *)(texelPtr0 + texturePitch + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr1 + texturePitch + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr2 + texturePitch + sizeof(ui32)),
+                                                     *(ui32 *)(texelPtr3 + texturePitch + sizeof(ui32)));
+                
+                    // NOTE: Unpack bilinear texel samples
+                    __m128i texelArb = _mm_and_si128(sampleA, maskFF00FF);
+                    __m128i texelAag = _mm_and_si128(_mm_srli_epi32(sampleA, 8), maskFF00FF);
+                    texelArb = _mm_mullo_epi16(texelArb, texelArb);
+                    __m128 texelAa = _mm_cvtepi32_ps(_mm_srli_epi32(texelAag, 16));
+                    texelAag = _mm_mullo_epi16(texelAag, texelAag);
+
+                    __m128i texelBrb = _mm_and_si128(sampleB, maskFF00FF);
+                    __m128i texelBag = _mm_and_si128(_mm_srli_epi32(sampleB, 8), maskFF00FF);
+                    texelBrb = _mm_mullo_epi16(texelBrb, texelBrb);
+                    __m128 texelBa = _mm_cvtepi32_ps(_mm_srli_epi32(texelBag, 16));
+                    texelBag = _mm_mullo_epi16(texelBag, texelBag);
+
+                    __m128i texelCrb = _mm_and_si128(sampleC, maskFF00FF);
+                    __m128i texelCag = _mm_and_si128(_mm_srli_epi32(sampleC, 8), maskFF00FF);
+                    texelCrb = _mm_mullo_epi16(texelCrb, texelCrb);
+                    __m128 texelCa = _mm_cvtepi32_ps(_mm_srli_epi32(texelCag, 16));
+                    texelCag = _mm_mullo_epi16(texelCag, texelCag);
+
+                    __m128i texelDrb = _mm_and_si128(sampleD, maskFF00FF);
+                    __m128i texelDag = _mm_and_si128(_mm_srli_epi32(sampleD, 8), maskFF00FF);
+                    texelDrb = _mm_mullo_epi16(texelDrb, texelDrb);
+                    __m128 texelDa = _mm_cvtepi32_ps(_mm_srli_epi32(texelDag, 16));
+                    texelDag = _mm_mullo_epi16(texelDag, texelDag);
+                
+                    // NOTE: Load destination
+                    __m128 destr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 16), maskFF));
+                    __m128 destg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 8), maskFF));
+                    __m128 destb = _mm_cvtepi32_ps(_mm_and_si128(originalDest, maskFF));
+                    __m128 desta = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(originalDest, 24), maskFF));
             
-                // NOTE: Go from sRGB to "linear" brightness space
-                destr = mmSquare(destr);
-                destg = mmSquare(destg);
-                destb = mmSquare(destb);
+                    // NOTE: Convert texture from sRGB [0;255] to "linear" [0;1] brightness space
+                    __m128 texelAr = _mm_cvtepi32_ps(_mm_srli_epi32(texelArb, 16));
+                    __m128 texelAg = _mm_cvtepi32_ps(_mm_and_si128(texelAag, maskFFFF));
+                    __m128 texelAb = _mm_cvtepi32_ps(_mm_and_si128(texelArb, maskFFFF));
 
-                // NOTE: Destination blend
-                __m128 invTexelA = _mm_sub_ps(one, _mm_mul_ps(inv255_4x, texela));
+                    __m128 texelBr = _mm_cvtepi32_ps(_mm_srli_epi32(texelBrb, 16));
+                    __m128 texelBg = _mm_cvtepi32_ps(_mm_and_si128(texelBag, maskFFFF));
+                    __m128 texelBb = _mm_cvtepi32_ps(_mm_and_si128(texelBrb, maskFFFF));
+
+                    __m128 texelCr = _mm_cvtepi32_ps(_mm_srli_epi32(texelCrb, 16));
+                    __m128 texelCg = _mm_cvtepi32_ps(_mm_and_si128(texelCag, maskFFFF));
+                    __m128 texelCb = _mm_cvtepi32_ps(_mm_and_si128(texelCrb, maskFFFF));
+
+                    __m128 texelDr = _mm_cvtepi32_ps(_mm_srli_epi32(texelDrb, 16));
+                    __m128 texelDg = _mm_cvtepi32_ps(_mm_and_si128(texelDag, maskFFFF));
+                    __m128 texelDb = _mm_cvtepi32_ps(_mm_and_si128(texelDrb, maskFFFF));
+                
+                    // NOTE: Bilinear texture blend
+                    __m128 ifX = _mm_sub_ps(one, fX);
+                    __m128 ifY = _mm_sub_ps(one, fY);
+                
+                    __m128 l0 = _mm_mul_ps(ifY, ifX);
+                    __m128 l1 = _mm_mul_ps(ifY, fX);
+                    __m128 l2 = _mm_mul_ps(fY, ifX);
+                    __m128 l3 = _mm_mul_ps(fY, fX);
+
+                    __m128 texelr = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAr), _mm_mul_ps(l1, texelBr)),
+                                               _mm_add_ps(_mm_mul_ps(l2, texelCr), _mm_mul_ps(l3, texelDr)));
+                    __m128 texelg = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAg), _mm_mul_ps(l1, texelBg)),
+                                               _mm_add_ps(_mm_mul_ps(l2, texelCg), _mm_mul_ps(l3, texelDg)));
+                    __m128 texelb = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAb), _mm_mul_ps(l1, texelBb)),
+                                               _mm_add_ps(_mm_mul_ps(l2, texelCb), _mm_mul_ps(l3, texelDb)));
+                    __m128 texela = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, texelAa), _mm_mul_ps(l1, texelBa)),
+                                               _mm_add_ps(_mm_mul_ps(l2, texelCa), _mm_mul_ps(l3, texelDa)));
+            
+                    // NOTE: Modulate by incoming color
+                    texelr = _mm_mul_ps(texelr, colorr_4x);
+                    texelg = _mm_mul_ps(texelg, colorg_4x);
+                    texelb = _mm_mul_ps(texelb, colorb_4x);
+                    texela = _mm_mul_ps(texela, colora_4x);
+
+                    // NOTE: Clamp colors to valid range
+                    texelr = _mm_min_ps(_mm_max_ps(texelr, zero), maxColorValue);
+                    texelg = _mm_min_ps(_mm_max_ps(texelg, zero), maxColorValue);
+                    texelb = _mm_min_ps(_mm_max_ps(texelb, zero), maxColorValue);
+            
+                    // NOTE: Go from sRGB to "linear" brightness space
+                    destr = mmSquare(destr);
+                    destg = mmSquare(destg);
+                    destb = mmSquare(destb);
+
+                    // NOTE: Destination blend
+                    __m128 invTexelA = _mm_sub_ps(one, _mm_mul_ps(inv255_4x, texela));
       
-                __m128 blendedr = _mm_add_ps(_mm_mul_ps(invTexelA, destr), texelr);
-                __m128 blendedg = _mm_add_ps(_mm_mul_ps(invTexelA, destg), texelg);
-                __m128 blendedb = _mm_add_ps(_mm_mul_ps(invTexelA, destb), texelb);
-                __m128 blendeda = _mm_add_ps(_mm_mul_ps(invTexelA, desta), texela);
+                    __m128 blendedr = _mm_add_ps(_mm_mul_ps(invTexelA, destr), texelr);
+                    __m128 blendedg = _mm_add_ps(_mm_mul_ps(invTexelA, destg), texelg);
+                    __m128 blendedb = _mm_add_ps(_mm_mul_ps(invTexelA, destb), texelb);
+                    __m128 blendeda = _mm_add_ps(_mm_mul_ps(invTexelA, desta), texela);
                 
-                // NOTE: Go from "linear" [0;1] brightness space to sRGB [0;255] space
+                    // NOTE: Go from "linear" [0;1] brightness space to sRGB [0;255] space
 #if 1
-                blendedr = _mm_mul_ps(blendedr, _mm_rsqrt_ps(blendedr));
-                blendedg = _mm_mul_ps(blendedg, _mm_rsqrt_ps(blendedg));
-                blendedb = _mm_mul_ps(blendedb, _mm_rsqrt_ps(blendedb));
+                    blendedr = _mm_mul_ps(blendedr, _mm_rsqrt_ps(blendedr));
+                    blendedg = _mm_mul_ps(blendedg, _mm_rsqrt_ps(blendedg));
+                    blendedb = _mm_mul_ps(blendedb, _mm_rsqrt_ps(blendedb));
 #else
-                blendedr = _mm_sqrt_ps(blendedr);
-                blendedg = _mm_sqrt_ps(blendedg);
-                blendedb = _mm_sqrt_ps(blendedb);
+                    blendedr = _mm_sqrt_ps(blendedr);
+                    blendedg = _mm_sqrt_ps(blendedg);
+                    blendedb = _mm_sqrt_ps(blendedb);
 #endif
 
-                // TODO: Should we set the rounding mode to nearest and save the adds?
-                __m128i intr = _mm_cvtps_epi32(blendedr);
-                __m128i intg = _mm_cvtps_epi32(blendedg);
-                __m128i intb = _mm_cvtps_epi32(blendedb);
-                __m128i inta = _mm_cvtps_epi32(blendeda);
+                    // TODO: Should we set the rounding mode to nearest and save the adds?
+                    __m128i intr = _mm_cvtps_epi32(blendedr);
+                    __m128i intg = _mm_cvtps_epi32(blendedg);
+                    __m128i intb = _mm_cvtps_epi32(blendedb);
+                    __m128i inta = _mm_cvtps_epi32(blendeda);
             
-                __m128i sr = _mm_slli_epi32(intr, 16);
-                __m128i sg = _mm_slli_epi32(intg, 8);
-                __m128i sb = intb;
-                __m128i sa = _mm_slli_epi32(inta, 24);
+                    __m128i sr = _mm_slli_epi32(intr, 16);
+                    __m128i sg = _mm_slli_epi32(intg, 8);
+                    __m128i sb = intb;
+                    __m128i sa = _mm_slli_epi32(inta, 24);
 
-                __m128i out = _mm_or_si128(_mm_or_si128(sr, sg), _mm_or_si128(sb, sa));
+                    __m128i out = _mm_or_si128(_mm_or_si128(sr, sg), _mm_or_si128(sb, sa));
 
-                __m128i maskedOut = _mm_or_si128(_mm_and_si128(writeMask, out),
-                                                 _mm_andnot_si128(writeMask, originalDest));
+                    __m128i maskedOut = _mm_or_si128(_mm_and_si128(writeMask, out),
+                                                     _mm_andnot_si128(writeMask, originalDest));
 
-                // NOTE: Unaligned store
-                _mm_storeu_si128((__m128i *)pixel, maskedOut);
+                    // NOTE: Unaligned store
+                    _mm_storeu_si128((__m128i *)pixel, maskedOut);
+                }
+
+                pixelPx = _mm_add_ps(pixelPx, four_4x);
+                pixel += 4;
+
+                clipMask = _mm_set1_epi8(-1);
+            
+                IACA_VC64_END;
             }
-
-            pixelPx = _mm_add_ps(pixelPx, four_4x);
-            pixel += 4;
-
-            IACA_VC64_END;
-        }
         
-        row += buffer->pitch;
+            row += rowAdvance;
+        }
+
+        END_TIMED_BLOCK_COUNTED(ProcessPixel, GetClampedRectArea(fillRect) / 2);
     }
-    END_TIMED_BLOCK_COUNTED(ProcessPixel, (xMax - xMin + 1) * (yMax - yMin + 1));
-
-    END_TIMED_BLOCK(DrawRectangleQuickly);
-}
-
-inline void
-DrawRectangleOutline
-(
-    loaded_bitmap *buffer,
-    v2 vMin, v2 vMax,
-    v3 color,
-    r32 r = 2.0f
-)
-{
-    // NOTE: Top and bottom
-    DrawRectangle
-        (
-            buffer,
-            v2{vMin.x - r, vMin.y - r},
-            v2{vMax.x + r, vMin.y + r},
-            V4(color, 1.0f)
-        );
-    DrawRectangle
-        (
-            buffer,
-            v2{vMin.x - r, vMax.y - r},
-            v2{vMax.x + r, vMax.y + r},
-            V4(color, 1.0f)
-        );
     
-    // NOTE: Left and right
-    DrawRectangle
-        (
-            buffer,
-            v2{vMin.x - r, vMin.y - r},
-            v2{vMin.x + r, vMax.y + r},
-            V4(color, 1.0f)
-        );
-    DrawRectangle
-        (
-            buffer,
-            v2{vMax.x - r, vMin.y - r},
-            v2{vMax.x + r, vMax.y + r},
-            V4(color, 1.0f)
-        );    
+    END_TIMED_BLOCK(DrawRectangleQuickly);
 }
 
 internal void
@@ -1107,7 +1087,8 @@ GetRenderEntityBasisPos
 internal void
 RenderGroupToOutput
 (
-    render_group *renderGroup, loaded_bitmap *outputTarget
+    render_group *renderGroup, loaded_bitmap *outputTarget,
+    rectangle2i clipRect, b32 even
 )
 {
     BEGIN_TIMED_BLOCK(RenderGroupToOutput);
@@ -1116,7 +1097,7 @@ RenderGroupToOutput
                     (r32)outputTarget->height};
     
     r32 pixelsToMeters = 1.0f / renderGroup->metersToPixels;
-        
+
     for(ui32 baseAddress = 0;
         baseAddress < renderGroup->pushBufferSize;
         )
@@ -1137,7 +1118,7 @@ RenderGroupToOutput
                         outputTarget,
                         v2{0.0f, 0.0f},
                         v2{(r32)outputTarget->width, (r32)outputTarget->height},
-                        entry->color
+                        entry->color, clipRect, even
                     );
                 
                 baseAddress += sizeof(*entry);
@@ -1181,7 +1162,7 @@ RenderGroupToOutput
                         basis.scale * v2{entry->size.x, 0},
                         basis.scale * v2{0, entry->size.y},
                         entry->color, entry->bitmap,
-                        pixelsToMeters
+                        pixelsToMeters, clipRect, even
                     );
 #endif
 
@@ -1204,7 +1185,7 @@ RenderGroupToOutput
                     (
                         outputTarget,
                         basis.p, basis.p + basis.scale * entry->dim,
-                        entry->color
+                        entry->color, clipRect, even
                     );
                 
                 baseAddress += sizeof(*entry);
@@ -1214,6 +1195,7 @@ RenderGroupToOutput
             {
                 render_entry_coordinate_system *entry = (render_entry_coordinate_system *)data;
 
+#if 0
                 v2 vMax = entry->origin + entry->xAxis + entry->yAxis;
                 DrawRectangleSlowly
                     (
@@ -1276,7 +1258,7 @@ RenderGroupToOutput
                     );
                 }
 #endif
-                
+#endif
                 baseAddress += sizeof(*entry);
             } break;
 
@@ -1285,6 +1267,32 @@ RenderGroupToOutput
     }
 
     END_TIMED_BLOCK(RenderGroupToOutput);
+}
+
+internal void
+TiledRenderGroupToOutput(render_group *renderGroup, loaded_bitmap *outputTarget)
+{
+    i32 tileCountX = 4;
+    i32 tileCountY = 4;
+
+    i32 tileWidth = outputTarget->width / tileCountX;
+    i32 tileHeight = outputTarget->height / tileCountY;
+
+    for(i32 tileY = 0; tileY < tileCountY; tileY++)
+    {
+        for(i32 tileX = 0; tileX < tileCountX; tileX++)
+        {
+            rectangle2i clipRect;
+
+            clipRect.minX = tileX * tileWidth + 4;
+            clipRect.maxX = clipRect.minX + tileWidth - 4;
+            clipRect.minY = tileY * tileHeight + 4;
+            clipRect.maxY = clipRect.minY + tileHeight - 4;
+            
+            RenderGroupToOutput(renderGroup, outputTarget, clipRect, true);
+            RenderGroupToOutput(renderGroup, outputTarget, clipRect, false);
+        }
+    }
 }
 
 internal render_group *

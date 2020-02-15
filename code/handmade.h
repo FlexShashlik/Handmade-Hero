@@ -183,7 +183,7 @@ struct game_state
 
     r32 time;
 
-    loaded_bitmap testDiffuse;
+    loaded_bitmap testDiffuse; // TODO: Re-fill this with gray
     loaded_bitmap testNormal;
 };
 

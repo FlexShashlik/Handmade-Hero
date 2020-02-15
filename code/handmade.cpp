@@ -722,7 +722,7 @@ FillGroundChunk
     }
 #endif
     
-    RenderGroupToOutput(renderGroup, buffer);    
+    TiledRenderGroupToOutput(renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
 }
 
@@ -1456,14 +1456,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 256,
                 false
             );
-
-        DrawRectangle
-            (
-                &gameState->testDiffuse,
-                v2{0, 0},
-                V2i(gameState->testDiffuse.width, gameState->testDiffuse.height),
-                v4{0.5f, 0.5f, 0.5f, 1.0f}
-            );
        
         gameState->testNormal = MakeEmptyBitmap
             (
@@ -2169,7 +2161,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
 #endif
     
-    RenderGroupToOutput(renderGroup, drawBuffer);
+    TiledRenderGroupToOutput(renderGroup, drawBuffer);
     
     EndSim(simRegion, gameState);
     EndTemporaryMemory(simMemory);
