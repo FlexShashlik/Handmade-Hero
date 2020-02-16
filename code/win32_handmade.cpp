@@ -1276,6 +1276,17 @@ Win32DebugSyncDisplay
 }
 #endif
 
+DWORD WINAPI
+ThreadProc(LPVOID lpParameter)
+{
+    char *stringToPrint = (char *)lpParameter;
+    for(;;)
+    {
+        OutputDebugStringA(stringToPrint);
+        Sleep(1000);
+    }
+}
+
 int
 CALLBACK WinMain
 (
@@ -1289,6 +1300,11 @@ CALLBACK WinMain
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
 
+    char *param = "Thread started!\n";
+    DWORD threadID;
+    HANDLE threadHandle = CreateThread(0, 0, ThreadProc, param, 0, &threadID);
+    CloseHandle(threadHandle);
+    
     win32_state win32State = {};
     Win32GetEXEFileName(&win32State);
     
