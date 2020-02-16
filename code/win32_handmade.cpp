@@ -1276,14 +1276,52 @@ Win32DebugSyncDisplay
 }
 #endif
 
+struct work_queue_entry
+{
+    char *stringToPrint;
+};
+
+global_variable ui32 NextEntryToDo;
+global_variable ui32 EntryCount;
+work_queue_entry Entries[256];
+
+internal void
+PushString(char *string)
+{
+    Assert(EntryCount < ArrayCount(Entries));
+    work_queue_entry *entry = Entries + EntryCount++;
+
+    // TODO: These writes are not in order!
+    entry->stringToPrint = string;
+}
+
+struct win32_thread_info
+{
+    int logicalThreadIndex;
+};
+
 DWORD WINAPI
 ThreadProc(LPVOID lpParameter)
 {
-    char *stringToPrint = (char *)lpParameter;
+    win32_thread_info *threadInfo = (win32_thread_info *)lpParameter;
+    
     for(;;)
     {
-        OutputDebugStringA(stringToPrint);
-        Sleep(1000);
+        if(NextEntryToDo < EntryCount)
+        {
+            // TODO: This line is not interlocked, so two threads could see the same value!
+            // TODO: Compiler doesn't know that multiple threads could write this value!
+            int entryIndex = NextEntryToDo++;
+
+            // TODO: These reads are not in order!
+            work_queue_entry *entry = Entries + entryIndex;
+
+            char buffer[256];
+            wsprintf(buffer, "Thread %d: %s\n",
+                     threadInfo->logicalThreadIndex, entry->stringToPrint);
+            
+            OutputDebugStringA(buffer);
+        }
     }
 }
 
@@ -1300,10 +1338,27 @@ CALLBACK WinMain
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
 
-    char *param = "Thread started!\n";
-    DWORD threadID;
-    HANDLE threadHandle = CreateThread(0, 0, ThreadProc, param, 0, &threadID);
-    CloseHandle(threadHandle);
+    win32_thread_info threadInfo[4];
+    for(i32 threadIndex = 0; threadIndex < ArrayCount(threadInfo); threadIndex++)
+    {
+        win32_thread_info *info = threadInfo + threadIndex;
+        info->logicalThreadIndex = threadIndex;
+        
+        DWORD threadID;
+        HANDLE threadHandle = CreateThread(0, 0, ThreadProc, info, 0, &threadID);
+        CloseHandle(threadHandle);
+    }
+
+    PushString("String 0");
+    PushString("String 1");
+    PushString("String 2");
+    PushString("String 3");
+    PushString("String 4");
+    PushString("String 5");
+    PushString("String 6");
+    PushString("String 7");
+    PushString("String 8");
+    PushString("String 9");
     
     win32_state win32State = {};
     Win32GetEXEFileName(&win32State);
