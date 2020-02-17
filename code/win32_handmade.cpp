@@ -1281,22 +1281,32 @@ struct work_queue_entry
     char *stringToPrint;
 };
 
-global_variable ui32 NextEntryToDo;
-global_variable ui32 EntryCount;
+global_variable ui32 volatile EntryCompletionCount;
+global_variable ui32 volatile NextEntryToDo;
+global_variable ui32 volatile EntryCount;
 work_queue_entry Entries[256];
 
+#define CompletePastWritesBeforeFutureWrites _WriteBarrier(); _mm_sfence()
+#define CompletePastReadsBeforeFutureReads _ReadBarrier()
+
 internal void
-PushString(char *string)
+PushString(HANDLE semaphoreHandle, char *string)
 {
     Assert(EntryCount < ArrayCount(Entries));
-    work_queue_entry *entry = Entries + EntryCount++;
-
-    // TODO: These writes are not in order!
+    
+    work_queue_entry *entry = Entries + EntryCount;
     entry->stringToPrint = string;
+
+    CompletePastWritesBeforeFutureWrites;
+    
+    EntryCount++;
+
+    ReleaseSemaphore(semaphoreHandle, 1, 0);
 }
 
 struct win32_thread_info
 {
+    HANDLE semaphoreHandle;
     int logicalThreadIndex;
 };
 
@@ -1309,11 +1319,8 @@ ThreadProc(LPVOID lpParameter)
     {
         if(NextEntryToDo < EntryCount)
         {
-            // TODO: This line is not interlocked, so two threads could see the same value!
-            // TODO: Compiler doesn't know that multiple threads could write this value!
-            int entryIndex = NextEntryToDo++;
-
-            // TODO: These reads are not in order!
+            int entryIndex = InterlockedIncrement((LONG volatile *)&NextEntryToDo) - 1;
+            CompletePastReadsBeforeFutureReads;
             work_queue_entry *entry = Entries + entryIndex;
 
             char buffer[256];
@@ -1321,6 +1328,12 @@ ThreadProc(LPVOID lpParameter)
                      threadInfo->logicalThreadIndex, entry->stringToPrint);
             
             OutputDebugStringA(buffer);
+
+            InterlockedIncrement((LONG volatile *)&EntryCompletionCount);
+        }
+        else
+        {
+            WaitForSingleObjectEx(threadInfo->semaphoreHandle, INFINITE, FALSE);
         }
     }
 }
@@ -1337,11 +1350,18 @@ CALLBACK WinMain
     LARGE_INTEGER perfCountFrequencyResult;
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
+    
+    win32_thread_info threadInfo[8];
+    ui32 threadCount = ArrayCount(threadInfo);
 
-    win32_thread_info threadInfo[4];
-    for(i32 threadIndex = 0; threadIndex < ArrayCount(threadInfo); threadIndex++)
+    ui32 initialCount = 0;
+    HANDLE semaphoreHandle = CreateSemaphoreEx(0, initialCount,
+                                                    threadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+    
+    for(ui32 threadIndex = 0; threadIndex < threadCount; threadIndex++)
     {
         win32_thread_info *info = threadInfo + threadIndex;
+        info->semaphoreHandle = semaphoreHandle;
         info->logicalThreadIndex = threadIndex;
         
         DWORD threadID;
@@ -1349,16 +1369,31 @@ CALLBACK WinMain
         CloseHandle(threadHandle);
     }
 
-    PushString("String 0");
-    PushString("String 1");
-    PushString("String 2");
-    PushString("String 3");
-    PushString("String 4");
-    PushString("String 5");
-    PushString("String 6");
-    PushString("String 7");
-    PushString("String 8");
-    PushString("String 9");
+    PushString(semaphoreHandle, "String A0");
+    PushString(semaphoreHandle, "String A1");
+    PushString(semaphoreHandle, "String A2");
+    PushString(semaphoreHandle, "String A3");
+    PushString(semaphoreHandle, "String A4");
+    PushString(semaphoreHandle, "String A5");
+    PushString(semaphoreHandle, "String A6");
+    PushString(semaphoreHandle, "String A7");
+    PushString(semaphoreHandle, "String A8");
+    PushString(semaphoreHandle, "String A9");
+
+    Sleep(5000);
+    
+    PushString(semaphoreHandle, "String B0");
+    PushString(semaphoreHandle, "String B1");
+    PushString(semaphoreHandle, "String B2");
+    PushString(semaphoreHandle, "String B3");
+    PushString(semaphoreHandle, "String B4");
+    PushString(semaphoreHandle, "String B5");
+    PushString(semaphoreHandle, "String B6");
+    PushString(semaphoreHandle, "String B7");
+    PushString(semaphoreHandle, "String B8");
+    PushString(semaphoreHandle, "String B9");
+
+    while(EntryCount != EntryCompletionCount);
     
     win32_state win32State = {};
     Win32GetEXEFileName(&win32State);
