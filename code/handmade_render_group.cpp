@@ -1269,29 +1269,63 @@ RenderGroupToOutput
     END_TIMED_BLOCK(RenderGroupToOutput);
 }
 
-internal void
-TiledRenderGroupToOutput(render_group *renderGroup, loaded_bitmap *outputTarget)
+struct tile_render_work
 {
-    i32 tileCountX = 4;
-    i32 tileCountY = 4;
+    render_group *renderGroup;
+    loaded_bitmap *outputTarget;
+    rectangle2i clipRect;
+};
+
+internal void
+DoTiledRenderWork(void *data)
+{
+    tile_render_work *work = (tile_render_work *)data;
+
+    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, true);
+    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, false);
+}
+
+internal void
+TiledRenderGroupToOutput
+(
+    //platform_work_queue *renderQueue,
+    render_group *renderGroup, loaded_bitmap *outputTarget
+)
+{
+    i32 const tileCountX = 4;
+    i32 const tileCountY = 4;
+    tile_render_work workArray[tileCountX * tileCountY];
 
     i32 tileWidth = outputTarget->width / tileCountX;
     i32 tileHeight = outputTarget->height / tileCountY;
 
+    int workCount = 0;
     for(i32 tileY = 0; tileY < tileCountY; tileY++)
     {
         for(i32 tileX = 0; tileX < tileCountX; tileX++)
         {
+            tile_render_work *work = workArray + workCount++;
+            
             rectangle2i clipRect;
-
             clipRect.minX = tileX * tileWidth + 4;
             clipRect.maxX = clipRect.minX + tileWidth - 4;
             clipRect.minY = tileY * tileHeight + 4;
             clipRect.maxY = clipRect.minY + tileHeight - 4;
-            
-            RenderGroupToOutput(renderGroup, outputTarget, clipRect, true);
-            RenderGroupToOutput(renderGroup, outputTarget, clipRect, false);
+
+            work->renderGroup = renderGroup;
+            work->outputTarget = outputTarget;
+            work->clipRect = clipRect;
+
+            //renderQueue->AddEntry(renderQueue, DoTiledRenderWork, work);
         }
+    }
+
+    //renderQueue->completeAllWork(renderQueue);
+
+    for(i32 workIndex = 0; workIndex < workCount; workIndex++)
+    {
+        tile_render_work *work = workArray + workIndex;
+        DoTiledRenderWork(work);
     }
 }
 

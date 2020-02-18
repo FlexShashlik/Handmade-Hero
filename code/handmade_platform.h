@@ -158,6 +158,7 @@ extern struct game_memory *DebugGlobalMemory;
     
 #define BEGIN_TIMED_BLOCK(ID)
 #define END_TIMED_BLOCK(ID)
+#define END_TIMED_BLOCK_COUNTED(ID, Count)
     
 #endif
     
