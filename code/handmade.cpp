@@ -722,7 +722,7 @@ FillGroundChunk
     }
 #endif
     
-    TiledRenderGroupToOutput(renderGroup, buffer);    
+    TiledRenderGroupToOutput(tranState->renderQueue, renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
 }
 
@@ -945,6 +945,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
     {
+        PlatformAddEntry = memory->platformAddEntry;
+        PlatformCompleteAllWork = memory->platformCompleteAllWork;        
+        
         ui32 tilesPerWidth = 17;
         ui32 tilesPerHeight = 9;
 
@@ -1426,6 +1429,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
 
+        tranState->renderQueue = memory->highPriorityQueue;
+        
         tranState->groundBufferCount = 256;
         tranState->groundBuffers = PushArray
             (
@@ -2161,7 +2166,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
 #endif
     
-    TiledRenderGroupToOutput(renderGroup, drawBuffer);
+    TiledRenderGroupToOutput(tranState->renderQueue, renderGroup, drawBuffer);
     
     EndSim(simRegion, gameState);
     EndTemporaryMemory(simMemory);

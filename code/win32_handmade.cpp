@@ -1276,83 +1276,83 @@ Win32DebugSyncDisplay
 }
 #endif
 
-struct work_queue_entry_storage
+struct platform_work_queue_entry
 {
-    void *userPointer;
+    platform_work_queue_callback *callback;
+    void *data;
 };
 
-struct work_queue
+struct platform_work_queue
 {
-    ui32 volatile entryCompletionCount;
-    ui32 volatile nextEntryToDo;
-    ui32 volatile entryCount;
+    ui32 volatile completionGoal;
+    ui32 volatile completionCount;
+    
+    ui32 volatile nextEntryToWrite;
+    ui32 volatile nextEntryToRead;
     HANDLE semaphoreHandle;
 
-    work_queue_entry_storage entries[256];
-};
-
-struct work_queue_entry
-{
-    void *data;
-    b32 isValid;
+    platform_work_queue_entry entries[256];
 };
 
 internal void
-AddWorkQueueEntry(work_queue *queue, void *pointer)
+Win32AddEntry(platform_work_queue *queue, platform_work_queue_callback *callback, void *data)
 {
-    Assert(queue->entryCount < ArrayCount(queue->entries));
-    queue->entries[queue->entryCount].userPointer = pointer;
+    ui32 newNextEntryToWrite = (queue->nextEntryToWrite + 1) % ArrayCount(queue->entries);
+    Assert(newNextEntryToWrite != queue->nextEntryToRead);
+    platform_work_queue_entry *entry = queue->entries + queue->nextEntryToWrite;
+    entry->callback = callback;
+    entry->data = data;
+    queue->completionGoal++;
     _WriteBarrier();
     _mm_sfence();
-    queue->entryCount++;
+    queue->nextEntryToWrite = newNextEntryToWrite;
     ReleaseSemaphore(queue->semaphoreHandle, 1, 0);
 }
 
-internal work_queue_entry
-CompleteAndGetNextQueueWorkEntry(work_queue *queue, work_queue_entry completed)
-{
-    work_queue_entry result;
-    result.isValid = false;
-
-    if(completed.isValid)
-    {
-        InterlockedIncrement((LONG volatile *)&queue->entryCompletionCount);
-    }
-    
-    if(queue->nextEntryToDo < queue->entryCount)
-    {
-        ui32 index = InterlockedIncrement((LONG volatile *)&queue->nextEntryToDo) - 1;
-        result.data = queue->entries[index].userPointer;
-        result.isValid = true;
-        _ReadBarrier();
-    }
-
-    return result;
-}
-
 internal b32
-QueueWorkStillInProgress(work_queue *queue)
+Win32DoNextWorkQueueEntry(platform_work_queue *queue)
 {
-    b32 result = (queue->entryCount != queue->entryCompletionCount);
-    return result;
+    b32 weShouldSleep = false;
+
+    ui32 originalNextEntryToRead = queue->nextEntryToRead;
+    ui32 newNextEntryToRead = (originalNextEntryToRead + 1) % ArrayCount(queue->entries);
+    if(originalNextEntryToRead != queue->nextEntryToWrite)
+    {
+        ui32 index = InterlockedCompareExchange((LONG volatile *)&queue->nextEntryToRead,
+                                                newNextEntryToRead,
+                                                originalNextEntryToRead);
+
+        if(index == originalNextEntryToRead)
+        {
+            platform_work_queue_entry entry = queue->entries[index];
+            entry.callback(queue, entry.data);
+            InterlockedIncrement((LONG volatile *)&queue->completionCount);
+        }
+    }
+    else
+    {
+        weShouldSleep = true;
+    }
+
+    return weShouldSleep;
 }
 
-inline void
-DoWorkerWork(work_queue_entry entry, i32 logicalThreadIndex)
+internal void
+Win32CompleteAllWork(platform_work_queue *queue)
 {
-    Assert(entry.isValid);
-    
-    char buffer[256];
-    wsprintf(buffer, "Thread %d: %s\n",
-             logicalThreadIndex, (char *)entry.data);
-    
-    OutputDebugStringA(buffer);
+    while(queue->completionGoal != queue->completionCount)
+    {
+        Win32DoNextWorkQueueEntry(queue);
+    }
+
+    queue->completionGoal = 0;
+    queue->completionCount = 0;
 }
 
 struct win32_thread_info
 {
     int logicalThreadIndex;
-    work_queue *queue;
+    platform_work_queue *queue;
 };
 
 DWORD WINAPI
@@ -1360,25 +1360,22 @@ ThreadProc(LPVOID lpParameter)
 {
     win32_thread_info *threadInfo = (win32_thread_info *)lpParameter;
 
-    work_queue_entry entry = {};
     for(;;)
     {
-        entry = CompleteAndGetNextQueueWorkEntry(threadInfo->queue, entry);
-        if(entry.isValid)
-        {
-            DoWorkerWork(entry, threadInfo->logicalThreadIndex);
-        }
-        else
+        if(Win32DoNextWorkQueueEntry(threadInfo->queue))
         {
             WaitForSingleObjectEx(threadInfo->queue->semaphoreHandle, INFINITE, FALSE);
         }
     }
 }
 
-internal void
-PushString(work_queue *queue, char *string)
+internal PLATFORM_WORK_QUEUE_CALLBACK(DoWorkerWork)
 {
-    AddWorkQueueEntry(queue, string);
+    char buffer[256];
+    wsprintf(buffer, "Thread %u: %s\n",
+             GetCurrentThreadId(), (char *)data);
+    
+    OutputDebugStringA(buffer);
 }
     
 int
@@ -1394,9 +1391,9 @@ CALLBACK WinMain
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
 
-    work_queue queue = {};
+    platform_work_queue queue = {};
     
-    win32_thread_info threadInfo[7];
+    win32_thread_info threadInfo[11];
     ui32 threadCount = ArrayCount(threadInfo);
 
     ui32 initialCount = 0;
@@ -1414,37 +1411,29 @@ CALLBACK WinMain
         CloseHandle(threadHandle);
     }
 
-    PushString(&queue, "String A0");
-    PushString(&queue, "String A1");
-    PushString(&queue, "String A2");
-    PushString(&queue, "String A3");
-    PushString(&queue, "String A4");
-    PushString(&queue, "String A5");
-    PushString(&queue, "String A6");
-    PushString(&queue, "String A7");
-    PushString(&queue, "String A8");
-    PushString(&queue, "String A9");
+    Win32AddEntry(&queue, DoWorkerWork, "String A0");
+    Win32AddEntry(&queue, DoWorkerWork, "String A1");
+    Win32AddEntry(&queue, DoWorkerWork, "String A2");
+    Win32AddEntry(&queue, DoWorkerWork, "String A3");
+    Win32AddEntry(&queue, DoWorkerWork, "String A4");
+    Win32AddEntry(&queue, DoWorkerWork, "String A5");
+    Win32AddEntry(&queue, DoWorkerWork, "String A6");
+    Win32AddEntry(&queue, DoWorkerWork, "String A7");
+    Win32AddEntry(&queue, DoWorkerWork, "String A8");
+    Win32AddEntry(&queue, DoWorkerWork, "String A9");
     
-    PushString(&queue, "String B0");
-    PushString(&queue, "String B1");
-    PushString(&queue, "String B2");
-    PushString(&queue, "String B3");
-    PushString(&queue, "String B4");
-    PushString(&queue, "String B5");
-    PushString(&queue, "String B6");
-    PushString(&queue, "String B7");
-    PushString(&queue, "String B8");
-    PushString(&queue, "String B9");
+    Win32AddEntry(&queue, DoWorkerWork, "String B0");
+    Win32AddEntry(&queue, DoWorkerWork, "String B1");
+    Win32AddEntry(&queue, DoWorkerWork, "String B2");
+    Win32AddEntry(&queue, DoWorkerWork, "String B3");
+    Win32AddEntry(&queue, DoWorkerWork, "String B4");
+    Win32AddEntry(&queue, DoWorkerWork, "String B5");
+    Win32AddEntry(&queue, DoWorkerWork, "String B6");
+    Win32AddEntry(&queue, DoWorkerWork, "String B7");
+    Win32AddEntry(&queue, DoWorkerWork, "String B8");
+    Win32AddEntry(&queue, DoWorkerWork, "String B9");
 
-    work_queue_entry entry = {};
-    while(QueueWorkStillInProgress(&queue))
-    {
-        entry = CompleteAndGetNextQueueWorkEntry(&queue, entry);
-        if(entry.isValid)
-        {
-            DoWorkerWork(entry, 7);
-        }
-    }
+    Win32CompleteAllWork(&queue);
     
     win32_state win32State = {};
     Win32GetEXEFileName(&win32State);
@@ -1481,12 +1470,20 @@ CALLBACK WinMain
 #endif
     
     WNDCLASS windowClass = {};
-
+/*
     Win32ResizeDIBSection
         (
             &GlobalBackbuffer,
             960,
             540
+        );
+*/
+
+    Win32ResizeDIBSection
+        (
+            &GlobalBackbuffer,
+            1920,
+            1080
         );
     
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
@@ -1524,7 +1521,7 @@ CALLBACK WinMain
                 monitorRefreshHz = win32RefreshRate;
             }
             
-            r32 gameUpdateHz = monitorRefreshHz / 2.0f;            
+            r32 gameUpdateHz = (r32)monitorRefreshHz; //monitorRefreshHz / 2.0f;            
             r32 targetSecondsPerFrame = 1.0f / (r32) gameUpdateHz;
             
             // NOTE: Sound test
@@ -1571,6 +1568,10 @@ CALLBACK WinMain
             game_memory gameMemory = {};
             gameMemory.permanentStorageSize = Megabytes(256);
             gameMemory.transientStorageSize = Gigabytes(1);
+
+            gameMemory.highPriorityQueue = &queue;
+            gameMemory.platformAddEntry = Win32AddEntry;
+            gameMemory.platformCompleteAllWork = Win32CompleteAllWork;
             
             gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
@@ -2137,9 +2138,9 @@ CALLBACK WinMain
                         newInput = oldInput;
                         oldInput = temp;
                         
-#if 0
-                        u64 endCycleCount = __rdtsc();
-                        u64 cyclesElapsed = endCycleCount - lastCycleCount;
+#if 1
+                        ui64 endCycleCount = __rdtsc();
+                        ui64 cyclesElapsed = endCycleCount - lastCycleCount;
                         lastCycleCount = endCycleCount;
                     
                         r64 fps = 0;

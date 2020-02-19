@@ -193,6 +193,7 @@ struct transient_state
     memory_arena tranArena;
     ui32 groundBufferCount;
     ground_buffer *groundBuffers;
+    platform_work_queue *renderQueue;
 
     ui32 envMapWidth;
     ui32 envMapHeight;
@@ -212,3 +213,6 @@ GetLowEntity(game_state *gameState, ui32 index)
 
     return result;
 }
+
+global_variable platform_add_entry *PlatformAddEntry;
+global_variable platform_complete_all_work *PlatformCompleteAllWork;

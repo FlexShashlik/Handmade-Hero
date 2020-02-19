@@ -1276,8 +1276,7 @@ struct tile_render_work
     rectangle2i clipRect;
 };
 
-internal void
-DoTiledRenderWork(void *data)
+internal PLATFORM_WORK_QUEUE_CALLBACK(DoTiledRenderWork)
 {
     tile_render_work *work = (tile_render_work *)data;
 
@@ -1288,7 +1287,7 @@ DoTiledRenderWork(void *data)
 internal void
 TiledRenderGroupToOutput
 (
-    //platform_work_queue *renderQueue,
+    platform_work_queue *renderQueue,
     render_group *renderGroup, loaded_bitmap *outputTarget
 )
 {
@@ -1316,17 +1315,17 @@ TiledRenderGroupToOutput
             work->outputTarget = outputTarget;
             work->clipRect = clipRect;
 
-            //renderQueue->AddEntry(renderQueue, DoTiledRenderWork, work);
+#if 1
+            // NOTE: This is the multi-threaded path
+            PlatformAddEntry(renderQueue, DoTiledRenderWork, work);
+#else
+            // NOTE: This is the single-threaded path
+            DoTiledRenderWork(renderQueue, work);
+#endif
         }
     }
 
-    //renderQueue->completeAllWork(renderQueue);
-
-    for(i32 workIndex = 0; workIndex < workCount; workIndex++)
-    {
-        tile_render_work *work = workArray + workIndex;
-        DoTiledRenderWork(work);
-    }
+    PlatformCompleteAllWork(renderQueue);
 }
 
 internal render_group *
