@@ -411,7 +411,8 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, i32 width, i32 height)
     buffer->info.bmiHeader.biBitCount = 32;
     buffer->info.bmiHeader.biCompression = BI_RGB;
 
-    i32 bmpMemorySize = buffer->width * buffer->height * buffer->bytesPerPixel;
+    buffer->pitch = Align16(buffer->width * buffer->bytesPerPixel);
+    i32 bmpMemorySize = buffer->pitch * buffer->height;
     buffer->memory = VirtualAlloc
         (
             0,
@@ -419,8 +420,6 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, i32 width, i32 height)
             MEM_RESERVE|MEM_COMMIT,
             PAGE_READWRITE
         );
-    
-    buffer->pitch = buffer->width * buffer->bytesPerPixel;
 }
 
 internal void
@@ -1304,7 +1303,6 @@ Win32AddEntry(platform_work_queue *queue, platform_work_queue_callback *callback
     entry->data = data;
     queue->completionGoal++;
     _WriteBarrier();
-    _mm_sfence();
     queue->nextEntryToWrite = newNextEntryToWrite;
     ReleaseSemaphore(queue->semaphoreHandle, 1, 0);
 }
@@ -1470,21 +1468,12 @@ CALLBACK WinMain
 #endif
     
     WNDCLASS windowClass = {};
-/*
-    Win32ResizeDIBSection
-        (
-            &GlobalBackbuffer,
-            960,
-            540
-        );
-*/
 
-    Win32ResizeDIBSection
-        (
-            &GlobalBackbuffer,
-            1920,
-            1080
-        );
+#if 0
+    Win32ResizeDIBSection(&GlobalBackbuffer, 1279, 719);
+#else
+    Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
+#endif
     
     windowClass.style = CS_HREDRAW|CS_VREDRAW;
     windowClass.lpfnWndProc = Win32MainWindowCallback;

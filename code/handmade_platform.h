@@ -92,6 +92,8 @@ typedef double r64;
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
+#define Align16(value) ((value + 15) & ~15)
+
 inline ui32
 SafeTruncateUI64(ui64 value)
 {

@@ -938,16 +938,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
-        
+    
+    PlatformAddEntry = memory->platformAddEntry;
+    PlatformCompleteAllWork = memory->platformCompleteAllWork;
+    
     ui32 groundBufferWidth = 256;
     ui32 groundBufferHeight = 256;
     
     game_state *gameState = (game_state *)memory->permanentStorage;
     if(!memory->isInitialized)
-    {
-        PlatformAddEntry = memory->platformAddEntry;
-        PlatformCompleteAllWork = memory->platformCompleteAllWork;        
-        
+    {     
         ui32 tilesPerWidth = 17;
         ui32 tilesPerHeight = 9;
 
@@ -1607,6 +1607,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     drawBuffer->pitch = buffer->pitch;
     drawBuffer->memory = buffer->memory;
 
+#if 0
+    // NOTE: Enable this to test weird buffer sizes in the renderer!
+    drawBuffer->width = 1279;
+    drawBuffer->height = 719;
+#endif
+    
     // TODO: Decide what pushbuffer size is
     render_group *renderGroup = AllocateRenderGroup
         (
