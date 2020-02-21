@@ -1068,41 +1068,6 @@ DrawMatte
     }
 }
 
-struct entity_basis_p_result
-{
-    v2 p;
-    r32 scale;
-    b32 isValid;
-};
-inline entity_basis_p_result
-GetRenderEntityBasisPos
-(
-    render_group *renderGroup,
-    render_entity_basis *entityBasis, v2 screenDim
-)
-{
-    v2 screenCenter = 0.5f * screenDim;
-    
-    entity_basis_p_result result = {};
-    
-    v3 entityBaseP = entityBasis->basis->p;
-
-    r32 distanceToPZ = (renderGroup->renderCamera.distanceAboveTarget - entityBaseP.z);
-    r32 nearClipPlane = 0.2f;
-
-    v3 rawXY = V3(entityBaseP.xy + entityBasis->offset.xy, 1.0f);
-
-    if(distanceToPZ > nearClipPlane)
-    {
-        v3 projectedXY = (1.0f / distanceToPZ) * (renderGroup->renderCamera.focalLength * rawXY);
-        result.p = screenCenter + renderGroup->metersToPixels * projectedXY.xy;
-        result.scale = renderGroup->metersToPixels * projectedXY.z;
-        result.isValid = true;
-    }
-    
-    return result;
-}
-
 internal void
 RenderGroupToOutput
 (
@@ -1111,11 +1076,8 @@ RenderGroupToOutput
 )
 {
     BEGIN_TIMED_BLOCK(RenderGroupToOutput);
-    
-    v2 screenDim = {(r32)outputTarget->width,
-                    (r32)outputTarget->height};
-    
-    r32 pixelsToMeters = 1.0f / renderGroup->metersToPixels;
+
+    r32 nullPixelsToMeters = 1.0f;
 
     for(ui32 baseAddress = 0;
         baseAddress < renderGroup->pushBufferSize;
@@ -1146,45 +1108,34 @@ RenderGroupToOutput
             case RenderGroupEntryType_render_entry_bitmap:
             {
                 render_entry_bitmap *entry = (render_entry_bitmap *)data;
-
-                entity_basis_p_result basis = GetRenderEntityBasisPos
-                    (
-                        renderGroup,
-                        &entry->entityBasis,
-                        screenDim
-                    );
-                                
                 Assert(entry->bitmap);
                 
-#if 0
+#if 0     
+/*
                 DrawBitmap
                     (
                         outputTarget, entry->bitmap,
                         pos.x, pos.y,
                         entry->color.a
                     );
-#else
-
-#if 0
+*/
                 DrawRectangleSlowly
                     (
-                        outputTarget, basis.p,
-                        basis.scale * v2{entry->size.x, 0},
-                        basis.scale * v2{0, entry->size.y},
+                        outputTarget, entry->p,
+                        v2{entry->size.x, 0},
+                        v2{0, entry->size.y},
                         entry->color, entry->bitmap, 0, 0, 0, 0,
-                        pixelsToMeters
+                        nullPixelsToMeters
                     );
 #else
                 DrawRectangleQuickly
                     (
-                        outputTarget, basis.p,
-                        basis.scale * v2{entry->size.x, 0},
-                        basis.scale * v2{0, entry->size.y},
+                        outputTarget, entry->p,
+                        v2{entry->size.x, 0},
+                        v2{0, entry->size.y},
                         entry->color, entry->bitmap,
-                        pixelsToMeters, clipRect, even
+                        nullPixelsToMeters, clipRect, even
                     );
-#endif
-
 #endif
                 
                 baseAddress += sizeof(*entry);
@@ -1193,17 +1144,11 @@ RenderGroupToOutput
             case RenderGroupEntryType_render_entry_rectangle:
             {
                 render_entry_rectangle *entry = (render_entry_rectangle *)data;
-                entity_basis_p_result basis = GetRenderEntityBasisPos
-                    (
-                        renderGroup,
-                        &entry->entityBasis,
-                        screenDim
-                    );
-
+                
                 DrawRectangle
                     (
                         outputTarget,
-                        basis.p, basis.p + basis.scale * entry->dim,
+                        entry->p, entry->p + entry->dim,
                         entry->color, clipRect, even
                     );
                 
@@ -1278,6 +1223,7 @@ RenderGroupToOutput
                 }
 #endif
 #endif
+                
                 baseAddress += sizeof(*entry);
             } break;
 
@@ -1371,30 +1317,67 @@ AllocateRenderGroup
     render_group *result = PushStruct(arena, render_group);
     result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
 
-    result->defaultBasis = PushStruct(arena, render_basis);
-    result->defaultBasis->p = v3{0, 0, 0};
-
     result->maxPushBufferSize = maxPushBufferSize;
     result->pushBufferSize = 0;
-
-    result->gameCamera.focalLength = 0.6f;
-    result->gameCamera.distanceAboveTarget = 9.0f;
-
-    result->renderCamera = result->gameCamera;
-    //result->renderCamera.distanceAboveTarget = 50.0f;
     
     result->globalAlpha = 1.0f;
-    
-    // NOTE: This is a approximate monitor width
-    r32 widthOfMonitor = 0.635f;
-    result->metersToPixels = (r32)resolutionPixelsX * widthOfMonitor;
 
-    r32 pixelsToMeters = 1.0f / result->metersToPixels;
-    result->monitorHalfDimInMeters =
-        {
-            0.5f * resolutionPixelsX * pixelsToMeters,
-            0.5f * resolutionPixelsY * pixelsToMeters
-        };  
+    // NOTE: Horizontal measurement of monitor in meters
+    r32 widthOfMonitor = 0.635f;
+    r32 metersToPixels = (r32)resolutionPixelsX * widthOfMonitor;
+    r32 pixelsToMeters = SafeRatio1(1.0f, metersToPixels);
+    
+    result->monitorHalfDimInMeters = {0.5f * resolutionPixelsX * pixelsToMeters,
+                                      0.5f * resolutionPixelsY * pixelsToMeters};
+    
+    // NOTE: Default transform
+    result->transform.metersToPixels = metersToPixels;
+    result->transform.focalLength = 0.6f;
+    result->transform.distanceAboveTarget = 9.0f;
+    result->transform.screenCenter = {0.5f * resolutionPixelsX,
+                                       0.5f * resolutionPixelsY};
+    result->transform.offsetP = {0.0f, 0.0f, 0.0f};
+    result->transform.scale = 1.0f;
+    
+    return result;
+}
+
+struct entity_basis_p_result
+{
+    v2 p;
+    r32 scale;
+    b32 isValid;
+};
+inline entity_basis_p_result
+GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
+{
+    entity_basis_p_result result = {};
+    
+    v3 p = V3(originalP.xy, 0.0f) + transform->offsetP;
+    r32 offsetZ = 0;
+
+    r32 distanceAboveTarget = transform->distanceAboveTarget;
+
+#if 0
+    // TODO: How do we want to control the debug camera?
+    if(1)
+    {
+        distanceAboveTarget += 50.0f;
+    }
+#endif
+    
+    r32 distanceToPZ = (distanceAboveTarget - p.z);
+    r32 nearClipPlane = 0.2f;
+
+    v3 rawXY = V3(p.xy, 1.0f);
+
+    if(distanceToPZ > nearClipPlane)
+    {
+        v3 projectedXY = (1.0f / distanceToPZ) * (transform->focalLength * rawXY);
+        result.scale = transform->metersToPixels * projectedXY.z;
+        result.p = transform->screenCenter + transform->metersToPixels * projectedXY.xy + v2{0.0f, result.scale * offsetZ};
+        result.isValid = true;
+    }
     
     return result;
 }
@@ -1430,16 +1413,22 @@ PushBitmap
     r32 height, v3 offset, v4 color = {1, 1, 1, 1}
 )
 {
-    render_entry_bitmap *entry = PushRenderElement(group, render_entry_bitmap);
-    if(entry)
+    v2 size = {height * bitmap->widthOverHeight, height};
+    v2 align = Hadamard(bitmap->alignPercentage, size);
+    v3 p = offset - V3(align, 0);
+    
+    entity_basis_p_result basis = GetRenderEntityBasisPos(&group->transform, p);
+    
+    if(basis.isValid)
     {
-        entry->entityBasis.basis = group->defaultBasis;
-        entry->bitmap = bitmap;
-        v2 size = {height * bitmap->widthOverHeight, height};
-        v2 align = Hadamard(bitmap->alignPercentage, size);
-        entry->entityBasis.offset = offset - V3(align, 0);
-        entry->color = color * group->globalAlpha;
-        entry->size = size;
+        render_entry_bitmap *entry = PushRenderElement(group, render_entry_bitmap);
+        if(entry)
+        {
+            entry->bitmap = bitmap;
+            entry->p = basis.p;
+            entry->color = color * group->globalAlpha;
+            entry->size = basis.scale * size;
+        }
     }
 }
 
@@ -1450,13 +1439,18 @@ PushRect
     v3 offset, v2 dim, v4 color = {1, 1, 1, 1}
 )
 {
-    render_entry_rectangle *piece = PushRenderElement(group, render_entry_rectangle);
-    if(piece)
+    v3 p = (offset - V3(0.5f * dim, 0));
+    entity_basis_p_result basis = GetRenderEntityBasisPos(&group->transform, p);
+    
+    if(basis.isValid)
     {
-        piece->entityBasis.basis = group->defaultBasis;
-        piece->entityBasis.offset = (offset - V3(0.5f * dim, 0));
-        piece->color = color;
-        piece->dim = dim;
+        render_entry_rectangle *rect = PushRenderElement(group, render_entry_rectangle);
+        if(rect)
+        {
+            rect->p = basis.p;
+            rect->color = color;
+            rect->dim = basis.scale * dim;
+        }
     }
 }
 
@@ -1510,7 +1504,7 @@ Clear(render_group *group, v4 color)
     }
 }
 
-inline render_entry_coordinate_system *
+inline void
 CoordinateSystem
 (
     render_group *group,
@@ -1523,27 +1517,37 @@ CoordinateSystem
     environment_map *bottom
 )
 {
-    render_entry_coordinate_system *entry = PushRenderElement(group, render_entry_coordinate_system);
-    if(entry)
-    {
-        entry->origin = origin;
-        entry->xAxis = xAxis;
-        entry->yAxis = yAxis;
-        entry->color = color;
-        entry->texture = texture;
-        entry->normalMap = normalMap;
-        entry->top = top;
-        entry->middle = middle;
-        entry->bottom = bottom;
-    }
+#if 0
+    entity_basis_p_result basis = GetRenderEntityBasisPos
+                    (
+                        renderGroup,
+                        &entry->entityBasis,
+                        screenDim
+                    );
 
-    return entry;
+    if(basis.isValid)
+    {
+        render_entry_coordinate_system *entry = PushRenderElement(group, render_entry_coordinate_system);
+        if(entry)
+        {
+            entry->origin = origin;
+            entry->xAxis = xAxis;
+            entry->yAxis = yAxis;
+            entry->color = color;
+            entry->texture = texture;
+            entry->normalMap = normalMap;
+            entry->top = top;
+            entry->middle = middle;
+            entry->bottom = bottom;
+        }
+    }
+#endif
 }
 
 inline v2
 Unproject(render_group *group, v2 projectedXY, r32 atDistanceFromCamera)
 {
-    v2 worldXY = (atDistanceFromCamera / group->gameCamera.focalLength) * projectedXY;
+    v2 worldXY = (atDistanceFromCamera / group->transform.focalLength) * projectedXY;
     return worldXY;
 }
 
@@ -1560,6 +1564,6 @@ GetCameraRectangleAtDistance(render_group *group, r32 distanceFromCamera)
 inline rectangle2
 GetCameraRectangleAtTarget(render_group *group)
 {
-    rectangle2 result = GetCameraRectangleAtDistance(group, group->gameCamera.distanceAboveTarget);
+    rectangle2 result = GetCameraRectangleAtDistance(group, group->transform.distanceAboveTarget);
     return result;
 }

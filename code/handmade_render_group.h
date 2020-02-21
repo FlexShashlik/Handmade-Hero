@@ -40,17 +40,6 @@ struct environment_map
     r32 posZ;
 };
 
-struct render_basis
-{
-    v3 p;
-};
-
-struct render_entity_basis
-{
-    render_basis *basis;
-    v3 offset;
-};
-
 enum render_group_entry_type
 {
     RenderGroupEntryType_render_entry_clear,
@@ -81,7 +70,9 @@ struct render_entry_coordinate_system
     v2 yAxis;
     v4 color;
     loaded_bitmap *texture;
-    loaded_bitmap *normalMap;
+    loaded_bitmap *normalMap;   
+    
+    //r32 pixelsToMeters; // TODO: Need to store this for lighting!
 
     environment_map *top;
     environment_map *middle;
@@ -90,36 +81,40 @@ struct render_entry_coordinate_system
 
 struct render_entry_bitmap
 {
-    render_entity_basis entityBasis;
     loaded_bitmap *bitmap;
-    v2 size;
+    
     v4 color;
+    v2 p;
+    v2 size;
 };
 
 struct render_entry_rectangle
 {
-    render_entity_basis entityBasis;
     v4 color;
+    v2 p;
     v2 dim;
 };
 
-struct render_group_camera
+struct render_transform
 {
+    // NOTE: Camera parameters
+    r32 metersToPixels;
+    v2 screenCenter;
+
     r32 focalLength;
     r32 distanceAboveTarget;
+
+    v3 offsetP;
+    r32 scale;
 };
 
 struct render_group
 {
-    render_group_camera gameCamera;
-    render_group_camera renderCamera;
+    r32 globalAlpha;
     
-    r32 metersToPixels;
     v2 monitorHalfDimInMeters;
     
-    r32 globalAlpha;
-        
-    render_basis *defaultBasis;
+    render_transform transform;
 
     ui32 pushBufferSize;
     ui32 maxPushBufferSize;
