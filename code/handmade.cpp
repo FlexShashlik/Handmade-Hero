@@ -619,30 +619,22 @@ FillGroundChunk
     transient_state *tranState, game_state *gameState,
     ground_buffer *groundBuffer, world_position *chunkPos
 )
-{    
+{
     temporary_memory groundMemory = BeginTemporaryMemory(&tranState->tranArena);
+    groundBuffer->pos = *chunkPos;
 
     loaded_bitmap *buffer = &groundBuffer->bitmap;
     buffer->alignPercentage = v2{0.5f, 0.5f};
     buffer->widthOverHeight = 1.0f;
     
-    render_group *renderGroup = AllocateRenderGroup
-        (
-            &tranState->tranArena, Megabytes(4),
-            buffer->width, buffer->height
-        );
-
-    Clear(renderGroup, v4{1.0f, 1.0f, 0.0f, 1.0f});
-
-    groundBuffer->pos = *chunkPos;
-
-#if 1
     r32 width = gameState->_world->chunkDimInMeters.x;
     r32 height = gameState->_world->chunkDimInMeters.y;
+    Assert(width == height);
     v2 halfDim = 0.5f * v2{width, height};
-
-    // TODO: Stop multiplying this when we switch to ortographic
-    halfDim = 2.0f * halfDim;
+    
+    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
+    Orthographic(renderGroup, buffer->width, buffer->height, buffer->width / width);
+    Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 1.0f});
 
     for(i32 chunkOffsetY = -1;
         chunkOffsetY <= 1;
@@ -660,7 +652,13 @@ FillGroundChunk
                 (139 * chunkX +
                  593 * chunkY +
                  329 * chunkZ);
-    
+
+            v4 color = v4{1, 0, 0, 1};
+            if((chunkX % 2) == (chunkY % 2))
+            {
+                color = v4{0, 0, 1, 1};
+            }
+            
             v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
             
             for(ui32 grassIndex = 0;
@@ -682,7 +680,7 @@ FillGroundChunk
 
                 v2 pos = center + offset;
                 
-                PushBitmap(renderGroup, stamp, 4.0f, V3(pos, 0.0f));
+                PushBitmap(renderGroup, stamp, 2.0f, V3(pos, 0.0f), color);
             }
         }
     }
@@ -716,11 +714,10 @@ FillGroundChunk
 
                 v2 pos = center + offset;
   
-                PushBitmap(renderGroup, stamp, 0.4f, V3(pos, 0.0f));
+                PushBitmap(renderGroup, stamp, 0.1f, V3(pos, 0.0f));
             }
         }
     }
-#endif
     
     TiledRenderGroupToOutput(tranState->renderQueue, renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
@@ -1614,16 +1611,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
     
     // TODO: Decide what pushbuffer size is
-    render_group *renderGroup = AllocateRenderGroup
-        (
-            &tranState->tranArena, Megabytes(4),
-            drawBuffer->width, drawBuffer->height
-        );
-
+    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
+    
+    // NOTE: Horizontal measurement of monitor in meters
+    r32 widthOfMonitor = 0.635f;
+    r32 metersToPixels = (r32)drawBuffer->width * widthOfMonitor;
+    Perspective(renderGroup, drawBuffer->width, drawBuffer->height, metersToPixels, 0.6f, 9.0f);
     Clear(renderGroup, v4{0.25f, 0.25f, 0.25f, 0.0f});
     
-    v2 screenCenter = {0.5f * (r32)drawBuffer->width,
-                       0.5f * (r32)drawBuffer->height};
+    v2 screenCenter = {0.5f * (r32)drawBuffer->width, 0.5f * (r32)drawBuffer->height};
 
     rectangle2 screenBounds = GetCameraRectangleAtTarget(renderGroup);
     rectangle3 cameraBoundsInMeters = RectMinMax
@@ -1655,7 +1651,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 r32 groundSideInMeters = _world->chunkDimInMeters.x;
                 PushBitmap(renderGroup, bitmap, groundSideInMeters, delta);
 
-#if 1
+#if 0
                 PushRectOutline
                     (
                         renderGroup,

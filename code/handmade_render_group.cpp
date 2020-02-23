@@ -1128,11 +1128,13 @@ RenderGroupToOutput
                         nullPixelsToMeters
                     );
 #else
+                v2 xAxis = {1, 0};
+                v2 yAxis = {0, 1};
                 DrawRectangleQuickly
                     (
                         outputTarget, entry->p,
-                        v2{entry->size.x, 0},
-                        v2{0, entry->size.y},
+                        entry->size.x * xAxis,
+                        entry->size.y * yAxis,
                         entry->color, entry->bitmap,
                         nullPixelsToMeters, clipRect, even
                     );
@@ -1308,11 +1310,7 @@ TiledRenderGroupToOutput
 }
 
 internal render_group *
-AllocateRenderGroup
-(
-    memory_arena *arena, ui32 maxPushBufferSize,
-    ui32 resolutionPixelsX, ui32 resolutionPixelsY
-)
+AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
 {
     render_group *result = PushStruct(arena, render_group);
     result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
@@ -1321,25 +1319,52 @@ AllocateRenderGroup
     result->pushBufferSize = 0;
     
     result->globalAlpha = 1.0f;
-
-    // NOTE: Horizontal measurement of monitor in meters
-    r32 widthOfMonitor = 0.635f;
-    r32 metersToPixels = (r32)resolutionPixelsX * widthOfMonitor;
-    r32 pixelsToMeters = SafeRatio1(1.0f, metersToPixels);
-    
-    result->monitorHalfDimInMeters = {0.5f * resolutionPixelsX * pixelsToMeters,
-                                      0.5f * resolutionPixelsY * pixelsToMeters};
     
     // NOTE: Default transform
-    result->transform.metersToPixels = metersToPixels;
-    result->transform.focalLength = 0.6f;
-    result->transform.distanceAboveTarget = 9.0f;
-    result->transform.screenCenter = {0.5f * resolutionPixelsX,
-                                       0.5f * resolutionPixelsY};
     result->transform.offsetP = {0.0f, 0.0f, 0.0f};
     result->transform.scale = 1.0f;
     
     return result;
+}
+
+inline void
+Perspective
+(
+    render_group *renderGroup, i32 pixelWidth, i32 pixelHeight,
+    r32 metersToPixels, r32 focalLength, r32 distanceAboveTarget
+)
+{
+    r32 pixelsToMeters = SafeRatio1(1.0f, metersToPixels);
+    
+    renderGroup->monitorHalfDimInMeters = {0.5f * pixelWidth * pixelsToMeters,
+                                      0.5f * pixelHeight * pixelsToMeters};
+    
+    renderGroup->transform.metersToPixels = metersToPixels;
+    renderGroup->transform.focalLength = focalLength;
+    renderGroup->transform.distanceAboveTarget = distanceAboveTarget;
+    renderGroup->transform.screenCenter = {0.5f * pixelWidth, 0.5f * pixelHeight};
+
+    renderGroup->transform.orthographic = false;
+}
+
+inline void
+Orthographic
+(
+    render_group *renderGroup, i32 pixelWidth, i32 pixelHeight,
+    r32 metersToPixels
+)
+{
+    r32 pixelsToMeters = SafeRatio1(1.0f, metersToPixels);
+    
+    renderGroup->monitorHalfDimInMeters = {0.5f * pixelWidth * pixelsToMeters,
+                                      0.5f * pixelHeight * pixelsToMeters};
+    
+    renderGroup->transform.metersToPixels = metersToPixels;
+    renderGroup->transform.focalLength = 1.0f;
+    renderGroup->transform.distanceAboveTarget = 1.0f;
+    renderGroup->transform.screenCenter = {0.5f * pixelWidth, 0.5f * pixelHeight};
+
+    renderGroup->transform.orthographic = true;
 }
 
 struct entity_basis_p_result
@@ -1354,29 +1379,38 @@ GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
     entity_basis_p_result result = {};
     
     v3 p = V3(originalP.xy, 0.0f) + transform->offsetP;
-    r32 offsetZ = 0;
+    if(transform->orthographic)
+    {
+        result.p = transform->screenCenter + transform->metersToPixels * p.xy;
+        result.scale = transform->metersToPixels;
+        result.isValid = true;
+    }
+    else
+    {
+        r32 offsetZ = 0;
 
-    r32 distanceAboveTarget = transform->distanceAboveTarget;
+        r32 distanceAboveTarget = transform->distanceAboveTarget;
 
 #if 0
-    // TODO: How do we want to control the debug camera?
-    if(1)
-    {
-        distanceAboveTarget += 50.0f;
-    }
+        // TODO: How do we want to control the debug camera?
+        if(1)
+        {
+            distanceAboveTarget += 50.0f;
+        }
 #endif
     
-    r32 distanceToPZ = (distanceAboveTarget - p.z);
-    r32 nearClipPlane = 0.2f;
+        r32 distanceToPZ = (distanceAboveTarget - p.z);
+        r32 nearClipPlane = 0.2f;
 
-    v3 rawXY = V3(p.xy, 1.0f);
+        v3 rawXY = V3(p.xy, 1.0f);
 
-    if(distanceToPZ > nearClipPlane)
-    {
-        v3 projectedXY = (1.0f / distanceToPZ) * (transform->focalLength * rawXY);
-        result.scale = transform->metersToPixels * projectedXY.z;
-        result.p = transform->screenCenter + transform->metersToPixels * projectedXY.xy + v2{0.0f, result.scale * offsetZ};
-        result.isValid = true;
+        if(distanceToPZ > nearClipPlane)
+        {
+            v3 projectedXY = (1.0f / distanceToPZ) * (transform->focalLength * rawXY);
+            result.scale = transform->metersToPixels * projectedXY.z;
+            result.p = transform->screenCenter + transform->metersToPixels * projectedXY.xy + v2{0.0f, result.scale * offsetZ};
+            result.isValid = true;
+        }
     }
     
     return result;

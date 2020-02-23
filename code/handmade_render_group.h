@@ -97,6 +97,8 @@ struct render_entry_rectangle
 
 struct render_transform
 {
+    b32 orthographic;
+    
     // NOTE: Camera parameters
     r32 metersToPixels;
     v2 screenCenter;
