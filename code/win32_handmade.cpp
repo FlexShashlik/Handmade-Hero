@@ -1347,22 +1347,16 @@ Win32CompleteAllWork(platform_work_queue *queue)
     queue->completionCount = 0;
 }
 
-struct win32_thread_info
-{
-    int logicalThreadIndex;
-    platform_work_queue *queue;
-};
-
 DWORD WINAPI
 ThreadProc(LPVOID lpParameter)
 {
-    win32_thread_info *threadInfo = (win32_thread_info *)lpParameter;
+    platform_work_queue *queue = (platform_work_queue *)lpParameter;
 
     for(;;)
     {
-        if(Win32DoNextWorkQueueEntry(threadInfo->queue))
+        if(Win32DoNextWorkQueueEntry(queue))
         {
-            WaitForSingleObjectEx(threadInfo->queue->semaphoreHandle, INFINITE, FALSE);
+            WaitForSingleObjectEx(queue->semaphoreHandle, INFINITE, FALSE);
         }
     }
 }
@@ -1375,7 +1369,29 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(DoWorkerWork)
     
     OutputDebugStringA(buffer);
 }
+
+internal void
+Win32MakeQueue(platform_work_queue *queue, ui32 threadCount)
+{
+    queue->completionGoal = 0;
+    queue->completionCount = 0;
     
+    queue->nextEntryToWrite = 0;
+    queue->nextEntryToRead = 0;
+    
+    ui32 initialCount = 0;
+    queue->semaphoreHandle = CreateSemaphoreEx(0, initialCount,
+                                               threadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+    
+    for(ui32 threadIndex = 0; threadIndex < threadCount; threadIndex++)
+    {
+        DWORD threadID;
+        HANDLE threadHandle = CreateThread(0, 0, ThreadProc, queue, 0, &threadID);
+        CloseHandle(threadHandle);
+    }
+}
+
+
 int
 CALLBACK WinMain
 (
@@ -1389,26 +1405,13 @@ CALLBACK WinMain
     QueryPerformanceFrequency(&perfCountFrequencyResult);
     GlobalPerfCountFrequency = perfCountFrequencyResult.QuadPart;
 
-    platform_work_queue queue = {};
+    platform_work_queue lowPriorityQueue = {};
+    Win32MakeQueue(&lowPriorityQueue, 2);
     
-    win32_thread_info threadInfo[11];
-    ui32 threadCount = ArrayCount(threadInfo);
-
-    ui32 initialCount = 0;
-    queue.semaphoreHandle = CreateSemaphoreEx(0, initialCount,
-                                               threadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+    platform_work_queue highPriorityQueue = {};
+    Win32MakeQueue(&highPriorityQueue, 6);
     
-    for(ui32 threadIndex = 0; threadIndex < threadCount; threadIndex++)
-    {
-        win32_thread_info *info = threadInfo + threadIndex;
-        info->queue = &queue;
-        info->logicalThreadIndex = threadIndex;
-        
-        DWORD threadID;
-        HANDLE threadHandle = CreateThread(0, 0, ThreadProc, info, 0, &threadID);
-        CloseHandle(threadHandle);
-    }
-
+#if 0
     Win32AddEntry(&queue, DoWorkerWork, "String A0");
     Win32AddEntry(&queue, DoWorkerWork, "String A1");
     Win32AddEntry(&queue, DoWorkerWork, "String A2");
@@ -1432,6 +1435,7 @@ CALLBACK WinMain
     Win32AddEntry(&queue, DoWorkerWork, "String B9");
 
     Win32CompleteAllWork(&queue);
+#endif
     
     win32_state win32State = {};
     Win32GetEXEFileName(&win32State);
@@ -1558,7 +1562,8 @@ CALLBACK WinMain
             gameMemory.permanentStorageSize = Megabytes(256);
             gameMemory.transientStorageSize = Gigabytes(1);
 
-            gameMemory.highPriorityQueue = &queue;
+            gameMemory.highPriorityQueue = &highPriorityQueue;
+            gameMemory.lowPriorityQueue = &lowPriorityQueue;
             gameMemory.platformAddEntry = Win32AddEntry;
             gameMemory.platformCompleteAllWork = Win32CompleteAllWork;
             

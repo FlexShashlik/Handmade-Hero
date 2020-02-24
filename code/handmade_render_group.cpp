@@ -588,8 +588,9 @@ DrawRectangleQuickly
         r32 normalizeSqC = 1.0f / Square(255.0f);
 
         __m128 zero = _mm_set1_ps(0.0f);
-        __m128 four_4x = _mm_set1_ps(4.0f);
+        __m128 half = _mm_set1_ps(0.5f);
         __m128 one = _mm_set1_ps(1.0f);
+        __m128 four_4x = _mm_set1_ps(4.0f);
         __m128 one255_4x = _mm_set1_ps(255.0f);
         __m128 colorr_4x = _mm_set1_ps(color.r);
         __m128 colorg_4x = _mm_set1_ps(color.g);
@@ -664,8 +665,10 @@ DrawRectangleQuickly
                     u = _mm_min_ps(_mm_max_ps(u, zero), one);
                     v = _mm_min_ps(_mm_max_ps(v, zero), one);
 
-                    __m128 tX = _mm_mul_ps(u, widthM2);
-                    __m128 tY = _mm_mul_ps(v, heightM2);
+                    // NOTE: Bias texture coordinates to start on the
+                    // boundary between the (0, 0) and (1, 1) pixels.
+                    __m128 tX = _mm_add_ps(_mm_mul_ps(u, widthM2), half);
+                    __m128 tY = _mm_add_ps(_mm_mul_ps(v, heightM2), half);
 
                     __m128i fetchX_4x = _mm_cvttps_epi32(tX);
                     __m128i fetchY_4x = _mm_cvttps_epi32(tY);
@@ -1391,7 +1394,7 @@ GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
 
         r32 distanceAboveTarget = transform->distanceAboveTarget;
 
-#if 0
+#if 1
         // TODO: How do we want to control the debug camera?
         if(1)
         {

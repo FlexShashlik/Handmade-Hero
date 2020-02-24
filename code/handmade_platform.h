@@ -254,6 +254,7 @@ typedef struct game_memory
     ui64 transientStorageSize;
     void *transientStorage; // NOTE: REQUIRED to be cleared to zero at startup
 
+    platform_work_queue *lowPriorityQueue;
     platform_work_queue *highPriorityQueue;
     
     platform_add_entry *platformAddEntry;

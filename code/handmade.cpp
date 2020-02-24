@@ -613,6 +613,16 @@ MakeNullCollision(game_state *gameState)
     return group;
 }
 
+/*
+internal PLATFORM_WORK_QUEUE_CALLBACK(DoTiledRenderWork)
+{
+    tile_render_work *work = (tile_render_work *)data;
+
+    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, true);
+    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, false);
+}
+*/
+
 internal void
 FillGroundChunk
 (
@@ -633,7 +643,7 @@ FillGroundChunk
     v2 halfDim = 0.5f * v2{width, height};
     
     render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
-    Orthographic(renderGroup, buffer->width, buffer->height, buffer->width / width);
+    Orthographic(renderGroup, buffer->width, buffer->height, (buffer->width - 2) / width);
     Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 1.0f});
 
     for(i32 chunkOffsetY = -1;
@@ -653,11 +663,15 @@ FillGroundChunk
                  593 * chunkY +
                  329 * chunkZ);
 
+#if 0
             v4 color = v4{1, 0, 0, 1};
             if((chunkX % 2) == (chunkY % 2))
             {
                 color = v4{0, 0, 1, 1};
             }
+#else
+            v4 color = {1, 1, 1, 1};
+#endif
             
             v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
             
@@ -719,7 +733,7 @@ FillGroundChunk
         }
     }
     
-    TiledRenderGroupToOutput(tranState->renderQueue, renderGroup, buffer);    
+    TiledRenderGroupToOutput(tranState->highPriorityQueue, renderGroup, buffer);    
     EndTemporaryMemory(groundMemory);
 }
 
@@ -1425,8 +1439,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 memory->transientStorageSize - sizeof(transient_state),
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
-
-        tranState->renderQueue = memory->highPriorityQueue;
+        tranState->lowPriorityQueue = memory->lowPriorityQueue;
+        tranState->highPriorityQueue = memory->highPriorityQueue;
         
         tranState->groundBufferCount = 256;
         tranState->groundBuffers = PushArray
@@ -1616,7 +1630,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // NOTE: Horizontal measurement of monitor in meters
     r32 widthOfMonitor = 0.635f;
     r32 metersToPixels = (r32)drawBuffer->width * widthOfMonitor;
-    Perspective(renderGroup, drawBuffer->width, drawBuffer->height, metersToPixels, 0.6f, 9.0f);
+    r32 focalLength = 0.6f;
+    r32 distanceAboveGround = 9.0f;
+    Perspective
+        (
+            renderGroup, drawBuffer->width, drawBuffer->height, metersToPixels,
+            focalLength, distanceAboveGround
+        );
     Clear(renderGroup, v4{0.25f, 0.25f, 0.25f, 0.0f});
     
     v2 screenCenter = {0.5f * (r32)drawBuffer->width, 0.5f * (r32)drawBuffer->height};
@@ -2176,7 +2196,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
 #endif
     
-    TiledRenderGroupToOutput(tranState->renderQueue, renderGroup, drawBuffer);
+    TiledRenderGroupToOutput(tranState->highPriorityQueue, renderGroup, drawBuffer);
     
     EndSim(simRegion, gameState);
     EndTemporaryMemory(simMemory);
