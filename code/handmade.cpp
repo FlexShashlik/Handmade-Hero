@@ -613,15 +613,50 @@ MakeNullCollision(game_state *gameState)
     return group;
 }
 
-/*
-internal PLATFORM_WORK_QUEUE_CALLBACK(DoTiledRenderWork)
+internal task_with_memory *
+BeginTaskWithMemory(transient_state *tranState)
 {
-    tile_render_work *work = (tile_render_work *)data;
+    task_with_memory *foundTask = 0;
 
-    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, true);
-    RenderGroupToOutput(work->renderGroup, work->outputTarget, work->clipRect, false);
+    for(ui32 taskIndex = 0; taskIndex < ArrayCount(tranState->tasks); taskIndex++)
+    {
+        task_with_memory *task = tranState->tasks + taskIndex;
+        if(!task->beingUsed)
+        {
+            foundTask = task;
+            task->beingUsed = true;
+            task->memoryFlush = BeginTemporaryMemory(&task->arena);
+            break;
+        }
+    }
+
+    return foundTask;
 }
-*/
+
+inline void
+EndTaskWithMemory(task_with_memory *task)
+{   
+    EndTemporaryMemory(task->memoryFlush);
+
+    CompletePreviousWritesBeforeFutureWrites;
+    task->beingUsed = false;
+}
+
+struct fill_ground_chunk_work
+{
+    render_group *renderGroup;
+    loaded_bitmap *buffer;
+    task_with_memory *task;
+};
+
+internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
+{
+    fill_ground_chunk_work *work = (fill_ground_chunk_work *)data;
+    
+    RenderGroupToOutput(work->renderGroup, work->buffer);
+
+    EndTaskWithMemory(work->task);
+}
 
 internal void
 FillGroundChunk
@@ -630,111 +665,102 @@ FillGroundChunk
     ground_buffer *groundBuffer, world_position *chunkPos
 )
 {
-    temporary_memory groundMemory = BeginTemporaryMemory(&tranState->tranArena);
-    groundBuffer->pos = *chunkPos;
-
-    loaded_bitmap *buffer = &groundBuffer->bitmap;
-    buffer->alignPercentage = v2{0.5f, 0.5f};
-    buffer->widthOverHeight = 1.0f;
-    
-    r32 width = gameState->_world->chunkDimInMeters.x;
-    r32 height = gameState->_world->chunkDimInMeters.y;
-    Assert(width == height);
-    v2 halfDim = 0.5f * v2{width, height};
-    
-    render_group *renderGroup = AllocateRenderGroup(&tranState->tranArena, Megabytes(4));
-    Orthographic(renderGroup, buffer->width, buffer->height, (buffer->width - 2) / width);
-    Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 1.0f});
-
-    for(i32 chunkOffsetY = -1;
-        chunkOffsetY <= 1;
-        chunkOffsetY++)
+    task_with_memory *task = BeginTaskWithMemory(tranState);
+    if(task)
     {
-        for(i32 chunkOffsetX = -1;
-            chunkOffsetX <= 1;
-            chunkOffsetX++)
+        fill_ground_chunk_work *work = PushStruct(&task->arena, fill_ground_chunk_work);
+        groundBuffer->pos = *chunkPos;
+
+        loaded_bitmap *buffer = &groundBuffer->bitmap;
+        buffer->alignPercentage = v2{0.5f, 0.5f};
+        buffer->widthOverHeight = 1.0f;
+    
+        r32 width = gameState->_world->chunkDimInMeters.x;
+        r32 height = gameState->_world->chunkDimInMeters.y;
+        Assert(width == height);
+        v2 halfDim = 0.5f * v2{width, height};
+
+        // TODO: Pushbuffer size!
+        // TODO: Safe cast from memory_index to ui32
+        render_group *renderGroup = AllocateRenderGroup(&task->arena, 0);
+        Orthographic(renderGroup, buffer->width, buffer->height, (buffer->width - 2) / width);
+        Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 1.0f});
+
+        for(i32 chunkOffsetY = -1; chunkOffsetY <= 1; chunkOffsetY++)
         {
-            i32 chunkX = chunkPos->chunkX + chunkOffsetX;
-            i32 chunkY = chunkPos->chunkY + chunkOffsetY;
-            i32 chunkZ = chunkPos->chunkZ;
+            for(i32 chunkOffsetX = -1; chunkOffsetX <= 1; chunkOffsetX++)
+            {
+                i32 chunkX = chunkPos->chunkX + chunkOffsetX;
+                i32 chunkY = chunkPos->chunkY + chunkOffsetY;
+                i32 chunkZ = chunkPos->chunkZ;
             
-            random_series series = RandomSeed
-                (139 * chunkX +
-                 593 * chunkY +
-                 329 * chunkZ);
+                random_series series = RandomSeed(139 * chunkX + 593 * chunkY + 329 * chunkZ);
 
 #if 0
-            v4 color = v4{1, 0, 0, 1};
-            if((chunkX % 2) == (chunkY % 2))
-            {
-                color = v4{0, 0, 1, 1};
-            }
+                v4 color = v4{1, 0, 0, 1};
+                if((chunkX % 2) == (chunkY % 2))
+                {
+                    color = v4{0, 0, 1, 1};
+                }
 #else
-            v4 color = {1, 1, 1, 1};
+                v4 color = {1, 1, 1, 1};
 #endif
             
-            v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
+                v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
             
-            for(ui32 grassIndex = 0;
-                grassIndex < 100;
-                grassIndex++)
-            {
-                loaded_bitmap *stamp;
-        
-                if(RandomChoice(&series, 2))
+                for(ui32 grassIndex = 0; grassIndex < 100; grassIndex++)
                 {
-                    stamp = gameState->grass + RandomChoice(&series, ArrayCount(gameState->grass));
-                }
-                else
-                {
-                    stamp = gameState->stone + RandomChoice(&series, ArrayCount(gameState->stone));
-                }
+                    loaded_bitmap *stamp;
         
-                v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
+                    if(RandomChoice(&series, 2))
+                    {
+                        stamp = gameState->grass + RandomChoice(&series, ArrayCount(gameState->grass));
+                    }
+                    else
+                    {
+                        stamp = gameState->stone + RandomChoice(&series, ArrayCount(gameState->stone));
+                    }
+        
+                    v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
 
-                v2 pos = center + offset;
+                    v2 pos = center + offset;
                 
-                PushBitmap(renderGroup, stamp, 2.0f, V3(pos, 0.0f), color);
+                    PushBitmap(renderGroup, stamp, 2.0f, V3(pos, 0.0f), color);
+                }
             }
         }
-    }
     
-    for(i32 chunkOffsetY = -1;
-        chunkOffsetY <= 1;
-        chunkOffsetY++)
-    {
-        for(i32 chunkOffsetX = -1;
-            chunkOffsetX <= 1;
-            chunkOffsetX++)
+        for(i32 chunkOffsetY = -1; chunkOffsetY <= 1; chunkOffsetY++)
         {
-            i32 chunkX = chunkPos->chunkX + chunkOffsetX;
-            i32 chunkY = chunkPos->chunkY + chunkOffsetY;
-            i32 chunkZ = chunkPos->chunkZ;
-            
-            random_series series = RandomSeed
-                (139 * chunkX +
-                 593 * chunkY +
-                 329 * chunkZ);
-    
-            v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
-            
-            for(ui32 grassIndex = 0;
-                grassIndex < 50;
-                grassIndex++)
+            for(i32 chunkOffsetX = -1; chunkOffsetX <= 1; chunkOffsetX++)
             {
-                loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
+                i32 chunkX = chunkPos->chunkX + chunkOffsetX;
+                i32 chunkY = chunkPos->chunkY + chunkOffsetY;
+                i32 chunkZ = chunkPos->chunkZ;
+            
+                random_series series = RandomSeed(139 * chunkX + 593 * chunkY + 329 * chunkZ);
+    
+                v2 center = v2{chunkOffsetX * width, chunkOffsetY * height};
+            
+                for(ui32 grassIndex = 0; grassIndex < 50; grassIndex++)
+                {
+                    loaded_bitmap *stamp = gameState->tuft + RandomChoice(&series, ArrayCount(gameState->tuft));;
         
-                v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
+                    v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
 
-                v2 pos = center + offset;
+                    v2 pos = center + offset;
   
-                PushBitmap(renderGroup, stamp, 0.1f, V3(pos, 0.0f));
+                    PushBitmap(renderGroup, stamp, 0.1f, V3(pos, 0.0f));
+                }
             }
         }
+
+        work->renderGroup = renderGroup;
+        work->buffer = buffer;
+        work->task = task;
+
+        PlatformAddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
     }
-    
-    TiledRenderGroupToOutput(tranState->highPriorityQueue, renderGroup, buffer);    
-    EndTemporaryMemory(groundMemory);
 }
 
 internal void
@@ -759,7 +785,7 @@ MakeEmptyBitmap
     result.height = height;
     result.pitch = result.width * BITMAP_BYTES_PER_PIXEL;
     i32 totalBitmapSize = width * height * BITMAP_BYTES_PER_PIXEL;
-    result.memory = PushSize_(arena, totalBitmapSize);
+    result.memory = PushSize_(arena, totalBitmapSize, 16);
     if(clearToZero)
     {
         ClearBitmap(&result);
@@ -1439,6 +1465,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 memory->transientStorageSize - sizeof(transient_state),
                 (ui8 *)memory->transientStorage + sizeof(transient_state)
             );
+
+        for(ui32 taskIndex = 0; taskIndex < ArrayCount(tranState->tasks); taskIndex++)
+        {
+            task_with_memory *task = tranState->tasks + taskIndex;
+
+            task->beingUsed = false;
+            SubArena(&task->arena, &tranState->tranArena, Megabytes(1));
+        }
+        
         tranState->lowPriorityQueue = memory->lowPriorityQueue;
         tranState->highPriorityQueue = memory->highPriorityQueue;
         

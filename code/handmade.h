@@ -32,17 +32,45 @@ InitializeArena
     arena->tempCount = 0;
 }
 
-#define PushStruct(arena, type) (type *)PushSize_(arena, sizeof(type))
-#define PushArray(arena, count, type) (type *)PushSize_(arena, (count) * sizeof(type))
-#define PushSize(arena, size) PushSize_(arena, size)
-inline void *
-PushSize_(memory_arena *arena, memory_index size)
+inline memory_index
+GetAlignmentOffset(memory_arena *arena, memory_index alignment)
 {
-    Assert(arena->used + size <= arena->size)
+    memory_index alignmentOffset = 0;
+    memory_index resultPointer = (memory_index)arena->base + arena->used;
+    memory_index alignmentMask = alignment - 1;
+    if(resultPointer & alignmentMask)
+    {
+        alignmentOffset = alignment - (resultPointer & alignmentMask); 
+    }
+
+    return alignmentOffset;
+}
+
+inline memory_index
+GetArenaSizeRemaining(memory_arena *arena, memory_index alignment = 4)
+{
+    memory_index result = arena->size - (arena->used + GetAlignmentOffset(arena, alignment));
+
+    return result;
+}
+
+#define PushStruct(arena, type, ...) (type *)PushSize_(arena, sizeof(type), ## __VA_ARGS__)
+#define PushArray(arena, count, type, ...) (type *)PushSize_(arena, (count) * sizeof(type), ## __VA_ARGS__)
+#define PushSize(arena, size, ...) PushSize_(arena, size, ## __VA_ARGS__)
+inline void *
+PushSize_(memory_arena *arena, memory_index sizeInit, memory_index alignment = 4)
+{
+    memory_index size = sizeInit;
     
-    void *result = arena->base + arena->used;
+    memory_index alignmentOffset = GetAlignmentOffset(arena, alignment);
+    size += alignmentOffset;
+    
+    Assert(arena->used + size <= arena->size);
+    void *result = arena->base + arena->used + alignmentOffset;
     arena->used += size;
 
+    Assert(size >= sizeInit);
+    
     return result;
 }
 
@@ -73,6 +101,15 @@ inline void
 CheckArena(memory_arena *arena)
 {
     Assert(arena->tempCount == 0);
+}
+
+inline void
+SubArena(memory_arena *result, memory_arena *arena, memory_index size, memory_index alignment = 16)
+{
+    result->size = size;
+    result->base = (ui8 *)PushSize_(arena, size, alignment);
+    result->used = 0;
+    result->tempCount = 0;
 }
 
 #define ZeroStruct(instance) ZeroSize(sizeof(instance), &(instance))
@@ -187,16 +224,26 @@ struct game_state
     loaded_bitmap testNormal;
 };
 
+struct task_with_memory
+{
+    b32 beingUsed;
+    memory_arena arena;
+
+    temporary_memory memoryFlush;
+};
+
 struct transient_state
 {
     b32 isInitialized;
     memory_arena tranArena;
+
+    task_with_memory tasks[4];
+    
     ui32 groundBufferCount;
     ground_buffer *groundBuffers;
 
     platform_work_queue *lowPriorityQueue;
     platform_work_queue *highPriorityQueue;
-    ui64 pad;
 
     ui32 envMapWidth;
     ui32 envMapHeight;

@@ -447,6 +447,7 @@ Win32DisplayBufferInWindow
     }
     else
     {
+#if 0
         i32 offsetX = 10;
         i32 offsetY = 10;
     
@@ -454,7 +455,11 @@ Win32DisplayBufferInWindow
         PatBlt(deviceContext, 0, offsetY + buffer->height, windowWidth, windowHeight, BLACKNESS);
         PatBlt(deviceContext, 0, 0, offsetX, windowHeight, BLACKNESS);
         PatBlt(deviceContext, offsetX + buffer->width, 0, windowWidth, windowHeight, BLACKNESS);
-    
+#else
+        i32 offsetX = 0;
+        i32 offsetY = 0;
+#endif
+        
         // NOTE: Always blit 1-to-1 pixel for debug
         StretchDIBits
             (

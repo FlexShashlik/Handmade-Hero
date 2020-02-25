@@ -1255,6 +1255,26 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(DoTiledRenderWork)
 }
 
 internal void
+RenderGroupToOutput(render_group *renderGroup, loaded_bitmap *outputTarget)
+{
+    Assert(((uintptr)outputTarget->memory & 15) == 0);
+            
+    rectangle2i clipRect;
+    clipRect.minX = 0;
+    clipRect.maxX = outputTarget->width;
+    clipRect.minY = 0;
+    clipRect.maxY = outputTarget->height;
+
+    tile_render_work work;
+    work.renderGroup = renderGroup;
+    work.outputTarget = outputTarget;
+    work.clipRect = clipRect;
+
+    // NOTE: This is the single-threaded path
+    DoTiledRenderWork(0, &work);
+}
+
+internal void
 TiledRenderGroupToOutput
 (
     platform_work_queue *renderQueue,
@@ -1316,8 +1336,14 @@ internal render_group *
 AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
 {
     render_group *result = PushStruct(arena, render_group);
-    result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
 
+    if(maxPushBufferSize == 0)
+    {
+        maxPushBufferSize = (ui32)GetArenaSizeRemaining(arena);
+    }
+    
+    result->pushBufferBase = (ui8 *)PushSize(arena, maxPushBufferSize);
+    
     result->maxPushBufferSize = maxPushBufferSize;
     result->pushBufferSize = 0;
     
@@ -1394,7 +1420,7 @@ GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
 
         r32 distanceAboveTarget = transform->distanceAboveTarget;
 
-#if 1
+#if 0
         // TODO: How do we want to control the debug camera?
         if(1)
         {
