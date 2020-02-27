@@ -1333,7 +1333,7 @@ TiledRenderGroupToOutput
 }
 
 internal render_group *
-AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
+AllocateRenderGroup(game_assets *assets, memory_arena *arena, ui32 maxPushBufferSize)
 {
     render_group *result = PushStruct(arena, render_group);
 
@@ -1346,7 +1346,8 @@ AllocateRenderGroup(memory_arena *arena, ui32 maxPushBufferSize)
     
     result->maxPushBufferSize = maxPushBufferSize;
     result->pushBufferSize = 0;
-    
+
+    result->assets = assets;
     result->globalAlpha = 1.0f;
     
     // NOTE: Default transform
@@ -1420,7 +1421,7 @@ GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
 
         r32 distanceAboveTarget = transform->distanceAboveTarget;
 
-#if 0
+#if 1
         // TODO: How do we want to control the debug camera?
         if(1)
         {
@@ -1471,8 +1472,7 @@ PushRenderElement_(render_group *group, ui32 size, render_group_entry_type type)
 inline void
 PushBitmap
 (
-    render_group *group,
-    loaded_bitmap *bitmap,
+    render_group *group, loaded_bitmap *bitmap,
     r32 height, v3 offset, v4 color = {1, 1, 1, 1}
 )
 {
@@ -1492,6 +1492,24 @@ PushBitmap
             entry->color = color * group->globalAlpha;
             entry->size = basis.scale * size;
         }
+    }
+}
+
+inline void
+PushBitmap
+(
+    render_group *group, game_asset_id id,
+    r32 height, v3 offset, v4 color = {1, 1, 1, 1}
+)
+{
+    loaded_bitmap *bitmap = GetBitmap(group->assets, id);
+    if(bitmap)
+    {
+        PushBitmap(group, bitmap, height, offset, color);
+    }
+    else
+    {
+        LoadAsset(group->assets, id);
     }
 }
 
