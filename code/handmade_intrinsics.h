@@ -7,9 +7,13 @@
 
 #if COMPILER_MSVC
 #define CompletePreviousWritesBeforeFutureWrites _WriteBarrier();
+inline ui32 AtomicComareExchangeUI32(ui32 volatile *value, ui32 expected, ui32 newValue)
+{
+    ui32 result = _InterlockedCompareExchange((long *)value, expected, newValue);
+    return result;
+}
 #else
-// TODO: Need to define these on GCC/LLVM
-#define CompletePreviousWritesBeforeFutureWrites
+// TODO: Need GCC/LLVM equivalents!
 #endif
 
 inline i32

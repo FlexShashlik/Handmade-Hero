@@ -122,4 +122,6 @@ struct render_group
     ui32 pushBufferSize;
     ui32 maxPushBufferSize;
     ui8 *pushBufferBase;
+
+    ui32 missingResourceCount;
 };

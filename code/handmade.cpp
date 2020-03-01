@@ -658,6 +658,35 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
     EndTaskWithMemory(work->task);
 }
 
+internal i32
+PickBest(i32 infoCount, asset_bitmap_info *infos, asset_tag *tags, r32 *matchVector, r32 *weightVector)
+{
+    r32 bestDiff = R32MAX;
+    i32 bestIndex = 0;
+
+    for(i32 infoIndex = 0; infoIndex < infoCount; infoIndex++)
+    {
+        asset_bitmap_info *info = infos + infoIndex;
+
+        r32 totalWeightedDiff = 0.0f;
+        for(ui32 tagIndex = info->firstTagIndex; tagIndex < info->onePastLastTagIndex; tagIndex++)
+        {
+            asset_tag *tag = tags + tagIndex;
+            r32 diff = matchVector [tag->id] - tag->value;
+            r32 weighted = weightVector[tag->id] * AbsoluteValue(diff);
+            totalWeightedDiff += weighted;
+        }
+
+        if(bestDiff > totalWeightedDiff)
+        {
+            bestDiff = totalWeightedDiff;
+            bestIndex = infoIndex;
+        }
+    }
+
+    return bestIndex;
+}
+
 internal void
 FillGroundChunk
 (
@@ -669,8 +698,7 @@ FillGroundChunk
     if(task)
     {
         fill_ground_chunk_work *work = PushStruct(&task->arena, fill_ground_chunk_work);
-        groundBuffer->pos = *chunkPos;
-
+        
         loaded_bitmap *buffer = &groundBuffer->bitmap;
         buffer->alignPercentage = v2{0.5f, 0.5f};
         buffer->widthOverHeight = 1.0f;
@@ -754,12 +782,17 @@ FillGroundChunk
                 }
             }
         }
-
-        work->renderGroup = renderGroup;
-        work->buffer = buffer;
-        work->task = task;
-
-        PlatformAddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
+        
+        if(AllResourcesPresent(renderGroup))
+        {
+            groundBuffer->pos = *chunkPos;
+            
+            work->renderGroup = renderGroup;
+            work->buffer = buffer;
+            work->task = task;
+            
+            PlatformAddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
+        }
     }
 }
 
@@ -969,21 +1002,38 @@ struct load_asset_work
     game_asset_id id;
     task_with_memory *task;
     loaded_bitmap *bitmap;
+
+    b32 hasAlignment;
+    i32 alignX;
+    i32 topDownAlignY;
+
+    asset_state finalState;
 };
 
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
 {
     load_asset_work *work = (load_asset_work *)data;
-
     
     // TODO: Get rid of this thread thing
     thread_context *thread = 0;
+
+    if(work->hasAlignment)
+    {
+        *work->bitmap = DEBUGLoadBMP
+            (
+                thread, work->assets->readEntireFile, work->fileName,
+                work->alignX, work->topDownAlignY
+            );
+    }
+    else
+    {
+        *work->bitmap = DEBUGLoadBMP(thread, work->assets->readEntireFile, work->fileName);
+    }
+
+    CompletePreviousWritesBeforeFutureWrites;
     
-    *work->bitmap = DEBUGLoadBMP(thread, work->assets->readEntireFile, work->fileName);
-    // alignX, topDownAlignY
-    
-    // TODO: Fence!
-    work->assets->bitmaps[work->id] = work->bitmap;
+    work->assets->bitmaps[work->id].bitmap = work->bitmap;
+    work->assets->bitmaps[work->id].state = work->finalState;
 
     EndTaskWithMemory(work->task);
 }
@@ -992,52 +1042,65 @@ internal void
 LoadAsset(game_assets *assets, game_asset_id id)
 {
     task_with_memory *task = BeginTaskWithMemory(assets->tranState);
-    if(task)
+
+    if(AtomicComareExchangeUI32((ui32 *)&assets->bitmaps[id].state, AssetState_Unloaded, AssetState_Queued)
+       == AssetState_Unloaded)
     {
-        // TODO: Get rid of this thread thing
-        thread_context *thread = 0;
-        debug_platform_read_entire_file *readEntireFile = assets->readEntireFile;
-
-        load_asset_work *work = PushStruct(&task->arena, load_asset_work);
-
-        work->assets = assets;
-        work->id = id;
-        work->fileName = "";
-        work->task = task;
-        work->bitmap = PushStruct(&assets->arena, loaded_bitmap);
-    
-        switch(id)
+        if(task)
         {
-            case GAI_Backdrop:
-            {
-                work->fileName = "test/test_background.bmp";
-            } break;
+            // TODO: Get rid of this thread thing
+            thread_context *thread = 0;
+            debug_platform_read_entire_file *readEntireFile = assets->readEntireFile;
 
-            case GAI_Shadow:
-            {
-                work->fileName = "test/test_hero_shadow.bmp";
-                //72, 182
-            } break;
+            load_asset_work *work = PushStruct(&task->arena, load_asset_work);
 
-            case GAI_Tree:
+            work->assets = assets;
+            work->id = id;
+            work->fileName = "";
+            work->task = task;
+            work->bitmap = PushStruct(&assets->arena, loaded_bitmap);
+            work->hasAlignment = false;
+            work->finalState = AssetState_Loaded;
+    
+            switch(id)
             {
-                work->fileName = "test2/tree00.bmp";
-                //40, 80
-            } break;
+                case GAI_Backdrop:
+                {
+                    work->fileName = "test/test_background.bmp";
+                } break;
 
-            case GAI_Stairwell:
-            {
-                work->fileName = "test2/rock02.bmp";
-            } break;
+                case GAI_Shadow:
+                {
+                    work->fileName = "test/test_hero_shadow.bmp";
+                    work->hasAlignment = true;
+                    work->alignX = 72;
+                    work->topDownAlignY = 182;
+                } break;
 
-            case GAI_Sword:
-            {
-                work->fileName = "test2/rock03.bmp";
-                //29, 10
-            } break;
-        }
+                case GAI_Tree:
+                {
+                    work->fileName = "test2/tree00.bmp";
+                    work->hasAlignment = true;
+                    work->alignX = 40;
+                    work->topDownAlignY = 80;
+                } break;
+
+                case GAI_Stairwell:
+                {
+                    work->fileName = "test2/rock02.bmp";
+                } break;
+
+                case GAI_Sword:
+                {
+                    work->fileName = "test2/rock03.bmp";
+                    work->hasAlignment = true;
+                    work->alignX = 29;
+                    work->topDownAlignY = 10;
+                } break;
+            }
         
-        PlatformAddEntry(assets->tranState->lowPriorityQueue, LoadAssetWork, work);
+            PlatformAddEntry(assets->tranState->lowPriorityQueue, LoadAssetWork, work);
+        }
     }
 }
 

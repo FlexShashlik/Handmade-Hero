@@ -1353,6 +1353,8 @@ AllocateRenderGroup(game_assets *assets, memory_arena *arena, ui32 maxPushBuffer
     // NOTE: Default transform
     result->transform.offsetP = {0.0f, 0.0f, 0.0f};
     result->transform.scale = 1.0f;
+
+    result->missingResourceCount = 0;
     
     return result;
 }
@@ -1510,6 +1512,7 @@ PushBitmap
     else
     {
         LoadAsset(group->assets, id);
+        group->missingResourceCount++;
     }
 }
 
@@ -1646,5 +1649,12 @@ inline rectangle2
 GetCameraRectangleAtTarget(render_group *group)
 {
     rectangle2 result = GetCameraRectangleAtDistance(group, group->transform.distanceAboveTarget);
+    return result;
+}
+
+inline b32
+AllResourcesPresent(render_group *group)
+{
+    b32 result = group->missingResourceCount == 0;
     return result;
 }
