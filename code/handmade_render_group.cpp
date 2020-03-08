@@ -1500,7 +1500,7 @@ PushBitmap
 inline void
 PushBitmap
 (
-    render_group *group, game_asset_id id,
+    render_group *group, bitmap_id id,
     r32 height, v3 offset, v4 color = {1, 1, 1, 1}
 )
 {
@@ -1511,7 +1511,7 @@ PushBitmap
     }
     else
     {
-        LoadAsset(group->assets, id);
+        LoadBitmap(group->assets, id);
         group->missingResourceCount++;
     }
 }

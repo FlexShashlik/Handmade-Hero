@@ -129,13 +129,7 @@ ZeroSize(memory_index size, void *ptr)
 #include "handmade_sim_region.h"
 #include "handmade_entity.h"
 #include "handmade_render_group.h"
-
-struct hero_bitmaps
-{
-    loaded_bitmap head;
-    loaded_bitmap cape;
-    loaded_bitmap torso;
-};
+#include "handmade_asset.h"
 
 struct low_entity
 {
@@ -178,81 +172,10 @@ struct ground_buffer
     loaded_bitmap bitmap;
 };
 
-enum asset_state
-{
-    AssetState_Unloaded,
-    AssetState_Queued,
-    AssetState_Loaded,
-    AssetState_Locked
-};
-
-struct asset_slot
-{
-    asset_state state;
-    loaded_bitmap *bitmap;
-};
-
-enum game_asset_id
-{
-    GAI_Backdrop,
-    GAI_Shadow,
-    GAI_Tree,
-    GAI_Sword,
-    GAI_Stairwell,
-
-    GAI_Count
-};
-
-struct asset_tag
-{
-    ui32 id;
-    r32 value;
-};
-
-struct asset_bitmap_info
-{
-    v2 alignPercentage;
-    r32 widthOverHeight;
-    i32 width;
-    i32 height;
-
-    ui32 firstTagIndex;
-    ui32 onePastLastTagIndex;
-};
-
-struct asset_group
-{
-    ui32 firstTagIndex;
-    ui32 onePastLastTagIndex;
-};
-
-struct game_assets
-{
-    // TODO: Not thrilled about this back-pointer
-    struct transient_state *tranState;
-    memory_arena arena;
-    debug_platform_read_entire_file *readEntireFile;
-    
-    asset_slot bitmaps[GAI_Count];
-
-    // NOTE: Array'd assets
-    loaded_bitmap grass[2];
-    loaded_bitmap stone[4];
-    loaded_bitmap tuft[3];
-
-    // NOTE: Structured assets
-    hero_bitmaps heroBitmaps[4];
-};
-
-inline loaded_bitmap *
-GetBitmap(game_assets *assets, game_asset_id id)
-{
-    loaded_bitmap *result = assets->bitmaps[id].bitmap;
-    return result;
-}
-
 struct game_state
 {
+    b32 isInitialized;
+    
     memory_arena worldArena;
     world *_world;
 
@@ -299,6 +222,8 @@ struct transient_state
     memory_arena tranArena;
 
     task_with_memory tasks[4];
+
+    game_assets *assets;
     
     ui32 groundBufferCount;
     ground_buffer *groundBuffers;
@@ -310,8 +235,6 @@ struct transient_state
     ui32 envMapHeight;
     // NOTE: 0 is bottom, 1 is middle, 2 is top
     environment_map envMaps[3];
-
-    game_assets assets;
 };
 
 inline low_entity *
@@ -329,5 +252,7 @@ GetLowEntity(game_state *gameState, ui32 index)
 
 global_variable platform_add_entry *PlatformAddEntry;
 global_variable platform_complete_all_work *PlatformCompleteAllWork;
+global_variable debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
 
-internal void LoadAsset(game_assets *assets, game_asset_id id);
+internal task_with_memory *BeginTaskWithMemory(transient_state *tranState);
+internal void EndTaskWithMemory(task_with_memory *task);

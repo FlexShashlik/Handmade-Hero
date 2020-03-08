@@ -149,7 +149,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 }
                 else
                 {
-                    DEBUGPlatformFreeFileMemory(thread, result.contents);
+                    DEBUGPlatformFreeFileMemory(result.contents);
                     result.contents = 0;
                 }
             }
@@ -1911,8 +1911,6 @@ CALLBACK WinMain
                                 newController->isConnected = false;
                             }
                         }
-
-                        thread_context thread = {};
                     
                         game_offscreen_buffer buffer = {};
                         buffer.memory = GlobalBackbuffer.memory;
@@ -1932,7 +1930,7 @@ CALLBACK WinMain
 
                         if(gameCode.updateAndRender)
                         {
-                            gameCode.updateAndRender(&thread, &gameMemory, newInput, &buffer);
+                            gameCode.updateAndRender(&gameMemory, newInput, &buffer);
                             HandleDebugCycleCounters(&gameMemory);
                         }
                         
@@ -2026,7 +2024,7 @@ CALLBACK WinMain
 
                             if(gameCode.getSoundSamples)
                             {
-                                gameCode.getSoundSamples(&thread, &gameMemory, &soundBuffer);
+                                gameCode.getSoundSamples(&gameMemory, &soundBuffer);
                             }
                             
                             Win32FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite, &soundBuffer);
