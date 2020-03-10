@@ -54,6 +54,7 @@ GetArenaSizeRemaining(memory_arena *arena, memory_index alignment = 4)
     return result;
 }
 
+// TODO: Optional "clear" parameter
 #define PushStruct(arena, type, ...) (type *)PushSize_(arena, sizeof(type), ## __VA_ARGS__)
 #define PushArray(arena, count, type, ...) (type *)PushSize_(arena, (count) * sizeof(type), ## __VA_ARGS__)
 #define PushSize(arena, size, ...) PushSize_(arena, size, ## __VA_ARGS__)

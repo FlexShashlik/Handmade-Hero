@@ -576,6 +576,10 @@ FillGroundChunk
         Orthographic(renderGroup, buffer->width, buffer->height, (buffer->width - 2) / width);
         Clear(renderGroup, v4{1.0f, 0.0f, 1.0f, 1.0f});
 
+        work->renderGroup = renderGroup;
+        work->buffer = buffer;
+        work->task = task;
+            
         for(i32 chunkOffsetY = -1; chunkOffsetY <= 1; chunkOffsetY++)
         {
             for(i32 chunkOffsetX = -1; chunkOffsetX <= 1; chunkOffsetX++)
@@ -600,17 +604,13 @@ FillGroundChunk
             
                 for(ui32 grassIndex = 0; grassIndex < 100; grassIndex++)
                 {
-                    loaded_bitmap *stamp;
-        
-                    if(RandomChoice(&series, 2))
-                    {
-                        stamp = tranState->assets->grass + RandomChoice(&series, ArrayCount(tranState->assets->grass));
-                    }
-                    else
-                    {
-                        stamp = tranState->assets->stone + RandomChoice(&series, ArrayCount(tranState->assets->stone));
-                    }
-        
+                    bitmap_id stamp = RandomAssetFrom
+                        (
+                            tranState->assets,
+                            RandomChoice(&series, 2) ? Asset_Grass : Asset_Stone,
+                            &series
+                        );
+
                     v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
 
                     v2 pos = center + offset;
@@ -634,8 +634,8 @@ FillGroundChunk
             
                 for(ui32 grassIndex = 0; grassIndex < 50; grassIndex++)
                 {
-                    loaded_bitmap *stamp = tranState->assets->tuft + RandomChoice(&series, ArrayCount(tranState->assets->tuft));;
-        
+                    bitmap_id stamp = RandomAssetFrom(tranState->assets, Asset_Tuft, &series);
+                        
                     v2 offset = Hadamard(halfDim, v2{RandomBilateral(&series), RandomBilateral(&series)});
 
                     v2 pos = center + offset;
@@ -649,11 +649,11 @@ FillGroundChunk
         {
             groundBuffer->pos = *chunkPos;
             
-            work->renderGroup = renderGroup;
-            work->buffer = buffer;
-            work->task = task;
-            
             PlatformAddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
+        }
+        else
+        {
+            EndTaskWithMemory(work->task);
         }
     }
 }
