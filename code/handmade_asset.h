@@ -1,10 +1,3 @@
-struct hero_bitmaps
-{
-    loaded_bitmap head;
-    loaded_bitmap cape;
-    loaded_bitmap torso;
-};
-
 enum asset_state
 {
     AssetState_Unloaded,
@@ -23,6 +16,7 @@ enum asset_tag_id
 {
     Tag_Smoothness,
     Tag_Flatness,
+    Tag_FacingDirection, // NOTE: Angle in radians off of due right
 
     Tag_Count
 };
@@ -39,6 +33,10 @@ enum asset_type_id
     Asset_Grass,
     Asset_Tuft,
     Asset_Stone,
+
+    Asset_Head,
+    Asset_Cape,
+    Asset_Torso,
     
     Asset_Count
 };
@@ -60,6 +58,11 @@ struct asset
     ui32 firstTagIndex;
     ui32 onePastLastTagIndex;
     ui32 slotID;
+};
+
+struct asset_vector
+{
+    r32 e[Tag_Count];
 };
 
 struct asset_bitmap_info
@@ -90,12 +93,14 @@ struct game_assets
     asset_type assetTypes[Asset_Count];
     
     // NOTE: Structured assets
-    hero_bitmaps heroBitmaps[4];
+    //hero_bitmaps heroBitmaps[4];
 
     // TODO: These should ho away when we actually load an asset pack-file
     ui32 debugUsedBitmapCount;
     ui32 debugUsedAssetCount;
+    ui32 debugUsedTagCount;
     asset_type *debugAssetType;
+    asset *debugAsset;
 };
 
 struct bitmap_id

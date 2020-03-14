@@ -35,16 +35,6 @@ TopDownAlign(loaded_bitmap *bmp, v2 align)
     return align;
 }
 
-internal void
-SetTopDownAlign(hero_bitmaps *bmp, v2 align)
-{
-    align = TopDownAlign(&bmp->head, align);
-    
-    bmp->head.alignPercentage = align;
-    bmp->cape.alignPercentage = align;
-    bmp->torso.alignPercentage = align;
-}
-
 internal loaded_bitmap
 DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
 {
@@ -158,12 +148,12 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(LoadBitmapWork)
 internal void
 LoadBitmap(game_assets *assets, bitmap_id id)
 {
-    task_with_memory *task = BeginTaskWithMemory(assets->tranState);
-
     if(id.value &&
        AtomicComareExchangeUI32((ui32 *)&assets->bitmaps[id.value].state, AssetState_Unloaded, AssetState_Queued)
        == AssetState_Unloaded)
     {
+        task_with_memory *task = BeginTaskWithMemory(assets->tranState);
+
         if(task)
         {
             load_bitmap_work *work = PushStruct(&task->arena, load_bitmap_work);
@@ -182,6 +172,41 @@ LoadBitmap(game_assets *assets, bitmap_id id)
 internal void
 LoadSound(game_assets *assets, ui32 id)
 {
+}
+
+internal bitmap_id
+BestMatchAsset
+(
+    game_assets *assets, asset_type_id typeID,
+    asset_vector *matchVector, asset_vector *weightVector
+)
+{
+    bitmap_id result = {};
+    
+    r32 bestDiff = R32MAX;
+
+    asset_type *type = assets->assetTypes + typeID;
+    for(ui32 assetIndex = type->firstAssetIndex; assetIndex < type->onePastLastAssetIndex; assetIndex++)
+    {
+        asset *asset = assets->assets + assetIndex;
+
+        r32 totalWeightedDiff = 0.0f;
+        for(ui32 tagIndex = asset->firstTagIndex; tagIndex < asset->onePastLastTagIndex; tagIndex++)
+        {
+            asset_tag *tag = assets->tags + tagIndex;
+            r32 diff = matchVector->e[tag->id] - tag->value;
+            r32 weighted = weightVector->e[tag->id] * AbsoluteValue(diff);
+            totalWeightedDiff += weighted;
+        }
+        
+        if(bestDiff > totalWeightedDiff)
+        {
+            bestDiff = totalWeightedDiff;
+            result.value = asset->slotID;
+        }
+    }
+
+    return result;
 }
 
 internal bitmap_id
@@ -234,6 +259,7 @@ internal void
 BeginAssetType(game_assets *assets, asset_type_id typeID)
 {
     Assert(assets->debugAssetType == 0);
+    
     assets->debugAssetType = assets->assetTypes + typeID;
     assets->debugAssetType->firstAssetIndex = assets->debugUsedAssetCount;
     assets->debugAssetType->onePastLastAssetIndex = assets->debugAssetType->firstAssetIndex;
@@ -243,10 +269,26 @@ internal void
 AddBitmapAsset(game_assets *assets, char *fileName, v2 alignPercentage = {0.5f, 0.5f})
 {
     Assert(assets->debugAssetType);
+    Assert(assets->debugAssetType->onePastLastAssetIndex < assets->assetCount);
+    
     asset *asset = assets->assets + assets->debugAssetType->onePastLastAssetIndex++;
-    asset->firstTagIndex = 0;
-    asset->onePastLastTagIndex = 0;
+    asset->firstTagIndex = assets->debugUsedTagCount;
+    asset->onePastLastTagIndex = asset->firstTagIndex;
     asset->slotID = DEBUGAddBitmapInfo(assets, fileName, alignPercentage).value;
+
+    assets->debugAsset = asset;
+}
+
+internal void
+AddTag(game_assets *assets, asset_tag_id id, r32 value)
+{
+    Assert(assets->debugAsset);
+
+    assets->debugAsset->onePastLastTagIndex++;
+    asset_tag *tag = assets->tags + assets->debugUsedTagCount++;
+
+    tag->id = id;
+    tag->value = value;
 }
 
 internal void
@@ -255,6 +297,7 @@ EndAssetType(game_assets *assets)
     Assert(assets->debugAssetType);
     assets->debugUsedAssetCount = assets->debugAssetType->onePastLastAssetIndex;
     assets->debugAssetType = 0;
+    assets->debugAsset = 0;
 }
 
 internal game_assets *
@@ -273,6 +316,9 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
 
     assets->assetCount = assets->soundCount + assets->bitmapCount;
     assets->assets = PushArray(arena, assets->assetCount, asset);
+
+    assets->tagCount = 1024 * Asset_Count;
+    assets->tags = PushArray(arena, assets->tagCount, asset_tag);
 
     assets->debugUsedBitmapCount = 1;
     assets->debugUsedAssetCount = 1;
@@ -306,7 +352,46 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     AddBitmapAsset(assets, "test2/ground02.bmp");
     AddBitmapAsset(assets, "test2/ground03.bmp");
     EndAssetType(assets);
-        
+
+    r32 angleRight = 0.0f * Tau32;
+    r32 angleBack = 0.25f * Tau32;
+    r32 angleLeft = 0.5f * Tau32;
+    r32 angleFront = 0.75f * Tau32;
+    
+    BeginAssetType(assets, Asset_Head);
+    AddBitmapAsset(assets, "test/test_hero_right_head.bmp");
+    AddTag(assets, Tag_FacingDirection, angleRight);
+    AddBitmapAsset(assets, "test/test_hero_back_head.bmp");
+    AddTag(assets, Tag_FacingDirection, angleBack);
+    AddBitmapAsset(assets, "test/test_hero_left_head.bmp");
+    AddTag(assets, Tag_FacingDirection, angleLeft);
+    AddBitmapAsset(assets, "test/test_hero_front_head.bmp");
+    AddTag(assets, Tag_FacingDirection, angleFront);
+    EndAssetType(assets);
+    
+    BeginAssetType(assets, Asset_Cape);
+    AddBitmapAsset(assets, "test/test_hero_right_cape.bmp");
+    AddTag(assets, Tag_FacingDirection, angleRight);
+    AddBitmapAsset(assets, "test/test_hero_back_cape.bmp");
+    AddTag(assets, Tag_FacingDirection, angleBack);
+    AddBitmapAsset(assets, "test/test_hero_left_cape.bmp");
+    AddTag(assets, Tag_FacingDirection, angleLeft);
+    AddBitmapAsset(assets, "test/test_hero_front_cape.bmp");
+    AddTag(assets, Tag_FacingDirection, angleFront);
+    EndAssetType(assets);
+    
+    BeginAssetType(assets, Asset_Torso);
+    AddBitmapAsset(assets, "test/test_hero_right_torso.bmp");
+    AddTag(assets, Tag_FacingDirection, angleRight);
+    AddBitmapAsset(assets, "test/test_hero_back_torso.bmp");
+    AddTag(assets, Tag_FacingDirection, angleBack);
+    AddBitmapAsset(assets, "test/test_hero_left_torso.bmp");
+    AddTag(assets, Tag_FacingDirection, angleLeft);
+    AddBitmapAsset(assets, "test/test_hero_front_torso.bmp");
+    AddTag(assets, Tag_FacingDirection, angleFront);
+    EndAssetType(assets);
+
+#if 0
     hero_bitmaps *heroBMP = assets->heroBitmaps;
 
     heroBMP->head = DEBUGLoadBMP("test/test_hero_right_head.bmp");
@@ -348,6 +433,7 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     SetTopDownAlign(heroBMP, v2{72, 182});
         
     heroBMP++;
-
+#endif
+    
     return assets;
 }

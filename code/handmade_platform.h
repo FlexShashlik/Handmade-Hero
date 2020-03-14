@@ -76,6 +76,7 @@ typedef double r64;
 #define global_variable static
 
 #define Pi32 3.14159265359f
+#define Tau32 6.28318530717958647692f
 
 #if HANDMADE_SLOW
 #define Assert(expression) if(!(expression)) { *(int *)0 = 0; }

@@ -23,10 +23,10 @@ GameOutputSound(game_state *gameState, game_sound_output_buffer *soundBuffer)
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
 #if 0
-        gameState->tSine += 2.0f * Pi32 / (real32)wavePeriod;
-        if(gameState->tSine > 2.0f * Pi32)
+        gameState->tSine += Tau32 / (real32)wavePeriod;
+        if(gameState->tSine > Tau32)
         {
-            gameState->tSine -= 2.0f * Pi32;
+            gameState->tSine -= Tau32;
         }
 #endif
     }
@@ -518,37 +518,6 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
     EndTaskWithMemory(work->task);
 }
 
-#if 0
-internal i32
-PickBest(i32 infoCount, asset_bitmap_info *infos, asset_tag *tags, r32 *matchVector, r32 *weightVector)
-{
-    r32 bestDiff = R32MAX;
-    i32 bestIndex = 0;
-
-    for(i32 infoIndex = 0; infoIndex < infoCount; infoIndex++)
-    {
-        asset_bitmap_info *info = infos + infoIndex;
-
-        r32 totalWeightedDiff = 0.0f;
-        for(ui32 tagIndex = info->firstTagIndex; tagIndex < info->onePastLastTagIndex; tagIndex++)
-        {
-            asset_tag *tag = tags + tagIndex;
-            r32 diff = matchVector [tag->id] - tag->value;
-            r32 weighted = weightVector[tag->id] * AbsoluteValue(diff);
-            totalWeightedDiff += weighted;
-        }
-
-        if(bestDiff > totalWeightedDiff)
-        {
-            bestDiff = totalWeightedDiff;
-            bestIndex = infoIndex;
-        }
-    }
-
-    return bestIndex;
-}
-#endif
-
 internal void
 FillGroundChunk
 (
@@ -696,14 +665,10 @@ MakeSphereNormalMap(loaded_bitmap *bitmap, r32 roughness, r32 cX = 1.0f, r32 cY 
     r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
 
     ui8 *row = (ui8 *)bitmap->memory;
-    for(i32 y = 0;
-        y < bitmap->height;
-        y++)
+    for(i32 y = 0; y < bitmap->height; y++)
     {
         ui32 *pixel = (ui32 *)row;
-        for(i32 x = 0;
-        x < bitmap->width;
-        x++)
+        for(i32 x = 0; x < bitmap->width; x++)
         {
             v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
 
@@ -744,14 +709,10 @@ MakeSphereDiffuseMap(loaded_bitmap *bitmap, r32 cX = 1.0f, r32 cY = 1.0f)
     r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
 
     ui8 *row = (ui8 *)bitmap->memory;
-    for(i32 y = 0;
-        y < bitmap->height;
-        y++)
+    for(i32 y = 0; y < bitmap->height; y++)
     {
         ui32 *pixel = (ui32 *)row;
-        for(i32 x = 0;
-        x < bitmap->width;
-        x++)
+        for(i32 x = 0; x < bitmap->width; x++)
         {
             v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
 
@@ -792,14 +753,10 @@ MakePyramidNormalMap(loaded_bitmap *bitmap, r32 roughness)
     r32 invHeight = 1.0f / (r32)(bitmap->height - 1);
 
     ui8 *row = (ui8 *)bitmap->memory;
-    for(i32 y = 0;
-        y < bitmap->height;
-        y++)
+    for(i32 y = 0; y < bitmap->height; y++)
     {
         ui32 *pixel = (ui32 *)row;
-        for(i32 x = 0;
-        x < bitmap->width;
-        x++)
+        for(i32 x = 0; x < bitmap->width; x++)
         {
             v2 bitmapUV = {invWidth * (r32)x, invHeight * (r32)y};
 
@@ -1011,11 +968,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     tileX < tilesPerWidth;
                     tileX++)
                 {
-                    ui32 absTileX = screenX * tilesPerWidth
-                        + tileX;
+                    ui32 absTileX = screenX * tilesPerWidth + tileX;
                         
-                    ui32 absTileY = screenY * tilesPerHeight
-                        + tileY;
+                    ui32 absTileY = screenY * tilesPerHeight + tileY;
 
                     b32 isWall = false;
                     if(tileX == 0 &&
@@ -1550,9 +1505,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
 
             //
-            // NOTE: Pre-physics entity work 
+            // NOTE: Pre-physics entity work
             //
-            hero_bitmaps *heroBitmaps = &tranState->assets->heroBitmaps[_entity->facingDirection];
+
+            hero_bitmap_ids heroBitmaps = {};
+            asset_vector matchVector = {};
+            matchVector.e[Tag_FacingDirection] = _entity->facingDirection;
+            asset_vector weightVector = {};
+            weightVector.e[Tag_FacingDirection] = 1.0f;
+            heroBitmaps.head = BestMatchAsset(tranState->assets, Asset_Head, &matchVector, &weightVector);
+            heroBitmaps.cape = BestMatchAsset(tranState->assets, Asset_Cape, &matchVector, &weightVector);
+            heroBitmaps.torso = BestMatchAsset(tranState->assets, Asset_Torso, &matchVector, &weightVector);
             switch(_entity->type)
             {
                 case EntityType_Hero:
@@ -1674,9 +1637,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             renderGroup, GetFirstBitmapID(tranState->assets, Asset_Shadow),
                             heroSizeC, v3{0, 0, 0}, v4{1, 1, 1, shadowAlpha}
                         );
-                    PushBitmap(renderGroup, &heroBitmaps->torso, heroSizeC * 1.2f, v3{0, 0, 0});
-                    PushBitmap(renderGroup, &heroBitmaps->cape, heroSizeC * 1.2f, v3{0, 0, 0});
-                    PushBitmap(renderGroup, &heroBitmaps->head, heroSizeC * 1.2f, v3{0, 0, 0});
+                    PushBitmap(renderGroup, heroBitmaps.torso, heroSizeC * 1.2f, v3{0, 0, 0});
+                    PushBitmap(renderGroup, heroBitmaps.cape, heroSizeC * 1.2f, v3{0, 0, 0});
+                    PushBitmap(renderGroup, heroBitmaps.head, heroSizeC * 1.2f, v3{0, 0, 0});
 
                     DrawHitPoints(_entity, renderGroup);
                 } break;
@@ -1719,9 +1682,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 case EntityType_Familiar:
                 {
                     _entity->tBob += deltaTime;
-                    if(_entity->tBob > 2.0f * Pi32)
+                    if(_entity->tBob > Tau32)
                     {
-                        _entity->tBob -= 2.0f * Pi32;
+                        _entity->tBob -= Tau32;
                     }
                     r32 bobSin = Sin(2.0f * _entity->tBob);
                 
@@ -1733,7 +1696,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         );
                     PushBitmap
                         (
-                            renderGroup, &heroBitmaps->head,
+                            renderGroup, heroBitmaps.head,
                             2.5f, v3{0, 0, 0.25f * bobSin}
                         );
                 } break;
@@ -1748,10 +1711,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         );
                     PushBitmap
                         (
-                            renderGroup, &heroBitmaps->torso,
+                            renderGroup, heroBitmaps.torso,
                             4.5f, v3{0, 0, 0}
                         );
-                
+                          
                     DrawHitPoints(_entity, renderGroup);
                 } break;
 

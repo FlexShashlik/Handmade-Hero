@@ -923,28 +923,8 @@ MoveEntity
     {
         // NOTE: Leave facing direction whatever it was
     }
-    else if(AbsoluteValue(_entity->dPos.x) >
-            AbsoluteValue(_entity->dPos.y))
+    else
     {
-        if(_entity->dPos.x > 0)
-        {
-            _entity->facingDirection = 0;
-        }
-        else
-        {
-            _entity->facingDirection = 2;
-        }
-    }
-    else if(AbsoluteValue(_entity->dPos.x) <
-            AbsoluteValue(_entity->dPos.y))
-    {
-        if(_entity->dPos.y > 0)
-        {
-            _entity->facingDirection = 1;
-        }
-        else
-        {
-            _entity->facingDirection = 3;
-        }
+        _entity->facingDirection = Atan2(_entity->dPos.y, _entity->dPos.x);
     }
 }

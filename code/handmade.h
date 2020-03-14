@@ -173,6 +173,13 @@ struct ground_buffer
     loaded_bitmap bitmap;
 };
 
+struct hero_bitmap_ids
+{
+    bitmap_id head;
+    bitmap_id cape;
+    bitmap_id torso;
+};
+
 struct game_state
 {
     b32 isInitialized;
