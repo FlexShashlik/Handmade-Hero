@@ -1,3 +1,9 @@
+struct loaded_sound
+{
+    i32 sampleCount;
+    void *memory;
+};
+
 enum asset_state
 {
     AssetState_Unloaded,
@@ -9,7 +15,11 @@ enum asset_state
 struct asset_slot
 {
     asset_state state;
-    loaded_bitmap *bitmap;
+    union
+    {
+        loaded_bitmap *bitmap;
+        loaded_sound *sound;
+    };
 };
 
 enum asset_tag_id
@@ -71,17 +81,25 @@ struct asset_bitmap_info
     v2 alignPercentage;
 };
 
+struct asset_sound_info
+{
+    char *fileName;
+};
+
 struct game_assets
 {
     // TODO: Not thrilled about this back-pointer
     struct transient_state *tranState;
     memory_arena arena;
+
+    r32 tagRange[Tag_Count];
     
     ui32 bitmapCount;
     asset_bitmap_info *bitmapInfos;
     asset_slot *bitmaps;
 
     ui32 soundCount;
+    asset_sound_info *soundInfos;
     asset_slot *sounds;
 
     ui32 tagCount;
@@ -108,7 +126,7 @@ struct bitmap_id
     ui32 value;
 };
 
-struct audio_id
+struct sound_id
 {
     ui32 value;
 };
@@ -121,4 +139,4 @@ GetBitmap(game_assets *assets, bitmap_id id)
 }
 
 internal void LoadBitmap(game_assets *assets, bitmap_id id);
-internal void LoadSound(game_assets *assets, audio_id id);
+internal void LoadSound(game_assets *assets, sound_id id);

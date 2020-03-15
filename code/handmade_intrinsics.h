@@ -20,7 +20,13 @@ inline i32
 SignOf(i32 value)
 {
     i32 result = (value >= 0) ? 1 : -1;
+    return result;
+}
 
+inline r32
+SignOf(r32 value)
+{
+    r32 result = (value >= 0) ? 1.0f : -1.0f;
     return result;
 }
 
@@ -28,7 +34,6 @@ inline r32
 SqRt(r32 value)
 {
     r32 result = sqrtf(value);
-
     return result;
 }
 

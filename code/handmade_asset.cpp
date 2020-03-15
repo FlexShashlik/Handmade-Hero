@@ -119,6 +119,56 @@ DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
     
     return result;
 }
+struct WAVE_header
+{
+    ui32 riffID;
+    ui32 size;
+    ui32 waveID;
+};
+
+#define RIFF_CODE(a, b, c, d) (((ui32)(a) << 0) | ((ui32)(b) << 8) | ((ui32)(c) << 16) | ((ui32)(d) << 24))
+enum
+{
+    WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
+    WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
+    WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E'),
+};
+
+struct WAVE_chunk
+{
+    ui32 id;
+    ui32 size;
+};
+
+struct WAVE_fmt
+{
+    ui16 wFormatTag;
+    ui16 nChannels;
+    ui32 nSamplesPerSec;
+    ui32 nAvgBytesPerSec;
+    ui32 nBlockAlign;
+    ui16 wBitsPerSample;
+    ui16 cbSize;
+    ui16 wValidBitsPerSample;
+    ui32 dwChannelMask;
+    ui8 subFormat[16];
+};
+
+internal loaded_sound
+DEBUGLoadWAV(char *fileName)
+{
+    loaded_sound result = {};
+    
+    debug_read_file_result readResult = DEBUGPlatformReadEntireFile(fileName);
+    if(readResult.contentsSize != 0)
+    {
+        WAVE_header *header = (WAVE_header *)readResult.contents;
+        Assert(header->riffID == WAVE_ChunkID_RIFF);
+        Assert(header->waveID == WAVE_ChunkID_WAVE);
+    }
+
+    return result;
+}
 
 struct load_bitmap_work
 {
@@ -169,9 +219,53 @@ LoadBitmap(game_assets *assets, bitmap_id id)
     }
 }
 
-internal void
-LoadSound(game_assets *assets, ui32 id)
+struct load_sound_work
 {
+    game_assets *assets;
+    sound_id id;
+    task_with_memory *task;
+    loaded_sound *sound;
+
+    asset_state finalState;
+};
+
+internal PLATFORM_WORK_QUEUE_CALLBACK(LoadSoundWork)
+{
+    load_sound_work *work = (load_sound_work *)data;
+
+    asset_sound_info *info = work->assets->soundInfos + work->id.value;
+    *work->sound = DEBUGLoadWAV(info->fileName);
+    
+    CompletePreviousWritesBeforeFutureWrites;
+    
+    work->assets->sounds[work->id.value].sound = work->sound;
+    work->assets->sounds[work->id.value].state = work->finalState;
+
+    EndTaskWithMemory(work->task);
+}
+
+internal void
+LoadSound(game_assets *assets, sound_id id)
+{
+    if(id.value &&
+       AtomicComareExchangeUI32((ui32 *)&assets->sounds[id.value].state, AssetState_Unloaded, AssetState_Queued)
+       == AssetState_Unloaded)
+    {
+        task_with_memory *task = BeginTaskWithMemory(assets->tranState);
+
+        if(task)
+        {
+            load_sound_work *work = PushStruct(&task->arena, load_sound_work);
+
+            work->assets = assets;
+            work->id = id;
+            work->task = task;
+            work->sound = PushStruct(&assets->arena, loaded_sound);
+            work->finalState = AssetState_Loaded;
+            
+            PlatformAddEntry(assets->tranState->lowPriorityQueue, LoadSoundWork, work);
+        }
+    }
 }
 
 internal bitmap_id
@@ -194,8 +288,14 @@ BestMatchAsset
         for(ui32 tagIndex = asset->firstTagIndex; tagIndex < asset->onePastLastTagIndex; tagIndex++)
         {
             asset_tag *tag = assets->tags + tagIndex;
-            r32 diff = matchVector->e[tag->id] - tag->value;
-            r32 weighted = weightVector->e[tag->id] * AbsoluteValue(diff);
+
+            r32 a = matchVector->e[tag->id];
+            r32 b = tag->value;
+            r32 d0 = AbsoluteValue(a - b);
+            r32 d1 = AbsoluteValue(a - assets->tagRange[tag->id] * SignOf(a) - b);
+            r32 difference = Minimum(d0, d1);
+            
+            r32 weighted = weightVector->e[tag->id] * difference;
             totalWeightedDiff += weighted;
         }
         
@@ -307,6 +407,13 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     SubArena(&assets->arena, arena, size);
     assets->tranState = tranState;
 
+    for(ui32 tagType = 0; tagType < Tag_Count; tagType++)
+    {
+        assets->tagRange[Tag_FacingDirection] = 1000000.0f;
+    }
+    
+    assets->tagRange[Tag_FacingDirection] = Tau32;
+    
     assets->bitmapCount = 256 * Asset_Count;
     assets->bitmapInfos = PushArray(arena, assets->bitmapCount, asset_bitmap_info);
     assets->bitmaps = PushArray(arena, assets->bitmapCount, asset_slot);
@@ -358,82 +465,40 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     r32 angleLeft = 0.5f * Tau32;
     r32 angleFront = 0.75f * Tau32;
     
+    v2 heroAlign = {0.5f, 0.156682029f};
+    
     BeginAssetType(assets, Asset_Head);
-    AddBitmapAsset(assets, "test/test_hero_right_head.bmp");
+    AddBitmapAsset(assets, "test/test_hero_right_head.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleRight);
-    AddBitmapAsset(assets, "test/test_hero_back_head.bmp");
+    AddBitmapAsset(assets, "test/test_hero_back_head.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleBack);
-    AddBitmapAsset(assets, "test/test_hero_left_head.bmp");
+    AddBitmapAsset(assets, "test/test_hero_left_head.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleLeft);
-    AddBitmapAsset(assets, "test/test_hero_front_head.bmp");
+    AddBitmapAsset(assets, "test/test_hero_front_head.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleFront);
     EndAssetType(assets);
     
     BeginAssetType(assets, Asset_Cape);
-    AddBitmapAsset(assets, "test/test_hero_right_cape.bmp");
+    AddBitmapAsset(assets, "test/test_hero_right_cape.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleRight);
-    AddBitmapAsset(assets, "test/test_hero_back_cape.bmp");
+    AddBitmapAsset(assets, "test/test_hero_back_cape.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleBack);
-    AddBitmapAsset(assets, "test/test_hero_left_cape.bmp");
+    AddBitmapAsset(assets, "test/test_hero_left_cape.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleLeft);
-    AddBitmapAsset(assets, "test/test_hero_front_cape.bmp");
+    AddBitmapAsset(assets, "test/test_hero_front_cape.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleFront);
     EndAssetType(assets);
     
     BeginAssetType(assets, Asset_Torso);
-    AddBitmapAsset(assets, "test/test_hero_right_torso.bmp");
+    AddBitmapAsset(assets, "test/test_hero_right_torso.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleRight);
-    AddBitmapAsset(assets, "test/test_hero_back_torso.bmp");
+    AddBitmapAsset(assets, "test/test_hero_back_torso.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleBack);
-    AddBitmapAsset(assets, "test/test_hero_left_torso.bmp");
+    AddBitmapAsset(assets, "test/test_hero_left_torso.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleLeft);
-    AddBitmapAsset(assets, "test/test_hero_front_torso.bmp");
+    AddBitmapAsset(assets, "test/test_hero_front_torso.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleFront);
     EndAssetType(assets);
-
-#if 0
-    hero_bitmaps *heroBMP = assets->heroBitmaps;
-
-    heroBMP->head = DEBUGLoadBMP("test/test_hero_right_head.bmp");
-        
-    heroBMP->cape = DEBUGLoadBMP("test/test_hero_right_cape.bmp");
-            
-    heroBMP->torso = DEBUGLoadBMP("test/test_hero_right_torso.bmp");
-
-    SetTopDownAlign(heroBMP, v2{72, 182});
-
-    heroBMP++;
-
-    heroBMP->head = DEBUGLoadBMP("test/test_hero_back_head.bmp");
-        
-    heroBMP->cape = DEBUGLoadBMP("test/test_hero_back_cape.bmp");
-            
-    heroBMP->torso = DEBUGLoadBMP("test/test_hero_back_torso.bmp");
-
-    SetTopDownAlign(heroBMP, v2{72, 182});
-
-    heroBMP++;
-
-    heroBMP->head = DEBUGLoadBMP("test/test_hero_left_head.bmp");
-        
-    heroBMP->cape = DEBUGLoadBMP("test/test_hero_left_cape.bmp");
-            
-    heroBMP->torso = DEBUGLoadBMP("test/test_hero_left_torso.bmp");
-
-    SetTopDownAlign(heroBMP, v2{72, 182});
-        
-    heroBMP++;
-
-    heroBMP->head = DEBUGLoadBMP("test/test_hero_front_head.bmp");
-        
-    heroBMP->cape = DEBUGLoadBMP("test/test_hero_front_cape.bmp");
-            
-    heroBMP->torso = DEBUGLoadBMP("test/test_hero_front_torso.bmp");
-
-    SetTopDownAlign(heroBMP, v2{72, 182});
-        
-    heroBMP++;
-#endif
     
     return assets;
 }
