@@ -22,6 +22,42 @@ struct bitmap_header
     ui32 greenMask;
     ui32 blueMask;
 };
+
+struct WAVE_header
+{
+    ui32 riffID;
+    ui32 size;
+    ui32 waveID;
+};
+
+#define RIFF_CODE(a, b, c, d) (((ui32)(a) << 0) | ((ui32)(b) << 8) | ((ui32)(c) << 16) | ((ui32)(d) << 24))
+enum
+{
+    WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
+    WAVE_ChunkID_data = RIFF_CODE('d', 'a', 't', 'a'),
+    WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
+    WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E'),
+};
+
+struct WAVE_chunk
+{
+    ui32 id;
+    ui32 size;
+};
+
+struct WAVE_fmt
+{
+    ui16 wFormatTag;
+    ui16 nChannels;
+    ui32 nSamplesPerSec;
+    ui32 nAvgBytesPerSec;
+    ui16 nBlockAlign;
+    ui16 wBitsPerSample;
+    ui16 cbSize;
+    ui16 wValidBitsPerSample;
+    ui32 dwChannelMask;
+    ui8 subFormat[16];
+};
 #pragma pack(pop)
 
 inline v2
@@ -119,40 +155,63 @@ DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
     
     return result;
 }
-struct WAVE_header
+
+struct riff_iterator
 {
-    ui32 riffID;
-    ui32 size;
-    ui32 waveID;
+    ui8 *at;
+    ui8 *stop;
 };
 
-#define RIFF_CODE(a, b, c, d) (((ui32)(a) << 0) | ((ui32)(b) << 8) | ((ui32)(c) << 16) | ((ui32)(d) << 24))
-enum
+inline riff_iterator
+ParseChunkAt(void *at, void *stop)
 {
-    WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
-    WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
-    WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E'),
-};
+    riff_iterator iter;
 
-struct WAVE_chunk
-{
-    ui32 id;
-    ui32 size;
-};
+    iter.at = (ui8 *)at;
+    iter.stop = (ui8 *)stop;
+    
+    return iter;
+}
 
-struct WAVE_fmt
+inline riff_iterator
+NextChunk(riff_iterator iter)
 {
-    ui16 wFormatTag;
-    ui16 nChannels;
-    ui32 nSamplesPerSec;
-    ui32 nAvgBytesPerSec;
-    ui32 nBlockAlign;
-    ui16 wBitsPerSample;
-    ui16 cbSize;
-    ui16 wValidBitsPerSample;
-    ui32 dwChannelMask;
-    ui8 subFormat[16];
-};
+    WAVE_chunk *chunk = (WAVE_chunk *)iter.at;
+    ui32 size = (chunk->size + 1) & ~1;
+    iter.at += sizeof(WAVE_chunk) + size;
+    
+    return iter;
+}
+
+inline b32
+IsValid(riff_iterator iter)
+{
+    b32 result = iter.at < iter.stop;
+    return result;
+}
+
+inline void *
+GetChunkData(riff_iterator iter)
+{
+    void *result = iter.at + sizeof(WAVE_chunk);
+    return result;
+}
+
+inline ui32
+GetType(riff_iterator iter)
+{
+    WAVE_chunk *chunk = (WAVE_chunk *)iter.at;
+    ui32 result = chunk->id;
+    return result;
+}
+
+inline ui32
+GetChunkDataSize(riff_iterator iter)
+{
+    WAVE_chunk *chunk = (WAVE_chunk *)iter.at;
+    ui32 result = chunk->size;
+    return result;
+}
 
 internal loaded_sound
 DEBUGLoadWAV(char *fileName)
@@ -165,6 +224,68 @@ DEBUGLoadWAV(char *fileName)
         WAVE_header *header = (WAVE_header *)readResult.contents;
         Assert(header->riffID == WAVE_ChunkID_RIFF);
         Assert(header->waveID == WAVE_ChunkID_WAVE);
+
+        ui32 channelCount = 0;
+        ui32 sampleDataSize = 0;
+        i16 *sampleData = 0;
+        for(riff_iterator iter = ParseChunkAt(header + 1, (ui8 *)(header + 1) + header->size - 4);
+            IsValid(iter);
+            iter = NextChunk(iter))
+        {
+            switch(GetType(iter))
+            {
+                case WAVE_ChunkID_fmt:
+                {
+                    WAVE_fmt *fmt = (WAVE_fmt *)GetChunkData(iter);
+                    Assert(fmt->wFormatTag == 1); // NOTE: Only support PCM
+                    Assert(fmt->nSamplesPerSec == 48000);
+                    Assert(fmt->wBitsPerSample == 16);
+                    Assert(fmt->nBlockAlign == sizeof(i16) * fmt->nChannels);
+                    channelCount = fmt->nChannels;
+                } break;
+
+                case WAVE_ChunkID_data:
+                {
+                    sampleData = (i16 *)GetChunkData(iter);
+                    sampleDataSize = GetChunkDataSize(iter);
+                } break;
+            }
+        }
+
+        Assert(channelCount && sampleData);
+
+        result.channelCount = channelCount;
+        result.sampleCount = sampleDataSize / (channelCount * sizeof(i16));
+        if(channelCount == 1)
+        {
+            result.samples[0] = sampleData;
+            result.samples[1] = 0;
+        }
+        else if(channelCount == 2)
+        {
+            result.samples[0] = sampleData;
+            result.samples[1] = sampleData + result.sampleCount;
+/*
+            for(ui32 sampleIndex = 0; sampleIndex < result.sampleCount; sampleIndex++)
+            {
+                sampleData[2 * sampleIndex + 0] = (i16)sampleIndex;
+                sampleData[2 * sampleIndex + 1] = (i16)sampleIndex;
+            }
+*/
+            for(ui32 sampleIndex = 0; sampleIndex < result.sampleCount; sampleIndex++)
+            {
+                i16 source = sampleData[2 * sampleIndex];
+                sampleData[2 * sampleIndex] = sampleData[sampleIndex];
+                sampleData[sampleIndex] = source;
+            }
+        }
+        else
+        {
+            Assert(!"Invalid channel count in WAV file");
+        }
+
+        // TODO: Load right channel!
+        result.channelCount = 1;
     }
 
     return result;

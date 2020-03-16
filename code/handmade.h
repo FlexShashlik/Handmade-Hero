@@ -214,6 +214,10 @@ struct game_state
 
     loaded_bitmap testDiffuse; // TODO: Re-fill this with gray
     loaded_bitmap testNormal;
+
+    loaded_sound testSound;
+    r32 tSine;
+    ui32 testSampleIndex;
 };
 
 struct task_with_memory
