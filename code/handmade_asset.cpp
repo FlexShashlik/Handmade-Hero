@@ -320,7 +320,7 @@ internal void
 LoadBitmap(game_assets *assets, bitmap_id id)
 {
     if(id.value &&
-       AtomicComareExchangeUI32((ui32 *)&assets->bitmaps[id.value].state, AssetState_Unloaded, AssetState_Queued)
+       AtomicCompareExchangeUI32((ui32 *)&assets->bitmaps[id.value].state, AssetState_Queued, AssetState_Unloaded)
        == AssetState_Unloaded)
     {
         task_with_memory *task = BeginTaskWithMemory(assets->tranState);
@@ -336,6 +336,10 @@ LoadBitmap(game_assets *assets, bitmap_id id)
             work->finalState = AssetState_Loaded;
             
             PlatformAddEntry(assets->tranState->lowPriorityQueue, LoadBitmapWork, work);
+        }
+        else
+        {
+            assets->bitmaps[id.value].state = AssetState_Unloaded;
         }
     }
 }
@@ -369,7 +373,7 @@ internal void
 LoadSound(game_assets *assets, sound_id id)
 {
     if(id.value &&
-       AtomicComareExchangeUI32((ui32 *)&assets->sounds[id.value].state, AssetState_Unloaded, AssetState_Queued)
+       AtomicCompareExchangeUI32((ui32 *)&assets->sounds[id.value].state, AssetState_Queued, AssetState_Unloaded)
        == AssetState_Unloaded)
     {
         task_with_memory *task = BeginTaskWithMemory(assets->tranState);
@@ -386,17 +390,21 @@ LoadSound(game_assets *assets, sound_id id)
             
             PlatformAddEntry(assets->tranState->lowPriorityQueue, LoadSoundWork, work);
         }
+        else
+        {
+            assets->sounds[id.value].state = AssetState_Unloaded;
+        }
     }
 }
 
-internal bitmap_id
-BestMatchAsset
+internal ui32
+GetBestMatchAssetFrom
 (
     game_assets *assets, asset_type_id typeID,
     asset_vector *matchVector, asset_vector *weightVector
 )
 {
-    bitmap_id result = {};
+    ui32 result = 0;
     
     r32 bestDiff = R32MAX;
 
@@ -423,7 +431,7 @@ BestMatchAsset
         if(bestDiff > totalWeightedDiff)
         {
             bestDiff = totalWeightedDiff;
-            result.value = asset->slotID;
+            result = asset->slotID;
         }
     }
 
@@ -431,9 +439,31 @@ BestMatchAsset
 }
 
 internal bitmap_id
-RandomAssetFrom(game_assets *assets, asset_type_id typeID, random_series *series)
+GetBestMatchBitmapFrom
+(
+    game_assets *assets, asset_type_id typeID,
+    asset_vector *matchVector, asset_vector *weightVector
+)
 {
-    bitmap_id result = {};
+    bitmap_id result = {GetBestMatchAssetFrom(assets, typeID, matchVector, weightVector)};
+    return result;
+}
+
+internal sound_id
+GetBestMatchSoundFrom
+(
+    game_assets *assets, asset_type_id typeID,
+    asset_vector *matchVector, asset_vector *weightVector
+)
+{
+    sound_id result = {GetBestMatchAssetFrom(assets, typeID, matchVector, weightVector)};
+    return result;
+}
+
+internal ui32
+GetRandomSlotFrom(game_assets *assets, asset_type_id typeID, random_series *series)
+{
+    ui32 result = 0;
 
     asset_type *type = assets->assetTypes + typeID;
     if(type->firstAssetIndex != type->onePastLastAssetIndex)
@@ -442,24 +472,52 @@ RandomAssetFrom(game_assets *assets, asset_type_id typeID, random_series *series
         ui32 choice = RandomChoice(series, count);
         
         asset *asset = assets->assets + type->firstAssetIndex + choice;
-        result.value = asset->slotID;
+        result = asset->slotID;
     }
     
     return result;
 }
 
 internal bitmap_id
-GetFirstBitmapID(game_assets *assets, asset_type_id typeID)
+GetRandomBitmapFrom(game_assets *assets, asset_type_id typeID, random_series *series)
 {
-    bitmap_id result = {};
+    bitmap_id result = {GetRandomSlotFrom(assets, typeID, series)};
+    return result;
+}
+
+internal sound_id
+GetRandomSoundFrom(game_assets *assets, asset_type_id typeID, random_series *series)
+{
+    sound_id result = {GetRandomSlotFrom(assets, typeID, series)};
+    return result;
+}
+
+internal ui32
+GetFirstSlotFrom(game_assets *assets, asset_type_id typeID)
+{
+    ui32 result = 0;
 
     asset_type *type = assets->assetTypes + typeID;
     if(type->firstAssetIndex != type->onePastLastAssetIndex)
     {
         asset *asset = assets->assets + type->firstAssetIndex;
-        result.value = asset->slotID;
+        result = asset->slotID;
     }
     
+    return result;
+}
+
+inline bitmap_id
+GetFirstBitmapFrom(game_assets *assets, asset_type_id typeID)
+{
+    bitmap_id result = {GetFirstSlotFrom(assets, typeID)};
+    return result;
+}
+
+inline sound_id
+GetFirstSoundFrom(game_assets *assets, asset_type_id typeID)
+{
+    sound_id result = {GetFirstSlotFrom(assets, typeID)};
     return result;
 }
 
@@ -472,6 +530,18 @@ DEBUGAddBitmapInfo(game_assets *assets, char *fileName, v2 alignPercentage)
     asset_bitmap_info *info = assets->bitmapInfos + id.value;
     info->fileName = fileName;
     info->alignPercentage = alignPercentage;
+    
+    return id;
+}
+
+internal sound_id
+DEBUGAddSoundInfo(game_assets *assets, char *fileName)
+{
+    Assert(assets->debugUsedSoundCount < assets->soundCount);
+    sound_id id = {assets->debugUsedSoundCount++};
+
+    asset_sound_info *info = assets->soundInfos + id.value;
+    info->fileName = fileName;
     
     return id;
 }
@@ -496,6 +566,20 @@ AddBitmapAsset(game_assets *assets, char *fileName, v2 alignPercentage = {0.5f, 
     asset->firstTagIndex = assets->debugUsedTagCount;
     asset->onePastLastTagIndex = asset->firstTagIndex;
     asset->slotID = DEBUGAddBitmapInfo(assets, fileName, alignPercentage).value;
+
+    assets->debugAsset = asset;
+}
+
+internal void
+AddSoundAsset(game_assets *assets, char *fileName)
+{
+    Assert(assets->debugAssetType);
+    Assert(assets->debugAssetType->onePastLastAssetIndex < assets->assetCount);
+    
+    asset *asset = assets->assets + assets->debugAssetType->onePastLastAssetIndex++;
+    asset->firstTagIndex = assets->debugUsedTagCount;
+    asset->onePastLastTagIndex = asset->firstTagIndex;
+    asset->slotID = DEBUGAddSoundInfo(assets, fileName).value;
 
     assets->debugAsset = asset;
 }
@@ -539,7 +623,8 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     assets->bitmapInfos = PushArray(arena, assets->bitmapCount, asset_bitmap_info);
     assets->bitmaps = PushArray(arena, assets->bitmapCount, asset_slot);
 
-    assets->soundCount = 1;
+    assets->soundCount = 256 * Asset_Count;
+    assets->soundInfos = PushArray(arena, assets->soundCount, asset_sound_info);
     assets->sounds = PushArray(arena, assets->soundCount, asset_slot);
 
     assets->assetCount = assets->soundCount + assets->bitmapCount;
@@ -549,6 +634,7 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     assets->tags = PushArray(arena, assets->tagCount, asset_tag);
 
     assets->debugUsedBitmapCount = 1;
+    assets->debugUsedSoundCount = 1;
     assets->debugUsedAssetCount = 1;
     
     BeginAssetType(assets, Asset_Shadow);
@@ -619,6 +705,39 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     AddTag(assets, Tag_FacingDirection, angleLeft);
     AddBitmapAsset(assets, "test/test_hero_front_torso.bmp", heroAlign);
     AddTag(assets, Tag_FacingDirection, angleFront);
+    EndAssetType(assets);
+
+    //
+    //
+    //
+
+    BeginAssetType(assets, Asset_Bloop);
+    AddSoundAsset(assets, "test3/bloop_00.wav");
+    AddSoundAsset(assets, "test3/bloop_01.wav");
+    AddSoundAsset(assets, "test3/bloop_02.wav");
+    AddSoundAsset(assets, "test3/bloop_03.wav");
+    AddSoundAsset(assets, "test3/bloop_04.wav");
+    EndAssetType(assets);
+    
+    BeginAssetType(assets, Asset_Crack);
+    AddSoundAsset(assets, "test3/crack_00.wav");
+    EndAssetType(assets);
+    
+    BeginAssetType(assets, Asset_Drop);
+    AddSoundAsset(assets, "test3/drop_00.wav");
+    EndAssetType(assets);
+    
+    BeginAssetType(assets, Asset_Glide);
+    AddSoundAsset(assets, "test3/glide_00.wav");
+    EndAssetType(assets);
+
+    BeginAssetType(assets, Asset_Music);
+    AddSoundAsset(assets, "test3/music_test.wav");
+    EndAssetType(assets);
+
+    BeginAssetType(assets, Asset_Puhp);
+    AddSoundAsset(assets, "test3/puhp_00.wav");
+    AddSoundAsset(assets, "test3/puhp_01.wav");
     EndAssetType(assets);
     
     return assets;

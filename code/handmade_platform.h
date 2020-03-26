@@ -27,7 +27,7 @@ extern "C" {
 #undef COMPILER_MSVC
 #define COMPILER_MSVC 1
 #else
-    // TODO: More compilers
+// TODO: More compilers
 #undef COMPILER_LLVM
 #define COMPILER_LLVM 1
 #endif

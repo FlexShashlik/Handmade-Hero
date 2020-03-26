@@ -35,6 +35,10 @@ enum asset_tag_id
 enum asset_type_id
 {
     Asset_None,
+
+    //
+    // NOTE: Bitmaps:
+    //
     
     Asset_Shadow,
     Asset_Tree,
@@ -48,6 +52,17 @@ enum asset_type_id
     Asset_Head,
     Asset_Cape,
     Asset_Torso,
+
+    //
+    // NOTE: Sounds:
+    //
+
+    Asset_Bloop,
+    Asset_Crack,
+    Asset_Drop,
+    Asset_Glide,
+    Asset_Music,
+    Asset_Puhp,
     
     Asset_Count
 };
@@ -116,6 +131,7 @@ struct game_assets
 
     // TODO: These should ho away when we actually load an asset pack-file
     ui32 debugUsedBitmapCount;
+    ui32 debugUsedSoundCount;
     ui32 debugUsedAssetCount;
     ui32 debugUsedTagCount;
     asset_type *debugAssetType;
@@ -136,6 +152,13 @@ inline loaded_bitmap *
 GetBitmap(game_assets *assets, bitmap_id id)
 {
     loaded_bitmap *result = assets->bitmaps[id.value].bitmap;
+    return result;
+}
+
+inline loaded_sound *
+GetSound(game_assets *assets, sound_id id)
+{
+    loaded_sound *result = assets->sounds[id.value].sound;
     return result;
 }
 

@@ -6,10 +6,17 @@
 #include "math.h"
 
 #if COMPILER_MSVC
-#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier();
-inline ui32 AtomicComareExchangeUI32(ui32 volatile *value, ui32 expected, ui32 newValue)
+#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
+inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 expected)
 {
-    ui32 result = _InterlockedCompareExchange((long *)value, expected, newValue);
+    ui32 result = _InterlockedCompareExchange((long *)value, newValue, expected);
+    return result;
+}
+#elif COMPILER_LLVM
+#define CompletePreviousWritesBeforeFutureWrites asm_volatile("" ::: "memory")
+inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 expected)
+{
+    ui32 result = __sync_val_compare_and_swap((long *)value, expected, newValue);
     return result;
 }
 #else

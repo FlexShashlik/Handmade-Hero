@@ -1423,7 +1423,7 @@ GetRenderEntityBasisPos(render_transform *transform, v3 originalP)
 
         r32 distanceAboveTarget = transform->distanceAboveTarget;
 
-#if 1
+#if 0
         // TODO: How do we want to control the debug camera?
         if(1)
         {
