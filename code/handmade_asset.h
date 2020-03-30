@@ -1,3 +1,13 @@
+struct bitmap_id
+{
+    ui32 value;
+};
+
+struct sound_id
+{
+    ui32 value;
+};
+
 struct loaded_sound
 {
     ui32 sampleCount;
@@ -100,6 +110,9 @@ struct asset_bitmap_info
 struct asset_sound_info
 {
     char *fileName;
+    ui32 firstSampleIndex;
+    ui32 sampleCount;
+    sound_id nextIDToPlay;
 };
 
 struct game_assets
@@ -138,29 +151,48 @@ struct game_assets
     asset *debugAsset;
 };
 
-struct bitmap_id
-{
-    ui32 value;
-};
-
-struct sound_id
-{
-    ui32 value;
-};
-
 inline loaded_bitmap *
 GetBitmap(game_assets *assets, bitmap_id id)
 {
+    Assert(id.value <= assets->bitmapCount);
     loaded_bitmap *result = assets->bitmaps[id.value].bitmap;
+    
+    return result;
+}
+
+inline b32
+IsValid(bitmap_id id)
+{
+    b32 result = (id.value != 0);
     return result;
 }
 
 inline loaded_sound *
 GetSound(game_assets *assets, sound_id id)
 {
+    Assert(id.value <= assets->soundCount);
     loaded_sound *result = assets->sounds[id.value].sound;
+    
+    return result;
+}
+
+inline asset_sound_info *
+GetSoundInfo(game_assets *assets, sound_id id)
+{
+    Assert(id.value <= assets->soundCount);
+    asset_sound_info *result = assets->soundInfos + id.value;
+
+    return result;
+}
+
+inline b32
+IsValid(sound_id id)
+{
+    b32 result = (id.value != 0);
     return result;
 }
 
 internal void LoadBitmap(game_assets *assets, bitmap_id id);
+inline void PrefetchBitmap(game_assets *assets, bitmap_id id) {LoadBitmap(assets, id);};
 internal void LoadSound(game_assets *assets, sound_id id);
+inline void PrefetchSound(game_assets *assets, sound_id id) {LoadSound(assets, id);}

@@ -132,6 +132,7 @@ ZeroSize(memory_index size, void *ptr)
 #include "handmade_render_group.h"
 #include "handmade_asset.h"
 #include "handmade_random.h"
+#include "handmade_audio.h"
 
 struct low_entity
 {
@@ -181,14 +182,6 @@ struct hero_bitmap_ids
     bitmap_id torso;
 };
 
-struct playing_sound
-{
-    r32 volume[2];
-    sound_id id;
-    i32 samplesPlayed;
-    playing_sound *next;
-};
-
 struct game_state
 {
     b32 isInitialized;
@@ -228,8 +221,7 @@ struct game_state
     random_series generalEntropy;
     r32 tSine;
 
-    playing_sound *firstPlayingSound;
-    playing_sound *firstFreePlayingSound;
+    audio_state audioState;
 };
 
 struct task_with_memory
