@@ -1481,6 +1481,7 @@ CALLBACK WinMain
 #if 0
     Win32ResizeDIBSection(&GlobalBackbuffer, 1279, 719);
 #else
+    //Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
     Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
 #endif
     

@@ -38,14 +38,32 @@ PlaySound(audio_state *audioState, sound_id soundID)
     audioState->firstFreePlayingSound = playingSound->next;
     
     playingSound->samplesPlayed = 0;
-    playingSound->volume[0] = 1.0f;
-    playingSound->volume[1] = 1.0f;
+    playingSound->currentVolume = playingSound->targetVolume = {1.0f, 1.0f};
+    playingSound->dCurrentVolume = {0, 0};
     playingSound->id = soundID;
     
     playingSound->next = audioState->firstPlayingSound;
     audioState->firstPlayingSound = playingSound;
 
     return playingSound;
+}
+
+internal void
+ChangeVolume
+(
+    audio_state *audioState, playing_sound *sound, r32 fadeDurationInSeconds, v2 volume
+)
+{
+    if(fadeDurationInSeconds <= 0.0f)
+    {
+        sound->currentVolume = sound->targetVolume = volume;
+    }
+    else
+    {
+        r32 oneOverFade = 1.0f / fadeDurationInSeconds;
+        sound->targetVolume = volume;
+        sound->dCurrentVolume = oneOverFade * (sound->targetVolume - sound->currentVolume);
+    }
 }
 
 internal void
@@ -60,6 +78,9 @@ OutputPlayingSounds
     r32 *realChannel0 = PushArray(tempArena, soundBuffer->sampleCount, r32);
     r32 *realChannel1 = PushArray(tempArena, soundBuffer->sampleCount, r32);
 
+    r32 secondsPerSample = 1.0f / (r32)soundBuffer->samplesPerSecond;
+#define AudioStateOutputChannelCount 2
+    
     // NOTE: Clear out the mixer channels
     {
         r32 *dest0 = realChannel0;
@@ -93,10 +114,9 @@ OutputPlayingSounds
                 asset_sound_info *info = GetSoundInfo(assets, playingSound->id);
                 PrefetchSound(assets, info->nextIDToPlay);
             
-                // TODO: Handle stereo!
-                r32 volume0 = playingSound->volume[0];
-                r32 volume1 = playingSound->volume[1];
-                
+                v2 volume = playingSound->currentVolume;
+                v2 dVolume = secondsPerSample * playingSound->dCurrentVolume;
+
                 Assert(playingSound->samplesPlayed >= 0);
 
                 ui32 samplesToMix = totalSamplesToMix;
@@ -105,14 +125,45 @@ OutputPlayingSounds
                 {
                     samplesToMix = samplesRemainingInSound;
                 }
-            
+
+                b32 volumeEnded[AudioStateOutputChannelCount] = {};
+                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEnded); channelIndex++)
+                {
+                    if(dVolume.e[channelIndex] != 0.0f)
+                    {
+                        r32 deltaVolume = (playingSound->targetVolume.e[channelIndex] -
+                                           volume.e[channelIndex]);
+                        ui32 volumeSampleCount = (ui32)((deltaVolume /
+                                                         dVolume.e[channelIndex]) + 0.5f);
+                        if(samplesToMix > volumeSampleCount)
+                        {
+                            samplesToMix = volumeSampleCount;
+                            volumeEnded[channelIndex] = true;
+                        }
+                    }
+                }
+                
+                // TODO: Handle stereo!
                 for(ui32 sampleIndex = playingSound->samplesPlayed;
                     sampleIndex < playingSound->samplesPlayed + samplesToMix;
                     sampleIndex++)
                 {
                     r32 sampleValue = loadedSound->samples[0][sampleIndex];
-                    *dest0++ += volume0 * sampleValue;
-                    *dest1++ += volume1 * sampleValue;
+                    *dest0++ += audioState->masterVolume.e[0] * volume.e[0] * sampleValue;
+                    *dest1++ += audioState->masterVolume.e[1] * volume.e[1] * sampleValue;
+
+                    volume += dVolume;
+                }
+
+                playingSound->currentVolume = volume;
+
+                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEnded); channelIndex++)
+                {
+                    if(volumeEnded[channelIndex])
+                    {
+                        playingSound->currentVolume.e[channelIndex] = playingSound->targetVolume.e[channelIndex];
+                        playingSound->dCurrentVolume.e[channelIndex] = 0.0f;
+                    }
                 }
 
                 Assert(totalSamplesToMix >= samplesToMix);
@@ -130,10 +181,6 @@ OutputPlayingSounds
                     {
                         soundFinished = true;
                     }
-                }
-                else
-                {
-                    Assert(totalSamplesToMix == 0);
                 }
             }
             else
@@ -163,6 +210,8 @@ OutputPlayingSounds
         i16 *sampleOut = soundBuffer->samples;
         for(i32 sampleIndex = 0; sampleIndex < soundBuffer->sampleCount; sampleIndex++)
         {
+            // TODO: Once this is in SIMD, clamp!
+            
             *sampleOut++ = (i16)(*source0++ + 0.5f);
             *sampleOut++ = (i16)(*source1++ + 0.5f);
         }
@@ -177,4 +226,5 @@ InitializeAudioState(audio_state *audioState, memory_arena *permArena)
     audioState->permArena = permArena;
     audioState->firstPlayingSound = 0;
     audioState->firstFreePlayingSound = 0;
+    audioState->masterVolume = {1.0f, 1.0f};
 }

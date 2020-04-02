@@ -1094,7 +1094,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         tranState->assets = AllocateGameAssets(&tranState->tranArena, Megabytes(64), tranState);
 
-        PlaySound(&gameState->audioState, GetFirstSoundFrom(tranState->assets, Asset_Music));
+        gameState->music = PlaySound(&gameState->audioState, GetFirstSoundFrom(tranState->assets, Asset_Music));
         
         tranState->groundBufferCount = 256;
         tranState->groundBuffers = PushArray
@@ -1210,7 +1210,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 // NOTE: Digital movement
                 if(controller->moveUp.endedDown)
-                {        
+                {
                     conHero->ddPos.y = 1.0f;
                 }
             
@@ -1239,21 +1239,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             if(controller->actionUp.endedDown)
             {
+                ChangeVolume(&gameState->audioState, gameState->music, 10.0f, v2{1.0f, 1.0f});
                 conHero->dPosSword = v2{0.0f, 1.0f};
             }
 
             if(controller->actionDown.endedDown)
             {
+                ChangeVolume(&gameState->audioState, gameState->music, 10.0f, v2{0.0f, 0.0f});
                 conHero->dPosSword = v2{0.0f, -1.0f};
             }
 
             if(controller->actionLeft.endedDown)
             {
+                ChangeVolume(&gameState->audioState, gameState->music, 5.0f, v2{1.0f, 0.0f});
                 conHero->dPosSword = v2{-1.0f, 0.0f};
             }
 
             if(controller->actionRight.endedDown)
             {
+                ChangeVolume(&gameState->audioState, gameState->music, 5.0f, v2{0.0f, 1.0f});
                 conHero->dPosSword = v2{1.0f, 0.0f};
             }
         }

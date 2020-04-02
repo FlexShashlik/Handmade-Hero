@@ -222,6 +222,7 @@ struct game_state
     r32 tSine;
 
     audio_state audioState;
+    playing_sound *music;
 };
 
 struct task_with_memory
