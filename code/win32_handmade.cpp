@@ -351,9 +351,13 @@ Win32InitDSound(HWND window, i32 samplesPerSecond, i32 bufferSize)
                 // TODO: logging
             }
 
+            // TODO: In release mode, should we not specify DSBCAPS_GLOBALFOCUS?
             DSBUFFERDESC bufferDescription = {};
             bufferDescription.dwSize = sizeof(bufferDescription);
             bufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+#if HANDMADE_INTERNAL
+            bufferDescription.dwFlags |= DSBCAPS_GLOBALFOCUS;
+#endif
             bufferDescription.dwBufferBytes = bufferSize;
             bufferDescription.lpwfxFormat = &waveFormat;
             
@@ -1675,6 +1679,9 @@ CALLBACK WinMain
                     FILETIME newDLLWriteTime = Win32GetLastWriteTime(gameCodeDLLFullPath);
                     if(CompareFileTime(&newDLLWriteTime, &gameCode.lastDLLWriteTime) != 0)
                     {
+                        Win32CompleteAllWork(&highPriorityQueue);
+                        Win32CompleteAllWork(&lowPriorityQueue);
+
                         Win32UnloadGameCode(&gameCode);
                         gameCode = Win32LoadGameCode
                             (

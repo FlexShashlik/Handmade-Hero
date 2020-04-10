@@ -3,9 +3,11 @@ struct playing_sound
     v2 currentVolume;
     v2 dCurrentVolume;
     v2 targetVolume;
+
+    r32 dSample;
     
     sound_id id;
-    i32 samplesPlayed;
+    r32 samplesPlayed;
     playing_sound *next;
 };
 

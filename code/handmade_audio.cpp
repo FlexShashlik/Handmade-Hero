@@ -41,6 +41,7 @@ PlaySound(audio_state *audioState, sound_id soundID)
     playingSound->currentVolume = playingSound->targetVolume = {1.0f, 1.0f};
     playingSound->dCurrentVolume = {0, 0};
     playingSound->id = soundID;
+    playingSound->dSample = 1.0f;
     
     playingSound->next = audioState->firstPlayingSound;
     audioState->firstPlayingSound = playingSound;
@@ -64,6 +65,13 @@ ChangeVolume
         sound->targetVolume = volume;
         sound->dCurrentVolume = oneOverFade * (sound->targetVolume - sound->currentVolume);
     }
+}
+
+internal void
+ChangePitch
+(audio_state *audioState, playing_sound *sound, r32 dSample)
+{
+    sound->dSample = dSample;
 }
 
 internal void
@@ -116,11 +124,13 @@ OutputPlayingSounds
             
                 v2 volume = playingSound->currentVolume;
                 v2 dVolume = secondsPerSample * playingSound->dCurrentVolume;
+                r32 dSample = 1.0f * playingSound->dSample;
 
-                Assert(playingSound->samplesPlayed >= 0);
+                Assert(playingSound->samplesPlayed >= 0.0f);
 
                 ui32 samplesToMix = totalSamplesToMix;
-                ui32 samplesRemainingInSound = loadedSound->sampleCount - playingSound->samplesPlayed;
+                r32 realSamplesRemainingInSound = (loadedSound->sampleCount - RoundR32ToI32(playingSound->samplesPlayed)) / dSample;
+                ui32 samplesRemainingInSound = RoundR32ToI32(realSamplesRemainingInSound);
                 if(samplesToMix > samplesRemainingInSound)
                 {
                     samplesToMix = samplesRemainingInSound;
@@ -144,15 +154,24 @@ OutputPlayingSounds
                 }
                 
                 // TODO: Handle stereo!
-                for(ui32 sampleIndex = playingSound->samplesPlayed;
-                    sampleIndex < playingSound->samplesPlayed + samplesToMix;
-                    sampleIndex++)
+                r32 samplePosition = playingSound->samplesPlayed;
+                for(ui32 i = 0; i < samplesToMix; i++)
                 {
+#if 1
+                    ui32 sampleIndex = FloorR32ToI32(samplePosition);
+                    r32 frac = samplePosition - (r32)sampleIndex;
+                    r32 sample0 = (r32)loadedSound->samples[0][sampleIndex];
+                    r32 sample1 = (r32)loadedSound->samples[0][sampleIndex + 1];
+                    r32 sampleValue = Lerp(sample0, frac, sample1);
+#else               
+                    ui32 sampleIndex = RoundR32ToI32(samplePosition);
                     r32 sampleValue = loadedSound->samples[0][sampleIndex];
+#endif
                     *dest0++ += audioState->masterVolume.e[0] * volume.e[0] * sampleValue;
                     *dest1++ += audioState->masterVolume.e[1] * volume.e[1] * sampleValue;
 
                     volume += dVolume;
+                    samplePosition += dSample;
                 }
 
                 playingSound->currentVolume = volume;
@@ -167,7 +186,7 @@ OutputPlayingSounds
                 }
 
                 Assert(totalSamplesToMix >= samplesToMix);
-                playingSound->samplesPlayed += samplesToMix;
+                playingSound->samplesPlayed = samplePosition;
                 totalSamplesToMix -= samplesToMix;
 
                 if((ui32)playingSound->samplesPlayed == loadedSound->sampleCount)

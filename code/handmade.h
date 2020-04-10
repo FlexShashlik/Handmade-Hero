@@ -75,6 +75,24 @@ PushSize_(memory_arena *arena, memory_index sizeInit, memory_index alignment = 4
     return result;
 }
 
+inline char *
+PushString(memory_arena *arena, char *source)
+{
+    ui32 size = 1;
+    for(char *at = source; *at; at++)
+    {
+        size++;
+    }
+    
+    char *dest = (char *)PushSize_(arena, size);
+    for(ui32 charIndex = 0; charIndex < size; charIndex++)
+    {
+        dest[charIndex] = source[charIndex];
+    }
+
+    return dest;
+}
+
 inline temporary_memory
 BeginTemporaryMemory(memory_arena *arena)
 {

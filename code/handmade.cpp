@@ -1176,7 +1176,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
     
     world *_world = gameState->_world;
-    
+
+    {
+        v2 musicVolume;
+        musicVolume.y = SafeRatio0((r32)input->mouseX, (r32)buffer->width);
+        musicVolume.x = 1.0f - musicVolume.y;
+        ChangeVolume(&gameState->audioState, gameState->music, 0.01f, musicVolume);
+    }
+        
     for(i32 controllerIndex = 0;
         controllerIndex < ArrayCount(input->controllers);
         controllerIndex++)
