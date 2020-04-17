@@ -125,3 +125,8 @@ struct render_group
 
     ui32 missingResourceCount;
 };
+
+void DrawRectangleQuickly(loaded_bitmap *buffer,
+                          v2 origin, v2 xAxis, v2 yAxis,
+                          v4 color, loaded_bitmap *texture,
+                          r32 pixelsToMeters, rectangle2i clipRect, b32 even);

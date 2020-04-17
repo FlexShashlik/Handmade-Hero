@@ -1553,11 +1553,12 @@ CALLBACK WinMain
                 OutputDebugStringA(textBuffer);
             }
 #endif
-                
+
+            ui32 maxPossibleOverrun = 2 * 4 * sizeof(ui16);
             i16 *samples = (i16 *)VirtualAlloc
                 (
                     0,
-                    soundOutput.secondaryBufferSize,
+                    soundOutput.secondaryBufferSize + maxPossibleOverrun,
                     MEM_RESERVE|MEM_COMMIT,
                     PAGE_READWRITE
                 );

@@ -71,7 +71,9 @@ typedef double r64;
 
 #define R32MAX FLT_MAX;
 
+#if !defined(internal)
 #define internal static
+#endif
 #define local_persist static
 #define global_variable static
 
@@ -93,6 +95,8 @@ typedef double r64;
 
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
+#define AlignPow2(value, alignment) ((value + ((alignment) - 1)) & ~((alignment) - 1))
+#define Align4(value) ((value + 3) & ~3) 
 #define Align16(value) ((value + 15) & ~15)
 
 inline ui32
@@ -181,6 +185,8 @@ typedef struct game_sound_output_buffer
 {
     i32 samplesPerSecond;
     i32 sampleCount;
+    
+    // IMPORTANT: Samples must be padded to a multiple of 4 samples
     i16 *samples;
 } game_sound_output_buffer;
 

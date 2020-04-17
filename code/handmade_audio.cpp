@@ -82,23 +82,27 @@ OutputPlayingSounds
 )
 {
     temporary_memory mixerMemory = BeginTemporaryMemory(tempArena);
+
+    ui32 sampleCountAlign4 = Align4(soundBuffer->sampleCount);
+    ui32 sampleCount4 = sampleCountAlign4 / 4;
     
-    r32 *realChannel0 = PushArray(tempArena, soundBuffer->sampleCount, r32);
-    r32 *realChannel1 = PushArray(tempArena, soundBuffer->sampleCount, r32);
+    __m128 *realChannel0 = PushArray(tempArena, sampleCount4, __m128, 16);
+    __m128 *realChannel1 = PushArray(tempArena, sampleCount4, __m128, 16);
 
     r32 secondsPerSample = 1.0f / (r32)soundBuffer->samplesPerSecond;
 #define AudioStateOutputChannelCount 2
     
     // NOTE: Clear out the mixer channels
-    {
-        r32 *dest0 = realChannel0;
-        r32 *dest1 = realChannel1;
-        for(i32 sampleIndex = 0;
-            sampleIndex < soundBuffer->sampleCount;
+    __m128 zero = _mm_set1_ps(0.0f);
+   {
+        __m128 *dest0 = realChannel0;
+        __m128 *dest1 = realChannel1;
+        for(ui32 sampleIndex = 0;
+            sampleIndex < sampleCount4;
             sampleIndex++)
         {
-            *dest0++ = 0.0f;
-            *dest1++ = 0.0f;
+            _mm_store_ps((float *)dest0++, zero);
+            _mm_store_ps((float *)dest1++, zero);
         }
     }
 
@@ -109,8 +113,8 @@ OutputPlayingSounds
     {
         playing_sound *playingSound = *playingSoundPtr;
 
-        r32 *dest0 = realChannel0;
-        r32 *dest1 = realChannel1;
+        r32 *dest0 = (r32 *)realChannel0;
+        r32 *dest1 = (r32 *)realChannel1;
 
         ui32 totalSamplesToMix = soundBuffer->sampleCount;
         b32 soundFinished = false;
@@ -139,6 +143,7 @@ OutputPlayingSounds
                 b32 volumeEnded[AudioStateOutputChannelCount] = {};
                 for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEnded); channelIndex++)
                 {
+                    // TODO: Fix the "both volumes end at the same time" bug
                     if(dVolume.e[channelIndex] != 0.0f)
                     {
                         r32 deltaVolume = (playingSound->targetVolume.e[channelIndex] -
@@ -223,16 +228,25 @@ OutputPlayingSounds
 
     // NOTE: Convert to 16-bit
     {
-        r32 *source0 = realChannel0;
-        r32 *source1 = realChannel1;
+        __m128 *source0 = realChannel0;
+        __m128 *source1 = realChannel1;
     
-        i16 *sampleOut = soundBuffer->samples;
-        for(i32 sampleIndex = 0; sampleIndex < soundBuffer->sampleCount; sampleIndex++)
+        __m128i *sampleOut = (__m128i *)soundBuffer->samples;
+        for(ui32 sampleIndex = 0; sampleIndex < sampleCount4; sampleIndex++)
         {
-            // TODO: Once this is in SIMD, clamp!
+            __m128 s0 = _mm_load_ps((float *)source0++);
+            __m128 s1 = _mm_load_ps((float *)source1++);
             
-            *sampleOut++ = (i16)(*source0++ + 0.5f);
-            *sampleOut++ = (i16)(*source1++ + 0.5f);
+            __m128i l = _mm_cvtps_epi32(s0);
+            __m128i r = _mm_cvtps_epi32(s1);
+
+            __m128i lr0 = _mm_unpacklo_epi32(l, r);
+            __m128i lr1 = _mm_unpackhi_epi32(l, r);
+
+            // NOTE: _mm_packs handles clamp operation
+            __m128i s01 = _mm_packs_epi32(lr0, lr1);
+
+            *sampleOut++ = s01;
         }
     }
     
