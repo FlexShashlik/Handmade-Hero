@@ -255,7 +255,7 @@ DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCou
         Assert(channelCount && sampleData);
 
         result.channelCount = channelCount;
-        result.sampleCount = sampleDataSize / (channelCount * sizeof(i16));
+        ui32 sampleCount = sampleDataSize / (channelCount * sizeof(i16));
         if(channelCount == 1)
         {
             result.samples[0] = sampleData;
@@ -264,7 +264,7 @@ DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCou
         else if(channelCount == 2)
         {
             result.samples[0] = sampleData;
-            result.samples[1] = sampleData + result.sampleCount;
+            result.samples[1] = sampleData + sampleCount;
 /*
             for(ui32 sampleIndex = 0; sampleIndex < result.sampleCount; sampleIndex++)
             {
@@ -272,7 +272,7 @@ DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCou
                 sampleData[2 * sampleIndex + 1] = (i16)sampleIndex;
             }
 */
-            for(ui32 sampleIndex = 0; sampleIndex < result.sampleCount; sampleIndex++)
+            for(ui32 sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
             {
                 i16 source = sampleData[2 * sampleIndex];
                 sampleData[2 * sampleIndex] = sampleData[sampleIndex];
@@ -285,16 +285,33 @@ DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCou
         }
 
         // TODO: Load right channel!
+        b32 atEnd = true;
         result.channelCount = 1;
         if(sectionSampleCount)
         {
-            Assert(sectionFirstSampleIndex + sectionSampleCount <= result.sampleCount);
-            result.sampleCount = sectionSampleCount;
+            Assert(sectionFirstSampleIndex + sectionSampleCount <= sampleCount);
+            atEnd = sectionFirstSampleIndex + sectionSampleCount == sampleCount;
+            sampleCount = sectionSampleCount;
             for(ui32 channelIndex = 0; channelIndex < result.channelCount; channelIndex++)
             {
                 result.samples[channelIndex] += sectionFirstSampleIndex;
             }
         }
+
+        if(atEnd)
+        {
+            // TODO: All sounds have to be padded with their subsequent
+            // sound out to 8 samples past their end
+            for(ui32 channelIndex = 0; channelIndex < result.channelCount; channelIndex++)
+            {
+                for(ui32 sampleIndex = sampleCount; sampleIndex < sampleCount + 8; sampleIndex++)
+                {
+                    result.samples[channelIndex][sampleIndex] = 0;
+                }
+            }
+        }
+
+        result.sampleCount = sampleCount;
     }
 
     return result;

@@ -1554,7 +1554,7 @@ CALLBACK WinMain
             }
 #endif
 
-            ui32 maxPossibleOverrun = 2 * 4 * sizeof(ui16);
+            ui32 maxPossibleOverrun = 2 * 8 * sizeof(ui16);
             i16 *samples = (i16 *)VirtualAlloc
                 (
                     0,
@@ -2028,7 +2028,8 @@ CALLBACK WinMain
 
                             game_sound_output_buffer soundBuffer = {};
                             soundBuffer.samplesPerSecond = soundOutput.samplesPerSecond;
-                            soundBuffer.sampleCount = bytesToWrite / soundOutput.bytesPerSample;
+                            soundBuffer.sampleCount = Align8(bytesToWrite / soundOutput.bytesPerSample);
+                            bytesToWrite = soundBuffer.sampleCount * soundOutput.bytesPerSample;
                             soundBuffer.samples = samples;
 
                             if(gameCode.getSoundSamples)

@@ -97,6 +97,7 @@ typedef double r64;
 
 #define AlignPow2(value, alignment) ((value + ((alignment) - 1)) & ~((alignment) - 1))
 #define Align4(value) ((value + 3) & ~3) 
+#define Align8(value) ((value + 7) & ~7) 
 #define Align16(value) ((value + 15) & ~15)
 
 inline ui32
