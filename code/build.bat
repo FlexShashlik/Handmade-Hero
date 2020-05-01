@@ -6,6 +6,9 @@ set CommonLinkerFlags= -incremental:no -opt:ref user32.lib gdi32.lib winmm.lib
 IF NOT EXIST ..\build mkdir ..\build
 pushd ..\build
 
+REM Asset file builder build
+REM cl %CommonCompilerFlags% ..\code\test_asset_builder.cpp /link %CommonLinkerFlags%
+
 REM 32-bit
 REM cl %CommonCompilerFlags% ..\code\win32_handmade.cpp /link -subsystem:windows,5.1  %CommonLinkerFlags%
 
