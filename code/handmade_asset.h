@@ -15,15 +15,6 @@ struct loaded_sound
     i16 *samples[2];
 };
 
-enum asset_tag_id
-{
-    Tag_Smoothness,
-    Tag_Flatness,
-    Tag_FacingDirection, // NOTE: Angle in radians off of due right
-
-    Tag_Count
-};
-
 struct asset_bitmap_info
 {
     char *fileName;
@@ -107,8 +98,6 @@ struct game_assets
     //hero_bitmaps heroBitmaps[4];
 
     // TODO: These should go away when we actually load an asset pack-file
-    ui32 debugUsedBitmapCount;
-    ui32 debugUsedSoundCount;
     ui32 debugUsedAssetCount;
     ui32 debugUsedTagCount;
     asset_type *debugAssetType;

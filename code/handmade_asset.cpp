@@ -637,8 +637,6 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     assets->tagCount = 1024 * Asset_Count;
     assets->tags = PushArray(arena, assets->tagCount, asset_tag);
 
-    assets->debugUsedBitmapCount = 1;
-    assets->debugUsedSoundCount = 1;
     assets->debugUsedAssetCount = 1;
     
     BeginAssetType(assets, Asset_Shadow);
@@ -735,7 +733,7 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     AddSoundAsset(assets, "test3/glide_00.wav");
     EndAssetType(assets);
 
-    ui32 oneMusicChunk = 10 * 40000;
+    ui32 oneMusicChunk = 10 * 48000;
     ui32 totalMusicSampleCount = 7468095;
     BeginAssetType(assets, Asset_Music);
     sound_id lastMusic = {0};
@@ -747,7 +745,7 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
             sampleCount = oneMusicChunk;
         }
         
-        sound_id thisMusic= AddSoundAsset(assets, "test3/music_test.wav", firstSampleIndex, sampleCount);
+        sound_id thisMusic = AddSoundAsset(assets, "test3/music_test.wav", firstSampleIndex, sampleCount);
         if(IsValid(lastMusic))
         {
             assets->assets[lastMusic.value].sound.nextIDToPlay = thisMusic;

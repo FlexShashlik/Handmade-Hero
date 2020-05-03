@@ -131,7 +131,7 @@ OutputPlayingSounds
                 v2 volume = playingSound->currentVolume;
                 v2 dVolume = secondsPerSample * playingSound->dCurrentVolume;
                 v2 dVolumeChunk = 4.0f * dVolume;
-                r32 dSample = playingSound->dSample;
+                r32 dSample = playingSound->dSample * 1.9f;
                 r32 dSampleChunk = 4.0f * dSample;
 
                 // NOTE: Channel 0
@@ -157,17 +157,14 @@ OutputPlayingSounds
                 ui32 chunksToMix = totalChunksToMix;
                 r32 realChunksRemainingInSound = (loadedSound->sampleCount - RoundR32ToI32(playingSound->samplesPlayed)) / dSampleChunk;
                 ui32 chunksRemainingInSound = RoundR32ToI32(realChunksRemainingInSound);
-                b32 inputSamplesEnded = false;
                 if(chunksToMix > chunksRemainingInSound)
                 {
                     chunksToMix = chunksRemainingInSound;
-                    inputSamplesEnded = true;
                 }
 
-                b32 volumeEnded[AudioStateOutputChannelCount] = {};
-                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEnded); channelIndex++)
+                ui32 volumeEndsAt[AudioStateOutputChannelCount] = {};
+                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEndsAt); channelIndex++)
                 {
-                    // TODO: Fix the "both volumes end at the same time" bug
                     if(dVolumeChunk.e[channelIndex] != 0.0f)
                     {
                         r32 deltaVolume = (playingSound->targetVolume.e[channelIndex] - volume.e[channelIndex]);
@@ -175,7 +172,7 @@ OutputPlayingSounds
                         if(chunksToMix > volumeChunkCount)
                         {
                             chunksToMix = volumeChunkCount;
-                            volumeEnded[channelIndex] = true;
+                            volumeEndsAt[channelIndex] = volumeChunkCount;
                         }
                     }
                 }
@@ -232,9 +229,9 @@ OutputPlayingSounds
 
                 playingSound->currentVolume.e[0] = ((r32 *)&volume0)[0];
                 playingSound->currentVolume.e[1] = ((r32 *)&volume1)[1];
-                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEnded); channelIndex++)
+                for(ui32 channelIndex = 0; channelIndex < ArrayCount(volumeEndsAt); channelIndex++)
                 {
-                    if(volumeEnded[channelIndex])
+                    if(chunksToMix == volumeEndsAt[channelIndex])
                     {
                         playingSound->currentVolume.e[channelIndex] = playingSound->targetVolume.e[channelIndex];
                         playingSound->dCurrentVolume.e[channelIndex] = 0.0f;
@@ -245,7 +242,7 @@ OutputPlayingSounds
                 Assert(totalChunksToMix >= chunksToMix);
                 totalChunksToMix -= chunksToMix;
 
-                if(inputSamplesEnded)
+                if(chunksToMix == chunksRemainingInSound)
                 {
                     if(IsValid(info->nextIDToPlay))
                     {
