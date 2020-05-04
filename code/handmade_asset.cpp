@@ -1,3 +1,4 @@
+#if 0
 #pragma pack(push, 1)
 struct bitmap_header
 {
@@ -59,17 +60,6 @@ struct WAVE_fmt
     ui8 subFormat[16];
 };
 #pragma pack(pop)
-
-inline v2
-TopDownAlign(loaded_bitmap *bmp, v2 align)
-{
-    align.y = (r32)(bmp->height - 1) - align.y;
-
-    align.x = SafeRatio0(align.x, (r32)bmp->width);
-    align.y = SafeRatio0(align.y, (r32)bmp->height);
-    
-    return align;
-}
 
 internal loaded_bitmap
 DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
@@ -316,6 +306,7 @@ DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCou
 
     return result;
 }
+#endif
 
 struct load_bitmap_work
 {
@@ -326,6 +317,14 @@ struct load_bitmap_work
 
     asset_state finalState;
 };
+
+internal loaded_bitmap
+DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
+{
+    Assert(!"NO");
+    loaded_bitmap result = {};
+    return result;
+}
 
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadBitmapWork)
 {
@@ -370,6 +369,7 @@ LoadBitmap(game_assets *assets, bitmap_id id)
     }
 }
 
+
 struct load_sound_work
 {
     game_assets *assets;
@@ -379,6 +379,14 @@ struct load_sound_work
 
     asset_state finalState;
 };
+
+internal loaded_sound
+DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCount)
+{
+    Assert(!"NO");
+    loaded_sound result = {};
+    return result;
+}
 
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadSoundWork)
 {
@@ -545,6 +553,7 @@ GetFirstSoundFrom(game_assets *assets, asset_type_id typeID)
     return result;
 }
 
+#if 0
 internal void
 BeginAssetType(game_assets *assets, asset_type_id typeID)
 {
@@ -615,6 +624,7 @@ EndAssetType(game_assets *assets)
     assets->debugAssetType = 0;
     assets->debugAsset = 0;
 }
+#endif
 
 internal game_assets *
 AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tranState)
@@ -637,6 +647,42 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     assets->tagCount = 1024 * Asset_Count;
     assets->tags = PushArray(arena, assets->tagCount, asset_tag);
 
+    debug_read_file_result readResult = DEBUGPlatformReadEntireFile("test.hha");
+    if(readResult.contentsSize != 0)
+    {
+        hha_header *header = (hha_header *)readResult.contents;
+        Assert(header->magicValue == HHA_MAGIC_VALUE);
+        Assert(header->version == HHA_VERSION);
+        
+        assets->assetCount = header->assetCount;
+        assets->assets = PushArray(arena, assets->assetCount, asset);
+        assets->slots = PushArray(arena, assets->assetCount, asset_slot);
+        
+        assets->tagCount = header->tagCount;
+        assets->tags = PushArray(arena, assets->tagCount, asset_tag);
+
+        hha_tag *hhaTags = (hha_tag *)((ui8 *)readResult.contents + header->tags);
+        for(ui32 tagIndex = 0; tagIndex < assets->tagCount; tagIndex++)
+        {
+            hha_tag *source = hhaTags + tagIndex;
+            asset_tag *dest = assets->tags + tagIndex;
+
+            dest->id = source->id;
+            dest->value = source->value;
+        }
+
+#if 0
+        for()
+        {
+        }
+
+        for()
+        {
+        }
+#endif
+    }
+    
+#if 0
     assets->debugUsedAssetCount = 1;
     
     BeginAssetType(assets, Asset_Shadow);
@@ -759,6 +805,7 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     AddSoundAsset(assets, "test3/puhp_00.wav");
     AddSoundAsset(assets, "test3/puhp_01.wav");
     EndAssetType(assets);
+#endif
     
     return assets;
 }

@@ -131,7 +131,7 @@ OutputPlayingSounds
                 v2 volume = playingSound->currentVolume;
                 v2 dVolume = secondsPerSample * playingSound->dCurrentVolume;
                 v2 dVolumeChunk = 4.0f * dVolume;
-                r32 dSample = playingSound->dSample * 1.9f;
+                r32 dSample = playingSound->dSample;
                 r32 dSampleChunk = 4.0f * dSample;
 
                 // NOTE: Channel 0

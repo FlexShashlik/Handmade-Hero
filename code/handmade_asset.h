@@ -93,7 +93,8 @@ struct game_assets
     asset_slot *slots;
     
     asset_type assetTypes[Asset_Count];
-    
+
+#if 0
     // NOTE: Structured assets
     //hero_bitmaps heroBitmaps[4];
 
@@ -102,6 +103,7 @@ struct game_assets
     ui32 debugUsedTagCount;
     asset_type *debugAssetType;
     asset *debugAsset;
+#endif
 };
 
 inline loaded_bitmap *

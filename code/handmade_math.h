@@ -911,3 +911,31 @@ InvertedInfinityRectangle(void)
 
     return result;
 }
+
+inline v4
+SRGB255ToLinear1(v4 c)
+{
+    v4 result;
+
+    r32 inv255 = 1.0f / 255.0f;
+    
+    result.r = Square(inv255 * c.r);
+    result.g = Square(inv255 * c.g);
+    result.b = Square(inv255 * c.b);
+    result.a = inv255 * c.a;
+
+    return result;
+}
+
+inline v4
+Linear1ToSRGB255(v4 c)
+{
+    v4 result;
+    
+    result.r = 255.0f * SqRt(c.r);
+    result.g = 255.0f * SqRt(c.g);
+    result.b = 255.0f * SqRt(c.b);
+    result.a = 255.0f * c.a;
+
+    return result;
+}
