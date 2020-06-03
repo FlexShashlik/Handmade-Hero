@@ -1,5 +1,16 @@
 #define HHA_CODE(a, b, c, d) (((ui32)(a) << 0) | ((ui32)(b) << 8) | ((ui32)(c) << 16) | ((ui32)(d) << 24))
+
 #pragma pack(push, 1)
+struct bitmap_id
+{
+    ui32 value;
+};
+
+struct sound_id
+{
+    ui32 value;
+};
+
 struct hha_header
 {
 #define HHA_MAGIC_VALUE HHA_CODE('h', 'h', 'a', 'f')
@@ -40,7 +51,7 @@ struct hha_sound
 {
     ui32 sampleCount;
     ui32 channelCount;
-    ui32 nextIDToPlay;
+    sound_id nextIDToPlay;
 };
 
 struct hha_asset

@@ -125,7 +125,7 @@ OutputPlayingSounds
             loaded_sound *loadedSound = GetSound(assets, playingSound->id);
             if(loadedSound)
             {
-                asset_sound_info *info = GetSoundInfo(assets, playingSound->id);
+                hha_sound *info = GetSoundInfo(assets, playingSound->id);
                 PrefetchSound(assets, info->nextIDToPlay);
             
                 v2 volume = playingSound->currentVolume;

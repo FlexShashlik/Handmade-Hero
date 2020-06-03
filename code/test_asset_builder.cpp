@@ -404,7 +404,7 @@ AddSoundAsset(game_assets *assets, char *fileName, ui32 firstSampleIndex = 0, ui
     hha->firstTagIndex = assets->tagCount;
     hha->onePastLastTagIndex = hha->firstTagIndex;
     hha->sound.sampleCount = sampleCount;
-    hha->sound.nextIDToPlay = 0;
+    hha->sound.nextIDToPlay = {0};
 
     source->type = AssetType_Sound;
     source->fileName = fileName;
@@ -557,7 +557,7 @@ main(int argCount, char **args)
         sound_id thisMusic = AddSoundAsset(assets, "test3/music_test.wav", firstSampleIndex, sampleCount);
         if(lastMusic.value)
         {
-            assets->assets[lastMusic.value].sound.nextIDToPlay = thisMusic.value;
+            assets->assets[lastMusic.value].sound.nextIDToPlay = thisMusic;
         }
         
         lastMusic = thisMusic;

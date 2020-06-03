@@ -318,20 +318,20 @@ struct load_bitmap_work
     asset_state finalState;
 };
 
-internal loaded_bitmap
-DEBUGLoadBMP(char *fileName, v2 alignPercentage = {0.5f, 0.5f})
-{
-    Assert(!"NO");
-    loaded_bitmap result = {};
-    return result;
-}
-
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadBitmapWork)
 {
     load_bitmap_work *work = (load_bitmap_work *)data;
 
-    asset_bitmap_info *info = &work->assets->assets[work->id.value].bitmap;
-    *work->bitmap = DEBUGLoadBMP(info->fileName, info->alignPercentage);
+    hha_asset *hhaAsset = &work->assets->assets[work->id.value];
+    hha_bitmap *info = &hhaAsset->bitmap;
+    loaded_bitmap *bitmap = work->bitmap;
+
+    bitmap->alignPercentage = v2{info->alignPercentage[0], info->alignPercentage[1]};
+    bitmap->widthOverHeight = (r32)info->dim[0] / (r32)info->dim[1];
+    bitmap->width = info->dim[0];
+    bitmap->height = info->dim[1];
+    bitmap->pitch = 4 * info->dim[0];
+    bitmap->memory = work->assets->hhaContents + hhaAsset->dataOffset;
     
     CompletePreviousWritesBeforeFutureWrites;
     
@@ -369,7 +369,6 @@ LoadBitmap(game_assets *assets, bitmap_id id)
     }
 }
 
-
 struct load_sound_work
 {
     game_assets *assets;
@@ -380,20 +379,23 @@ struct load_sound_work
     asset_state finalState;
 };
 
-internal loaded_sound
-DEBUGLoadWAV(char *fileName, ui32 sectionFirstSampleIndex, ui32 sectionSampleCount)
-{
-    Assert(!"NO");
-    loaded_sound result = {};
-    return result;
-}
-
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadSoundWork)
 {
     load_sound_work *work = (load_sound_work *)data;
 
-    asset_sound_info *info = &work->assets->assets[work->id.value].sound;
-    *work->sound = DEBUGLoadWAV(info->fileName, info->firstSampleIndex, info->sampleCount);
+    hha_asset *hhaAsset = &work->assets->assets[work->id.value];
+    hha_sound *info = &hhaAsset->sound;
+    loaded_sound *sound = work->sound;
+    
+    sound->sampleCount = info->sampleCount;
+    sound->channelCount = info->channelCount;
+    Assert(sound->channelCount < ArrayCount(sound->samples));
+    ui64 sampleDataOffset = hhaAsset->dataOffset;
+    for(ui32 channelIndex = 0; channelIndex < sound->channelCount; channelIndex++)
+    {
+        sound->samples[channelIndex] = (i16 *)(work->assets->hhaContents + sampleDataOffset);
+        sampleDataOffset += sound->sampleCount * sizeof(i16);
+    }
     
     CompletePreviousWritesBeforeFutureWrites;
     
@@ -445,12 +447,12 @@ GetBestMatchAssetFrom
     asset_type *type = assets->assetTypes + typeID;
     for(ui32 assetIndex = type->firstAssetIndex; assetIndex < type->onePastLastAssetIndex; assetIndex++)
     {
-        asset *asset = assets->assets + assetIndex;
+        hha_asset *asset = assets->assets + assetIndex;
 
         r32 totalWeightedDiff = 0.0f;
         for(ui32 tagIndex = asset->firstTagIndex; tagIndex < asset->onePastLastTagIndex; tagIndex++)
         {
-            asset_tag *tag = assets->tags + tagIndex;
+            hha_tag *tag = assets->tags + tagIndex;
 
             r32 a = matchVector->e[tag->id];
             r32 b = tag->value;
@@ -639,47 +641,121 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     }
     
     assets->tagRange[Tag_FacingDirection] = Tau32;
+
+    assets->tagCount = 0;
+    assets->assetCount = 0;
+
+#if 0
+    {
+        platform_file_group fileGroup = PlatformGetAllFilesOfTypeBegin("hha");
+        assets->fileCount = fileGroup.fileCount;
+        assets->files = PushArray(arena, assets->fileCount, asset_file);
+        for(ui32 fileIndex = 0; fileIndex < assets->fileCount; fileIndex++)
+        {
+            asset_file *file = assets->files + fileIndex;
+
+            ui64 assetTypeArraySize = file->header.assetTypeCount * sizeof(hha_asset_type);
+
+            ZeroStruct(file->header);
+            file->handle = PlatformOpenFile(fileGroup, fileIndex);
+            PlatformReadDataFromFile(file->handle, 0, sizeof(file->header), &file->header);
+            file->assetTypeArray = (hha_asset_type *)PushSize(arena, assetTypeArraySize);
+            PlatformReadDataFromFile(file->handle, file->header.assetTypes,
+                                     assetTypeArraySize, file->assetTypeArray);
+
+            if(header->magicValue != HHA_MAGIC_VALUE)
+            {
+                PlatformFileError(file->handle, "HHA file has an invalid magic value.");
+            }
+
+            if(header->version > HHA_VERSION)
+            {
+                PlatformFileError(file->handle, "HHA file is of a later version.");
+            }
+        
+            if(PlatformNoFileErrors(file->handle))
+            {
+                assets->tagCount += header->tagCount;
+                assets->assetsCount += header->assetCount;
+            }
+            else
+            {
+                // TODO: Notifying users about this
+                InvalidCodePath;
+            }
+        }
+        
+        PlatformGetAllFilesOfTypeEnd("hha");
+    }
     
-    assets->assetCount = 2 * 256 * Asset_Count;
-    assets->assets = PushArray(arena, assets->assetCount, asset);
+    assets->assets = PushArray(arena, assets->assetCount, hha_asset);
     assets->slots = PushArray(arena, assets->assetCount, asset_slot);
+    assets->tags = PushArray(arena, assets->tagCount, hha_tag);
+    
+    ui32 assetCount = 0;
+    ui32 tagCount = 0;
+    for(ui32 destTypeID = 0; destTypeID < Asset_Count; destTypeID++)
+    {
+        asset_type *destType = assets->assetTypes + destTypeID;
+        destType->firstAssetIndex = assetCount;
+        
+        for(ui32 fileIndex = 0; fileIndex < assets->fileCount; fileIndex++)
+        {
+            asset_file *file = assets->files + fileIndex;
+            if(PlatformNoFileErrors(file->handle))
+            {
+                for(ui32 sourceIndex = 0;
+                    sourceIndex < file->header.assetTypeCount;
+                    sourceIndex++)
+                {
+                    hha_asset_type *sourceType = file->assetTypeArray + sourceIndex;
+                    
+                    if(sourceType->typeID == destTypeID)
+                    {
+                        PlatformReadDataFromFile();
+                        assetCount++;
+                    }
+                }
+            }
+        }
 
-    assets->tagCount = 1024 * Asset_Count;
-    assets->tags = PushArray(arena, assets->tagCount, asset_tag);
-
+        destType->onePastLastAssetIndex = assetCount;
+    }
+    
+    Assert(assetCount == assets->assetCount);
+    Assert(tagCount == assets->tagCount);
+#endif
+    
     debug_read_file_result readResult = DEBUGPlatformReadEntireFile("test.hha");
     if(readResult.contentsSize != 0)
     {
         hha_header *header = (hha_header *)readResult.contents;
-        Assert(header->magicValue == HHA_MAGIC_VALUE);
-        Assert(header->version == HHA_VERSION);
         
         assets->assetCount = header->assetCount;
-        assets->assets = PushArray(arena, assets->assetCount, asset);
+        assets->assets = (hha_asset *)((ui8 *)readResult.contents + header->assets);
         assets->slots = PushArray(arena, assets->assetCount, asset_slot);
         
         assets->tagCount = header->tagCount;
-        assets->tags = PushArray(arena, assets->tagCount, asset_tag);
-
-        hha_tag *hhaTags = (hha_tag *)((ui8 *)readResult.contents + header->tags);
-        for(ui32 tagIndex = 0; tagIndex < assets->tagCount; tagIndex++)
+        assets->tags = (hha_tag *)((ui8 *)readResult.contents + header->tags);
+        
+        hha_asset_type *hhaAssetTypes = (hha_asset_type *)((ui8 *)readResult.contents + header->assetTypes);
+        for(ui32 index = 0; index < header->assetTypeCount; index++)
         {
-            hha_tag *source = hhaTags + tagIndex;
-            asset_tag *dest = assets->tags + tagIndex;
+            hha_asset_type *source = hhaAssetTypes + index;
+            if(source->typeID < Asset_Count)
+            {
+                asset_type *dest = assets->assetTypes + source->typeID;
 
-            dest->id = source->id;
-            dest->value = source->value;
+                // TODO: Support merging
+                Assert(dest->firstAssetIndex == 0);
+                Assert(dest->onePastLastAssetIndex == 0);
+                    
+                dest->firstAssetIndex = source->firstAssetIndex;
+                dest->onePastLastAssetIndex = source->onePastLastAssetIndex;
+            }
         }
-
-#if 0
-        for()
-        {
-        }
-
-        for()
-        {
-        }
-#endif
+        
+        assets->hhaContents = (ui8 *)readResult.contents;
     }
     
 #if 0

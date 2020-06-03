@@ -1,13 +1,3 @@
-struct bitmap_id
-{
-    ui32 value;
-};
-
-struct sound_id
-{
-    ui32 value;
-};
-
 struct loaded_sound
 {
     ui32 sampleCount; // NOTE: This is the sample count divided by 8
@@ -35,12 +25,6 @@ struct asset_type
     ui32 onePastLastAssetIndex;
 };
 
-struct asset_tag
-{
-    ui32 id;
-    r32 value;
-};
-
 enum asset_state
 {
     AssetState_Unloaded,
@@ -59,21 +43,21 @@ struct asset_slot
     };
 };
 
-struct asset
-{
-    ui32 firstTagIndex;
-    ui32 onePastLastTagIndex;
-
-    union
-    {
-        asset_bitmap_info bitmap;
-        asset_sound_info sound;
-    };
-};
-
 struct asset_vector
 {
     r32 e[Tag_Count];
+};
+
+struct asset_file
+{
+    //platform_file_handle handle;
+
+    // TODO: If we ever do thread stacks, AssetTypeArray doesn't
+    // actually need to be kept here probably.
+    hha_header header;
+    hha_asset_type *assetTypeArray;
+
+    ui32 tagBase;
 };
 
 struct game_assets
@@ -83,16 +67,21 @@ struct game_assets
     memory_arena arena;
 
     r32 tagRange[Tag_Count];
+
+    ui32 fileCount;
+    asset_file *files;
     
     ui32 tagCount;
-    asset_tag *tags;
+    hha_tag *tags;
     
     ui32 assetCount;
-    asset *assets;
+    hha_asset *assets;
 
     asset_slot *slots;
     
     asset_type assetTypes[Asset_Count];
+
+    ui8 *hhaContents;
 
 #if 0
     // NOTE: Structured assets
@@ -131,11 +120,11 @@ GetSound(game_assets *assets, sound_id id)
     return result;
 }
 
-inline asset_sound_info *
+inline hha_sound *
 GetSoundInfo(game_assets *assets, sound_id id)
 {
     Assert(id.value <= assets->assetCount);
-    asset_sound_info *result = &assets->assets[id.value].sound;
+    hha_sound *result = &assets->assets[id.value].sound;
 
     return result;
 }
