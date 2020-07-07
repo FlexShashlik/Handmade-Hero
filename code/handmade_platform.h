@@ -245,13 +245,57 @@ typedef struct game_input
     game_controller_input controllers[5];
 } game_input;
 
+typedef struct platform_file_handle
+{
+    b32 hasErrors;
+} platform_file_handle;
+
+typedef struct platform_file_group
+{
+    ui32 fileCount;
+    void *data;
+} platform_file_group;
+
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(name) platform_file_group name(char *type)
+typedef PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(platform_get_all_files_of_type_begin);
+
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_END(name) void name(platform_file_group fileGroup)
+typedef PLATFORM_GET_ALL_FILE_OF_TYPE_END(platform_get_all_files_of_type_end);
+
+#define PLATFORM_OPEN_FILE(name) platform_file_handle * name(platform_file_group fileGroup, ui32 fileIndex)
+typedef PLATFORM_OPEN_FILE(platform_open_file);
+
+#define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *source, ui64 offset, ui64 size, void *dest)
+typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
+
+#define PLATFORM_FILE_ERROR(name) void name(platform_file_handle *handle, char *message)
+typedef PLATFORM_FILE_ERROR(platform_file_error);
+
+#define PlatformNoFileErrors(handle) (!(handle)->hasErrors)
+
 struct platform_work_queue;
 #define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(platform_work_queue *queue, void *data)
 typedef PLATFORM_WORK_QUEUE_CALLBACK(platform_work_queue_callback);
 
 typedef void platform_add_entry(platform_work_queue *queue, platform_work_queue_callback *callback, void *data);
 typedef void platform_complete_all_work(platform_work_queue *queue);
+
+typedef struct platform_api
+{
+    platform_add_entry *AddEntry;
+    platform_complete_all_work *CompleteAllWork;
+
+    platform_get_all_files_of_type_begin *GetAllFilesOfTypeBegin;
+    platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;
+    platform_open_file *OpenFile;
+    platform_read_data_from_file *ReadDataFromFile;
+    platform_file_error *FileError;
     
+    debug_platform_free_file_memory *DEBUGFreeFileMemory;
+    debug_platform_read_entire_file *DEBUGReadEntireFile;
+    debug_platform_write_entire_file *DEBUGWriteEntireFile;
+} platform_api;
+
 typedef struct game_memory
 {
     ui64 permanentStorageSize;
@@ -262,13 +306,8 @@ typedef struct game_memory
 
     platform_work_queue *lowPriorityQueue;
     platform_work_queue *highPriorityQueue;
-    
-    platform_add_entry *platformAddEntry;
-    platform_complete_all_work *platformCompleteAllWork;
-    
-    debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
-    debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
-    debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
+
+    platform_api platformAPI;
 
 #if HANDMADE_INTERNAL
     debug_cycle_counter counters[DebugCycleCounter_Count];

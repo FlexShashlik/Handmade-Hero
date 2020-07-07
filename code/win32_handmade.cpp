@@ -1400,6 +1400,29 @@ Win32MakeQueue(platform_work_queue *queue, ui32 threadCount)
     }
 }
 
+internal PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
+{
+    platform_file_group fileGroup = {};
+
+    return fileGroup;
+}
+
+internal PLATFORM_GET_ALL_FILE_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
+{
+}
+
+internal PLATFORM_OPEN_FILE(Win32OpenFile)
+{
+    return 0;
+}
+
+internal PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
+{
+}
+
+internal PLATFORM_FILE_ERROR(Win32FileError)
+{
+}
 
 int
 CALLBACK WinMain
@@ -1575,12 +1598,18 @@ CALLBACK WinMain
 
             gameMemory.highPriorityQueue = &highPriorityQueue;
             gameMemory.lowPriorityQueue = &lowPriorityQueue;
-            gameMemory.platformAddEntry = Win32AddEntry;
-            gameMemory.platformCompleteAllWork = Win32CompleteAllWork;
+            gameMemory.platformAPI.AddEntry = Win32AddEntry;
+            gameMemory.platformAPI.CompleteAllWork = Win32CompleteAllWork;
             
-            gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-            gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            gameMemory.platformAPI.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
+            gameMemory.platformAPI.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
+            gameMemory.platformAPI.OpenFile = Win32OpenFile;
+            gameMemory.platformAPI.ReadDataFromFile = Win32ReadDataFromFile;
+            gameMemory.platformAPI.FileError = Win32FileError;
+            
+            gameMemory.platformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            gameMemory.platformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+            gameMemory.platformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
             
             win32State.totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
             win32State.gameMemoryBlock = VirtualAlloc

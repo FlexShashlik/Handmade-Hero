@@ -592,7 +592,7 @@ FillGroundChunk
         {
             groundBuffer->pos = *chunkPos;
             
-            PlatformAddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
+            Platform.AddEntry(tranState->lowPriorityQueue, FillGroundChunkWork, work);
         }
         else
         {
@@ -791,10 +791,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     Assert(&input->controllers[0].terminator - &input->controllers[0].buttons[0] == ArrayCount(input->controllers[0].buttons));
     Assert(sizeof(game_state) <= memory->permanentStorageSize);
-    
-    PlatformAddEntry = memory->platformAddEntry;
-    PlatformCompleteAllWork = memory->platformCompleteAllWork;
-    DEBUGPlatformReadEntireFile = memory->DEBUGPlatformReadEntireFile;
+
+    Platform = memory->platformAPI;
     
     ui32 groundBufferWidth = 256;
     ui32 groundBufferHeight = 256;
