@@ -43,6 +43,12 @@ struct asset_slot
     };
 };
 
+struct asset
+{
+    hha_asset hha;
+    ui32 fileIndex;
+};
+
 struct asset_vector
 {
     r32 e[Tag_Count];
@@ -75,15 +81,14 @@ struct game_assets
     hha_tag *tags;
     
     ui32 assetCount;
-    hha_asset *assets;
+    asset *assets;
 
     asset_slot *slots;
     
     asset_type assetTypes[Asset_Count];
 
-    ui8 *hhaContents;
-    
 #if 0
+    ui8 *hhaContents;
     
     // NOTE: Structured assets
     //hero_bitmaps heroBitmaps[4];
@@ -101,7 +106,13 @@ GetBitmap(game_assets *assets, bitmap_id id)
 {
     Assert(id.value <= assets->assetCount);
     asset_slot *slot = assets->slots + id.value;
-    loaded_bitmap *result = (slot->state >= AssetState_Loaded) ? slot->bitmap : 0;
+    
+    loaded_bitmap *result = 0;
+    if(slot->state >= AssetState_Loaded)
+    {
+        CompletePreviousReadsBeforeFutureReads;
+        result = slot->bitmap;
+    }
     
     return result;
 }
@@ -118,7 +129,13 @@ GetSound(game_assets *assets, sound_id id)
 {
     Assert(id.value <= assets->assetCount);
     asset_slot *slot = assets->slots + id.value;
-    loaded_sound *result = (slot->state >= AssetState_Loaded) ? slot->sound : 0;
+    
+    loaded_sound *result = 0;
+    if(slot->state >= AssetState_Loaded)
+    {
+        CompletePreviousReadsBeforeFutureReads;
+        result = slot->sound;
+    }
     
     return result;
 }
@@ -127,7 +144,7 @@ inline hha_sound *
 GetSoundInfo(game_assets *assets, sound_id id)
 {
     Assert(id.value <= assets->assetCount);
-    hha_sound *result = &assets->assets[id.value].sound;
+    hha_sound *result = &assets->assets[id.value].hha.sound;
 
     return result;
 }

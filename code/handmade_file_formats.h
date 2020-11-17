@@ -26,6 +26,8 @@ struct hha_header
     ui64 tags;
     ui64 assetTypes;
     ui64 assets;
+
+    // TODO: Primacy numbers for asset files
 };
 
 struct hha_tag

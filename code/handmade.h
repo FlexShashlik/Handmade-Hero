@@ -142,6 +142,17 @@ ZeroSize(memory_index size, void *ptr)
     }
 }
 
+inline void
+Copy(memory_index size, void *sourceInit, void *destInit)
+{
+    ui8 *src = (ui8 *)sourceInit;
+    ui8 *dest = (ui8 *)destInit;
+    while(size--)
+    {
+        *dest++ = *src++;
+    }
+}
+
 #include "handmade_intrinsics.h"
 #include "handmade_math.h"
 #include "handmade_file_formats.h"

@@ -6,6 +6,7 @@
 #include "math.h"
 
 #if COMPILER_MSVC
+#define CompletePreviousReadsBeforeFutureReads _ReadBarrier()
 #define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
 inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 expected)
 {
@@ -13,6 +14,8 @@ inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 
     return result;
 }
 #elif COMPILER_LLVM
+// TODO: Not sure
+#define CompletePreviousReadsBeforeFutureReads asm volatile("" ::: "memory")
 #define CompletePreviousWritesBeforeFutureWrites asm volatile("" ::: "memory")
 inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 expected)
 {
@@ -20,7 +23,7 @@ inline ui32 AtomicCompareExchangeUI32(ui32 volatile *value, ui32 newValue, ui32 
     return result;
 }
 #else
-// TODO: Need GCC/LLVM equivalents!
+// TODO: Other compilers?
 #endif
 
 inline i32
