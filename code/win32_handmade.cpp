@@ -1411,7 +1411,7 @@ internal PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
     platform_file_group fileGroup = {};
 
     // TODO: Actually implement this!!!!!
-    fileGroup.fileCount = 1;
+    fileGroup.fileCount = 3;
 
     return fileGroup;
 }
@@ -1423,7 +1423,19 @@ internal PLATFORM_GET_ALL_FILE_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
 internal PLATFORM_OPEN_FILE(Win32OpenFile)
 {
     // TODO: Actually implement this!!!
-    char *fileName = "test.hha";
+    char *fileName = "invalid.hha";
+    if(fileIndex == 0)
+    {
+        fileName = "test1.hha";
+    }
+    else if(fileIndex == 1)
+    {
+        fileName = "test2.hha";
+    }
+    else if(fileIndex == 2)
+    {
+        fileName = "test3.hha";
+    }
     
     win32_platform_file_handle *result = (win32_platform_file_handle *)VirtualAlloc(0, sizeof(win32_platform_file_handle),
                                                                         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);

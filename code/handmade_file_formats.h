@@ -43,6 +43,13 @@ struct hha_asset_type
     ui32 onePastLastAssetIndex;
 };
 
+enum hha_sound_chain
+{
+    HHASoundChain_None,
+    HHASoundChain_Loop,
+    HHASoundChain_Advance,
+};
+
 struct hha_bitmap
 {
     ui32 dim[2];
@@ -53,7 +60,7 @@ struct hha_sound
 {
     ui32 sampleCount;
     ui32 channelCount;
-    sound_id nextIDToPlay;
+    ui32 chain; // NOTE: hha_sound_chain
 };
 
 struct hha_asset

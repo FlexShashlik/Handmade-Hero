@@ -264,8 +264,8 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     
     assets->tagRange[Tag_FacingDirection] = Tau32;
 
-    assets->tagCount = 0;
-    assets->assetCount = 0;
+    assets->tagCount = 1;
+    assets->assetCount = 1;
 
     {
         platform_file_group fileGroup = Platform.GetAllFilesOfTypeBegin("hha");
@@ -299,8 +299,11 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
         
             if(PlatformNoFileErrors(file->handle))
             {
-                assets->tagCount += file->header.tagCount;
-                assets->assetCount += file->header.assetCount;
+                // NOTE: The first asset and tag slot in every HHA is
+                // a null (reserved) so we don't count it as something
+                // we will need space for
+                assets->tagCount += (file->header.tagCount - 1);
+                assets->assetCount += (file->header.assetCount - 1);
             }
             else
             {
@@ -317,19 +320,27 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     assets->slots = PushArray(arena, assets->assetCount, asset_slot);
     assets->tags = PushArray(arena, assets->tagCount, hha_tag);
 
+    // NOTE: Reserve one null tag at the beggining
+    ZeroStruct(assets->tags[0]);
+    
     // NOTE: Load tags
     for(ui32 fileIndex = 0; fileIndex < assets->fileCount; fileIndex++)
     {
         asset_file *file = assets->files + fileIndex;
         if(PlatformNoFileErrors(file->handle))
         {
-            ui32 tagArraySize = sizeof(hha_tag) * file->header.tagCount;
-            Platform.ReadDataFromFile(file->handle, file->header.tags,
+            // NOTE: Skip the first tag, since it's null
+            ui32 tagArraySize = sizeof(hha_tag) * (file->header.tagCount - 1);
+            Platform.ReadDataFromFile(file->handle, file->header.tags + sizeof(hha_tag),
                                       tagArraySize, assets->tags + file->tagBase);
         }
     }
-    
+
+    // NOTE: Reserve one null asset at the beggining
     ui32 assetCount = 0;
+    ZeroStruct(*(assets->assets + assetCount));
+    assetCount++;
+    
     for(ui32 destTypeID = 0; destTypeID < Asset_Count; destTypeID++)
     {
         asset_type *destType = assets->assetTypes + destTypeID;
@@ -370,10 +381,18 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
                             
                             asset->fileIndex = fileIndex;
                             asset->hha = *hhaAsset;
-                            asset->hha.firstTagIndex += file->tagBase;
-                            asset->hha.onePastLastTagIndex += file->tagBase;
-                        }
 
+                            if(asset->hha.firstTagIndex == 0)
+                            {
+                                asset->hha.firstTagIndex = asset->hha.onePastLastTagIndex = 0;
+                            }
+                            else
+                            {
+                                asset->hha.firstTagIndex += (file->tagBase - 1);
+                                asset->hha.onePastLastTagIndex += (file->tagBase - 1);
+                            }
+                        }
+                            
                         EndTemporaryMemory(tempMem);
                     }
                 }
@@ -384,40 +403,6 @@ AllocateGameAssets(memory_arena *arena, memory_index size, transient_state *tran
     }
     
     Assert(assetCount == assets->assetCount);
-    
-#if 0
-    debug_read_file_result readResult = Platform.DEBUGReadEntireFile("test.hha");
-    if(readResult.contentsSize != 0)
-    {
-        hha_header *header = (hha_header *)readResult.contents;
-        
-        assets->assetCount = header->assetCount;
-        assets->assets = (hha_asset *)((ui8 *)readResult.contents + header->assets);
-        assets->slots = PushArray(arena, assets->assetCount, asset_slot);
-        
-        assets->tagCount = header->tagCount;
-        assets->tags = (hha_tag *)((ui8 *)readResult.contents + header->tags);
-        
-        hha_asset_type *hhaAssetTypes = (hha_asset_type *)((ui8 *)readResult.contents + header->assetTypes);
-        for(ui32 index = 0; index < header->assetTypeCount; index++)
-        {
-            hha_asset_type *source = hhaAssetTypes + index;
-            if(source->typeID < Asset_Count)
-            {
-                asset_type *dest = assets->assetTypes + source->typeID;
-
-                // TODO: Support merging
-                Assert(dest->firstAssetIndex == 0);
-                Assert(dest->onePastLastAssetIndex == 0);
-                    
-                dest->firstAssetIndex = source->firstAssetIndex;
-                dest->onePastLastAssetIndex = source->onePastLastAssetIndex;
-            }
-        }
-        
-        assets->hhaContents = (ui8 *)readResult.contents;
-    }
-#endif
     
     return assets;
 }
